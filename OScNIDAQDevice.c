@@ -1,25 +1,16 @@
 #include "OScNIDAQDevice.h"
+#include "OScNIDAQDevicePrivate.h"
 #include "OpenScanLibPrivate.h"
 
 #include <NIDAQmx.h>
 
 #include <string.h>
 
+#include <Windows.h>
+
 
 static OSc_Device **g_devices;
 static size_t g_deviceCount;
-
-
-struct OScNIDAQPrivateData
-{
-	char deviceName[OSc_MAX_STR_LEN + 1];
-};
-
-
-static inline struct OScNIDAQPrivateData *GetData(OSc_Device *device)
-{
-	return (struct OScNIDAQPrivateData *)(device->implData);
-}
 
 
 static OSc_Error NIDAQGetModelName(const char **name)
