@@ -28,7 +28,7 @@ struct OScNIDAQPrivateData
 	OSc_Setting **settings;
 	size_t settingCount;
 
-	TaskHandle  scanWaveformTaskHandle_, lineClockTaskHandle_, acqTaskHandle_,
+	TaskHandle  scanWaveformTaskHandle_, lineClockTaskHandle_, acqTaskHandle_, counterTaskHandle_,
 		lineClockFLIMTaskHandle_, frameClockFLIMTaskHandle_;
 	bool settingsChanged;	
 	// True when resolution, scanRate,or binFactor have changed since last acquisition
@@ -49,17 +49,20 @@ struct OScNIDAQPrivateData
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks
 
 	enum {
-		CHANNELS_RAW_IMAGE,
-		CHANNELS_KALMAN_AVERAGED,
-		CHANNELS_RAW_AND_KALMAN,
-		
 		CHANNEL1,
 		CHANNEL2,
+		CHANNEL3,
+		CHANNEL4,
 		CHANNELS_1_AND_2,
-
-		CHANNELS_NUM_VALUES,
+		CHANNELS1_2_3,
 	} channels;
 
+	uint16_t* ch1Buffer;
+	uint16_t* ch2Buffer;
+	uint16_t* ch3Buffer;
+	float64* rawLineData;
+	float64* avgLineData;
+	uint16_t* imageData; // whole-frame image of all channels
 
 	struct
 	{
