@@ -1,7 +1,7 @@
 #include "OScNIDAQDevice.h"
 #include "OScNIDAQDevicePrivate.h"
 #include "OpenScanLibPrivate.h"
-
+#include "OScNIDAQ.h"
 #include <NIDAQmx.h>
 
 #include <string.h>
@@ -99,9 +99,11 @@ static OSc_Error NIDAQGetImageSize(OSc_Device *device, uint32_t *width, uint32_t
 	return OSc_Error_OK;
 }
 
+// Same as OpenScanDAQ::GetNumberOfChannels()
 static OSc_Error NIDAQGetNumberOfChannels(OSc_Device *device, uint32_t *nChannels)
 {
-	*nChannels = GetData(device)->channels == CHANNELS_1_AND_2 ? 2 : 1;
+	*nChannels = GetData(device)->channels == CHANNELS1_2_3 ? 3 :
+		CHANNELS_1_AND_2 ? 2 : 1;
 	return OSc_Error_OK;
 }
 
@@ -134,7 +136,8 @@ static OSc_Error ArmImpl(OSc_Device *device, OSc_Acquisition *acq)
 
 	if (GetData(device)->settingsChanged)
 	{
-		OSc_Return_If_Error(ReloadWaveform(device));
+		// TODO: Reload param
+		OSc_Return_If_Error(ReconfigTiming(device));
 		GetData(device)->settingsChanged = false;
 	}
 
@@ -273,7 +276,7 @@ static void CreateDevice(const char* name)
 	g_devices[g_deviceCount++] = device;
 }
 
-
+/*
 static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *count)
 {
 	if (g_devices)
@@ -291,6 +294,7 @@ static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *count)
 
 	return OSc_Error_OK;
 }
+*/
 
 
 

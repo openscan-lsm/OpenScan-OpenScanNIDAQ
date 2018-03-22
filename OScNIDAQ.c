@@ -67,7 +67,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 }
 
 
-OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
+static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
 
@@ -109,7 +109,6 @@ OSc_Error OpenDAQ(OSc_Device *device)
 		*/
 		return err;
 	}
-
 
 	if (OSc_Check_Error(err, SetTriggers(device))) {
 		return err;
@@ -302,7 +301,7 @@ Error:
 
 }
 
-/*
+
 // same to Shutdown() in old OpenScan format
 OSc_Error CloseDAQ(OSc_Device *device)
 {
@@ -310,11 +309,11 @@ OSc_Error CloseDAQ(OSc_Device *device)
 	//StopAcquisitionAndWait(device, acq);
 	--g_openDeviceCount;
 	if (g_openDeviceCount == 0)
-		OSc_Return_If_Error(DeinitializeNiFpga());
+		OSc_Return_If_Error(DeinitializeNIDAQ());
 
 	return OSc_Error_OK;
 }
-*/
+
 
 
 
@@ -563,7 +562,7 @@ Error:
 
 }
 
-
+/*
 OSc_Error ReloadWaveform(OSc_Device *device)
 {
 	OSc_Log_Debug(device, "Sending parameters...");
@@ -578,7 +577,7 @@ OSc_Error ReloadWaveform(OSc_Device *device)
 
 	return OSc_Error_OK;
 }
-
+*/
 // DAQ version; start all tasks
 // Arm acquisition task first. Then make sure the (digital) line clock output 
 // is armed before the (analog) waveform output. 
@@ -829,8 +828,8 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 	return 0;
 }
 
-/*
-OSc_Error RunAcquisitionLoop(OSc_Device *device, OSc_Acquisition *acq)
+
+static OSc_Error RunAcquisitionLoop(OSc_Device *device, OSc_Acquisition *acq)
 {
 	GetData(device)->acquisition.acquisition = acq;
 	DWORD id;
@@ -838,10 +837,10 @@ OSc_Error RunAcquisitionLoop(OSc_Device *device, OSc_Acquisition *acq)
 		CreateThread(NULL, 0, AcquisitionLoop, device, 0, &id);
 	return OSc_Error_OK;
 }
-*/
 
 
-OSc_Error StopAcquisitionAndWait(OSc_Device *device, OSc_Acquisition *acq)
+
+static OSc_Error StopAcquisitionAndWait(OSc_Device *device, OSc_Acquisition *acq)
 {
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
@@ -870,7 +869,7 @@ static bool IsCapturing(OSc_Device *device) {
 
 
 // Iscapturing in old openscanDAQ
-OSc_Error IsAcquisitionRunning(OSc_Device *device, bool *isRunning)
+static OSc_Error IsAcquisitionRunning(OSc_Device *device, bool *isRunning)
 {
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	*isRunning = GetData(device)->acquisition.running;
@@ -879,7 +878,7 @@ OSc_Error IsAcquisitionRunning(OSc_Device *device, bool *isRunning)
 }
 
 
-OSc_Error WaitForAcquisitionToFinish(OSc_Device *device)
+static OSc_Error WaitForAcquisitionToFinish(OSc_Device *device)
 {
 	OSc_Error err = OSc_Error_OK;
 	CONDITION_VARIABLE *cv = &(GetData(device)->acquisition.acquisitionFinishCondition);
@@ -893,7 +892,7 @@ OSc_Error WaitForAcquisitionToFinish(OSc_Device *device)
 	return err;
 }
 
-static OSc_Error ReconfigTiming(OSc_Device *device)
+OSc_Error ReconfigTiming(OSc_Device *device)
 {
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
@@ -1005,8 +1004,8 @@ OSc_Error SnapImage(OSc_Device *device) {
 
 	//if (IsCapturing(device))
 		//return OSc_Error_Acquisition_Running;
-	bool isRunning;
-	IsAcquisitionRunning(device, isRunning);
+	bool isRunning = false;
+	IsAcquisitionRunning(device, &isRunning);
 	if(isRunning)
 		return OSc_Error_Acquisition_Running;
 	OSc_Error err;
@@ -1104,7 +1103,7 @@ OSc_Error SnapImage(OSc_Device *device) {
 
 // DAQmx Commit the settings into hardware 
 // This allows for very efficient restarts
-static OSc_Error CommitTasks(OSc_Device *device)
+OSc_Error CommitTasks(OSc_Device *device)
 {
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
@@ -1183,7 +1182,7 @@ Error:
 
 
 // Unregister DAQ line acquisition event
-static OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
+OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
 {
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
@@ -1227,7 +1226,7 @@ Error:
 }
 
 // register DAQ line acquisition event
-static OSc_Error RegisterLineAcqEvent(OSc_Device *device)
+OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 {
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
@@ -1252,7 +1251,7 @@ static OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 	LogMessage("Registered line acquisition callback event", true);
 	*/
 	return OSc_Error_OK;
-
+/*
 Error:
 	if (acqTaskHandle_)
 	{
@@ -1271,8 +1270,9 @@ Error:
 	{
 		err = DEVICE_ERR;
 	}
-	*/
+
 	return OSc_Error_Unknown;
+	*/
 }
 
 /*

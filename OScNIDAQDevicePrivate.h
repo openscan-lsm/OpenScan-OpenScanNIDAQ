@@ -55,6 +55,7 @@ struct OScNIDAQPrivateData
 		CHANNEL4,
 		CHANNELS_1_AND_2,
 		CHANNELS1_2_3,
+		CHANNELS_NUM_VALUES
 	} channels;
 
 	uint16_t* ch1Buffer;

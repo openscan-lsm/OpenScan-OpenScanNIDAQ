@@ -26,10 +26,11 @@ static OSc_Error GetScanRate(OSc_Setting *setting, double *value)
 	return OSc_Error_OK;
 }
 
-
+// OnScanRate in Openscan
 static OSc_Error SetScanRate(OSc_Setting *setting, double value)
 {
 	GetData(setting->device)->scanRate = value;
+	GetData(setting->device)->timingSettingsChanged = true;
 	return OSc_Error_OK;
 }
 
@@ -68,11 +69,16 @@ static OSc_Error GetResolution(OSc_Setting *setting, int32_t *value)
 	return OSc_Error_OK;
 }
 
-
+//OnResolution
 static OSc_Error SetResolution(OSc_Setting *setting, int32_t value)
 {
 	GetData(setting->device)->resolution = value;
+	GetData(setting->device)->timingSettingsChanged = true;
+	GetData(setting->device)->waveformSettingsChanged = true;
+	GetData(setting->device)->acqSettingsChanged = true;
+
 	GetData(setting->device)->settingsChanged = true;
+
 	return OSc_Error_OK;
 }
 
@@ -105,10 +111,11 @@ static OSc_Error GetZoom(OSc_Setting *setting, double *value)
 	return OSc_Error_OK;
 }
 
-
+//OnZoom
 static OSc_Error SetZoom(OSc_Setting *setting, double value)
 {
 	GetData(setting->device)->zoom = value;
+	GetData(setting->device)->waveformSettingsChanged = true;
 	return OSc_Error_OK;
 }
 
@@ -134,10 +141,12 @@ static OSc_Error GetBinFactor(OSc_Setting *setting, double *value)
 	return OSc_Error_OK;
 }
 
-
+// OnBinFactor
 static OSc_Error SetBinFactor(OSc_Setting *setting, double value)
 {
 	GetData(setting->device)->binFactor = value;
+	GetData(setting->device)->timingSettingsChanged = true;
+	GetData(setting->device)->acqSettingsChanged = true;
 	return OSc_Error_OK;
 }
 
@@ -220,18 +229,21 @@ static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, c
 	{
 	case CHANNEL1:
 		strcpy(name, "Channel1");
+		break;
 	case CHANNEL2:
 		strcpy(name, "Channel2");
+		break;
+	case CHANNEL3:
+		strcpy(name, "Channel3");
+		break;
+	case CHANNEL4:
+		strcpy(name, "Channel4");
+		break;
 	case CHANNELS_1_AND_2:
 		strcpy(name, "Channel_1_and_2");
-	case CHANNELS_RAW_IMAGE:
-		strcpy(name, "RawImage");
 		break;
-	case CHANNELS_KALMAN_AVERAGED:
-		strcpy(name, "KalmanAveraged");
-		break;
-	case CHANNELS_RAW_AND_KALMAN:
-		strcpy(name, "RawAndKalmanAveraged");
+	case CHANNELS1_2_3:
+		strcpy(name, "Channel_1_2_3");
 		break;
 	default:
 		strcpy(name, "");
@@ -240,22 +252,21 @@ static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, c
 	return OSc_Error_OK;
 }
 
-
 static OSc_Error GetChannelsValueForName(OSc_Setting *setting, uint32_t *value, const char *name)
 {
-	if (!strcmp(name, "Channel 1"))
+	if (!strcmp(name, "Channel1"))
 		*value = CHANNEL1;
-	else if (!strcmp(name, "Channel 2"))
-		*value = CHANNEL2;
-	else if (!strcmp(name, "Channel 1 and 2"))
+	else if (!strcmp(name, "Channel2"))
+		*value = 
+		2;
+	else if (!strcmp(name, "Channel3"))
+		*value = CHANNEL3;
+	else if (!strcmp(name, "Channel4"))
+		*value = CHANNEL4;
+	else if (!strcmp(name, "Channel_1_and_2"))
 		*value = CHANNELS_1_AND_2;
-
-	else if (!strcmp(name, "Raw Image"))
-		*value = CHANNELS_RAW_IMAGE;
-	else if (!strcmp(name, "Kalman Averaged"))
-		*value = CHANNELS_KALMAN_AVERAGED;
-	else if (!strcmp(name, "Raw and Kalman"))
-		*value = CHANNELS_RAW_AND_KALMAN;
+	else if (!strcmp(name, "Channel_1_2_3"))
+		*value = CHANNELS1_2_3;
 	else
 		return OSc_Error_Unknown;
 	return OSc_Error_OK;
@@ -271,7 +282,8 @@ static struct OSc_Setting_Impl SettingImpl_Channels = {
 };
 
 
-OSc_Error PrepareSettings(OSc_Device *device)
+// TODO: LNK2005 error. Static?
+static OSc_Error PrepareSettings(OSc_Device *device)
 {
 	if (GetData(device)->settings)
 		return OSc_Error_OK;
