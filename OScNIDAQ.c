@@ -75,7 +75,9 @@ static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 	// "RIO0" (as far as I know). For now, only support this one.
 
 	struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
-	strncpy(data->rioResourceName, "RIO0", OSc_MAX_STR_LEN);
+	//strncpy(data->rioResourceName, "RIO0", OSc_MAX_STR_LEN);
+	strncpy(data->deviceName, "PXI1Slot2", OSc_MAX_STR_LEN);
+	
 
 	OSc_Device *device;
 	OSc_Error err;
