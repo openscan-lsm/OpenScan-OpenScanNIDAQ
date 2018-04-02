@@ -6,27 +6,13 @@
 #include <string.h>
 
 
-static OSc_Error NumericConstraintRange(OSc_Setting *setting, OSc_Value_Constraint *constraintType)
-{
-	*constraintType = OSc_Value_Constraint_Range;
-	return OSc_Error_OK;
-}
-
-
-static OSc_Error NumericConstraintDiscreteValues(OSc_Setting *setting, OSc_Value_Constraint *constraintType)
-{
-	*constraintType = OSc_Value_Constraint_Discrete_Values;
-	return OSc_Error_OK;
-}
-
-
 static OSc_Error GetScanRate(OSc_Setting *setting, double *value)
 {
 	*value = GetData(setting->device)->scanRate;
 	return OSc_Error_OK;
 }
 
-// OnScanRate in Openscan
+
 static OSc_Error SetScanRate(OSc_Setting *setting, double value)
 {
 	GetData(setting->device)->scanRate = value;
@@ -58,50 +44,8 @@ static OSc_Error GetScanRateValues(OSc_Setting *setting, double **values, size_t
 static struct OSc_Setting_Impl SettingImpl_ScanRate = {
 	.GetFloat64 = GetScanRate,
 	.SetFloat64 = SetScanRate,
-	.GetNumericConstraintType = NumericConstraintDiscreteValues,
+	.GetNumericConstraintType = OSc_Setting_NumericConstraintDiscreteValues,
 	.GetFloat64DiscreteValues = GetScanRateValues,
-};
-
-
-static OSc_Error GetResolution(OSc_Setting *setting, int32_t *value)
-{
-	*value = GetData(setting->device)->resolution;
-	return OSc_Error_OK;
-}
-
-//OnResolution
-static OSc_Error SetResolution(OSc_Setting *setting, int32_t value)
-{
-	GetData(setting->device)->resolution = value;
-	GetData(setting->device)->timingSettingsChanged = true;
-	GetData(setting->device)->waveformSettingsChanged = true;
-	GetData(setting->device)->acqSettingsChanged = true;
-
-	GetData(setting->device)->settingsChanged = true;
-
-	return OSc_Error_OK;
-}
-
-
-static OSc_Error GetResolutionValues(OSc_Setting *setting, int32_t **values, size_t *count)
-{
-	static int32_t v[] = {
-		256,
-		512,
-		1024,
-		2048,
-	};
-	*values = v;
-	*count = sizeof(v) / sizeof(int32_t);
-	return OSc_Error_OK;
-}
-
-
-static struct OSc_Setting_Impl SettingImpl_Resolution = {
-	.GetInt32 = GetResolution,
-	.SetInt32 = SetResolution,
-	.GetNumericConstraintType = NumericConstraintDiscreteValues,
-	.GetInt32DiscreteValues = GetResolutionValues,
 };
 
 
@@ -111,7 +55,6 @@ static OSc_Error GetZoom(OSc_Setting *setting, double *value)
 	return OSc_Error_OK;
 }
 
-//OnZoom
 static OSc_Error SetZoom(OSc_Setting *setting, double value)
 {
 	GetData(setting->device)->zoom = value;
@@ -131,7 +74,7 @@ static OSc_Error GetZoomRange(OSc_Setting *setting, double *min, double *max)
 static struct OSc_Setting_Impl SettingImpl_Zoom = {
 	.GetFloat64 = GetZoom,
 	.SetFloat64 = SetZoom,
-	.GetNumericConstraintType = NumericConstraintRange,
+	.GetNumericConstraintType = OSc_Setting_NumericConstraintRange,
 	.GetFloat64Range = GetZoomRange,
 };
 
@@ -162,7 +105,7 @@ static OSc_Error GetBinFactorRange(OSc_Setting *setting, uint32_t *min, uint32_t
 static struct OSc_Setting_Impl SettingImpl_BinFactor = {
 	.GetInt32 = GetBinFactor,
 	.SetInt32 = SetBinFactor,
-	.GetNumericConstraintType = NumericConstraintRange,
+	.GetNumericConstraintType = OSc_Setting_NumericConstraintRange,
 	.GetInt32Range = GetBinFactorRange,
 };
 
@@ -197,7 +140,7 @@ static OSc_Error GetInputVoltageRangeValues(OSc_Setting *setting, double **value
 static struct OSc_Setting_Impl SettingImpl_InputVoltageRange = {
 	.GetFloat64 = GetInputVoltageRange,
 	.SetFloat64 = SetInputVoltageRange,
-	.GetNumericConstraintType = NumericConstraintDiscreteValues,
+	.GetNumericConstraintType = OSc_Setting_NumericConstraintDiscreteValues,
 	.GetFloat64DiscreteValues = GetInputVoltageRangeValues,
 };
 
@@ -291,10 +234,6 @@ OSc_Error PrepareSettings(OSc_Device *device)
 	OSc_Return_If_Error(OSc_Setting_Create(&scanRate, device, "ScanRate", OSc_Value_Type_Float64,
 		&SettingImpl_ScanRate, NULL));
 
-	OSc_Setting *resolution;
-	OSc_Return_If_Error(OSc_Setting_Create(&resolution, device, "Resolution", OSc_Value_Type_Int32,
-		&SettingImpl_Resolution, NULL));
-
 	OSc_Setting *zoom;
 	OSc_Return_If_Error(OSc_Setting_Create(&zoom, device, "Zoom", OSc_Value_Type_Float64,
 		&SettingImpl_Zoom, NULL));
@@ -312,7 +251,7 @@ OSc_Error PrepareSettings(OSc_Device *device)
 		&SettingImpl_InputVoltageRange, NULL));
 
 	OSc_Setting *ss[] = {
-		scanRate, resolution, zoom, binFactor,
+		scanRate, zoom, binFactor,
 		inputVoltageRange,
 	};
 	size_t nSettings = sizeof(ss) / sizeof(OSc_Setting *);
