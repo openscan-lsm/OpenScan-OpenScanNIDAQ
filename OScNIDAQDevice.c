@@ -55,7 +55,7 @@ static OSc_Error NIDAQOpen(OSc_Device *device)
 		OSc_Log_Error(device, msg);
 		return OSc_Error_Unknown; // TODO Detailed info
 	}
-
+	OSc_Return_If_Error(OpenDAQ(device));
 	return OSc_Error_OK;
 }
 
@@ -90,6 +90,30 @@ static OSc_Error NIDAQGetSettings(OSc_Device *device, OSc_Setting ***settings, s
 	*count = GetData(device)->settingCount;
 	return OSc_Error_OK;
 
+}
+
+static OSc_Error NIDAQGetAllowedResolutions(OSc_Device *device, size_t **widths, size_t **heights, size_t *count)
+{
+	static size_t resolutions[] = { 256, 512, 1024, 2048 };
+	*widths = *heights = resolutions;
+	*count = sizeof(resolutions) / sizeof(size_t);
+	return OSc_Error_OK;
+}
+
+static OSc_Error NIDAQGetResolution(OSc_Device *device, size_t *width, size_t *height)
+{
+	*width = *height = GetData(device)->resolution;
+	return OSc_Error_OK;
+}
+
+
+static OSc_Error NIDAQSetResolution(OSc_Device *device, size_t width, size_t height)
+{
+	if (width == GetData(device)->resolution)
+		return OSc_Error_OK;
+	GetData(device)->resolution = (uint32_t)width;
+	GetData(device)->settingsChanged = true;
+	return OSc_Error_OK;
 }
 
 static OSc_Error NIDAQGetImageSize(OSc_Device *device, uint32_t *width, uint32_t *height)
@@ -210,10 +234,7 @@ static OSc_Error NIDAQIsRunning(OSc_Device *device, bool *isRunning)
 }
 
 
-static OSc_Error NIDAQWait(OSc_Device *device)
-{
-	return WaitForAcquisitionToFinish(device);
-}
+
 
 
 static void ParseDeviceNameList(const char *names,
@@ -276,6 +297,11 @@ static void CreateDevice(const char* name)
 	g_devices[g_deviceCount++] = device;
 }
 
+
+static OSc_Error NIDAQWait(OSc_Device *device)
+{
+	return WaitForAcquisitionToFinish(device);
+}
 /*
 static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *count)
 {
@@ -307,4 +333,20 @@ struct OSc_Device_Impl OpenScan_NIDAQ_Device_Impl = {
 	.Close = NIDAQClose,
 	.HasScanner = NIDAQHasScanner,
 	.HasDetector = NIDAQHasDetector,
+	// New added
+	.GetSettings = NIDAQGetSettings,
+	.GetAllowedResolutions = NIDAQGetAllowedResolutions,
+	.GetResolution = NIDAQGetResolution,
+	.SetResolution = NIDAQSetResolution,
+	.GetImageSize = NIDAQGetImageSize,
+	.GetNumberOfChannels = NIDAQGetNumberOfChannels,
+	.GetBytesPerSample = NIDAQGetBytesPerSample,
+	.ArmScanner   = NIDAQArmScanner,
+	.StartScanner = NIDAQStartScanner,
+	.StopScanner  = NIDAQStopScanner,
+	.ArmDetector  =  NIDAQArmDetector,
+	.StartDetector = NIDAQStartDetector,
+	.StopDetector = NIDAQStopDetector,
+	.IsRunning = NIDAQIsRunning,
+	.Wait = NIDAQWait,
 };

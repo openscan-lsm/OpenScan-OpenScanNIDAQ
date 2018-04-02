@@ -282,8 +282,7 @@ static struct OSc_Setting_Impl SettingImpl_Channels = {
 };
 
 
-// TODO: LNK2005 error. Static?
-static OSc_Error PrepareSettings(OSc_Device *device)
+OSc_Error PrepareSettings(OSc_Device *device)
 {
 	if (GetData(device)->settings)
 		return OSc_Error_OK;

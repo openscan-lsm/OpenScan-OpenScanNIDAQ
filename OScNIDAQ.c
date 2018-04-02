@@ -67,7 +67,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 }
 
 
-static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
+OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
 
@@ -125,7 +125,7 @@ OSc_Error OpenDAQ(OSc_Device *device)
 OSc_Error StartDAQ(OSc_Device *device)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
-
+	/*
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
 	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
@@ -136,20 +136,21 @@ OSc_Error StartDAQ(OSc_Device *device)
 	uint32_t binFactor_ = GetData(device)->binFactor;
 	double zoom_ = GetData(device)->zoom;
 	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
+	*/
 
 
 	int32 nierr;
 	// initialize scan waveform task
-	if (!scanWaveformTaskHandle_)
+	if (!GetData(device)->scanWaveformTaskHandle_)
 	{
-		nierr = DAQmxCreateTask("", &scanWaveformTaskHandle_);
+		nierr = DAQmxCreateTask("", &GetData(device)->scanWaveformTaskHandle_);
 		if (nierr != 0)
 		{
 			//LogMessage("Error creating scanWaveformTaskHandle_");
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
 		//LogMessage("Created scan waveform task", true);
-		nierr = DAQmxCreateAOVoltageChan(scanWaveformTaskHandle_, "PXI1Slot2/ao0:1", "",
+		nierr = DAQmxCreateAOVoltageChan(GetData(device)->scanWaveformTaskHandle_, "PXI1Slot2/ao0:1", "",
 			-10.0, 10.0, DAQmx_Val_Volts, NULL);
 		if (nierr != 0)
 		{
@@ -160,9 +161,9 @@ OSc_Error StartDAQ(OSc_Device *device)
 	}
 
 	// initialize line clock task
-	if (!lineClockTaskHandle_)
+	if (!GetData(device)->lineClockTaskHandle_)
 	{
-		nierr = DAQmxCreateTask("", &lineClockTaskHandle_);
+		nierr = DAQmxCreateTask("", &GetData(device)->lineClockTaskHandle_);
 		if (nierr != 0)
 		{
 			return OSc_Error_Unknown_Enum_Value_Name;
@@ -174,7 +175,7 @@ OSc_Error StartDAQ(OSc_Device *device)
 		// p0.7 to generate frame clock for FLIM
 		//nierr = DAQmxCreateDOChan(lineClockTaskHandle_, "PXI1Slot2/port0/line5:6",
 		//	"", DAQmx_Val_ChanForAllLines );
-		nierr = DAQmxCreateDOChan(lineClockTaskHandle_, "PXI1Slot2/port0/line5:7",
+		nierr = DAQmxCreateDOChan(GetData(device)->lineClockTaskHandle_,  "PXI1Slot2/port0/line5:7",
 			"", DAQmx_Val_ChanPerLine);
 		if (nierr != 0)
 		{
@@ -182,7 +183,7 @@ OSc_Error StartDAQ(OSc_Device *device)
 		}
 
 		// get number of physical DO channels for image acquisition
-		nierr = DAQmxGetReadNumChans(lineClockTaskHandle_, &numDOChannels_);
+		nierr = DAQmxGetReadNumChans(GetData(device)->lineClockTaskHandle_, &GetData(device)->numDOChannels);
 		if (nierr != 0)
 		{
 			return OSc_Error_Unknown_Enum_Value_Name;
@@ -192,9 +193,9 @@ OSc_Error StartDAQ(OSc_Device *device)
 	}
 
 	// init counter
-	if (!counterTaskHandle_)
+	if (!GetData(device)->counterTaskHandle_)
 	{
-		nierr = DAQmxCreateTask("", &counterTaskHandle_);
+		nierr = DAQmxCreateTask("", &GetData(device)->counterTaskHandle_);
 		if (nierr != 0)
 		{
 			return OSc_Error_Unknown_Enum_Value_Name;
@@ -202,14 +203,14 @@ OSc_Error StartDAQ(OSc_Device *device)
 		//LogMessage("Created counter task", true);
 
 		// Create CO Channel.
-		uint32_t elementsPerLine = X_UNDERSHOOT + resolution_ + X_RETRACE_LEN;
-		uint32_t scanLines = resolution_;
-		double effectiveScanPortion = (double)resolution_ / elementsPerLine;
-		double lineFreq = (double)((1E6*scanRate_) / binFactor_ / elementsPerLine);  // unit: Hz
+		uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
+		uint32_t scanLines = GetData(device)->resolution;
+		double effectiveScanPortion = (double)GetData(device)->resolution / elementsPerLine;
+		double lineFreq = (double)((1E6*GetData(device)->scanRate) / GetData(device)->binFactor / elementsPerLine);  // unit: Hz
 																					 // adjustment corresponding to galvo undershoot at each line
 																					 // the delay (in second) between the command scan waveform and the actual scanner response
-		double scanPhase = (double)(binFactor_ / (1E6*scanRate_) * X_UNDERSHOOT);
-		nierr = DAQmxCreateCOPulseChanFreq(counterTaskHandle_, "PXI1Slot2/ctr0",
+		double scanPhase = (double)(GetData(device)->binFactor / (1E6*GetData(device)->scanRate) * X_UNDERSHOOT);
+		nierr = DAQmxCreateCOPulseChanFreq(GetData(device)->counterTaskHandle_, "PXI1Slot2/ctr0",
 			"", DAQmx_Val_Hz, DAQmx_Val_Low, scanPhase, lineFreq, effectiveScanPortion); // CTR0 OUT = PFI12
 		if (nierr != 0)
 		{
@@ -217,7 +218,7 @@ OSc_Error StartDAQ(OSc_Device *device)
 		}
 
 		// define how many lines to scan
-		nierr = DAQmxCfgImplicitTiming(counterTaskHandle_, DAQmx_Val_FiniteSamps, scanLines);
+		nierr = DAQmxCfgImplicitTiming(GetData(device)->counterTaskHandle_, DAQmx_Val_FiniteSamps, scanLines);
 		if (nierr != 0)
 		{
 			goto Error;
@@ -227,15 +228,15 @@ OSc_Error StartDAQ(OSc_Device *device)
 	}
 
 	// initialize acquisition task
-	if (!acqTaskHandle_)
+	if (!GetData(device)->acqTaskHandle_)
 	{
-		nierr = DAQmxCreateTask("", &acqTaskHandle_);
+		nierr = DAQmxCreateTask("", &GetData(device)->acqTaskHandle_);
 		if (nierr != 0)
 		{
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
 		//LogMessage("Created acquisition task", true);
-		nierr = DAQmxCreateAIVoltageChan(acqTaskHandle_, "PXI1Slot2/ai0:2", "",
+		nierr = DAQmxCreateAIVoltageChan(GetData(device)->acqTaskHandle_, "PXI1Slot2/ai0:2", "",
 			DAQmx_Val_Cfg_Default, -10.0, 10.0, DAQmx_Val_Volts, NULL);
 		if (nierr != 0)
 		{
@@ -244,7 +245,7 @@ OSc_Error StartDAQ(OSc_Device *device)
 		//LogMessage("Created AI voltage channels for image acquisition", true);
 		// get number of physical AI channels for image acquisition
 		// difference from GetNumberOfChannels() which indicates number of channels to display
-		nierr = DAQmxGetReadNumChans(acqTaskHandle_, &numAIChannels_);
+		nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, &GetData(device)->acquisition.numAIChannels);
 		if (nierr != 0)
 		{
 			return OSc_Error_Unknown_Enum_Value_Name;
@@ -257,32 +258,32 @@ OSc_Error StartDAQ(OSc_Device *device)
 
 	return OSc_Error_OK;
 Error:
-	if (scanWaveformTaskHandle_)
+	if (GetData(device)->scanWaveformTaskHandle_)
 	{
-		DAQmxStopTask(scanWaveformTaskHandle_);
-		DAQmxClearTask(scanWaveformTaskHandle_);
-		scanWaveformTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
+		DAQmxClearTask(GetData(device)->scanWaveformTaskHandle_);
+		GetData(device)->scanWaveformTaskHandle_ = 0;
 	}
 
-	if (lineClockTaskHandle_)
+	if (GetData(device)->lineClockTaskHandle_)
 	{
-		DAQmxStopTask(lineClockTaskHandle_);
-		DAQmxClearTask(lineClockTaskHandle_);
-		lineClockTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
+		DAQmxClearTask(GetData(device)->lineClockTaskHandle_);
+		GetData(device)->lineClockTaskHandle_ = 0;
 	}
 
-	if (counterTaskHandle_)
+	if (GetData(device)->counterTaskHandle_)
 	{
-		DAQmxStopTask(counterTaskHandle_);
-		DAQmxClearTask(counterTaskHandle_);
-		counterTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->counterTaskHandle_);
+		DAQmxClearTask(GetData(device)->counterTaskHandle_);
+		GetData(device)->counterTaskHandle_ = 0;
 	}
 
-	if (acqTaskHandle_)
+	if (GetData(device)->acqTaskHandle_)
 	{
-		DAQmxStopTask(acqTaskHandle_);
-		DAQmxClearTask(acqTaskHandle_);
-		acqTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->acqTaskHandle_);
+		DAQmxClearTask(GetData(device)->acqTaskHandle_);
+		GetData(device)->acqTaskHandle_ = 0;
 	}
 
 	OSc_Error err;
@@ -322,6 +323,7 @@ OSc_Error CloseDAQ(OSc_Device *device)
 // Set up how image acq, line clock, and scan waveform are triggered
 OSc_Error SetTriggers(OSc_Device *device)
 {
+	/*
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
 	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
@@ -332,12 +334,13 @@ OSc_Error SetTriggers(OSc_Device *device)
 	uint32_t binFactor_ = GetData(device)->binFactor;
 	double zoom_ = GetData(device)->zoom;
 	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
+	*/
 
 	// Use AO StartTrigger to trigger the line clock.
 	// This is an internal trigger signal.
 	char aoStartTrigName[256];
 	OSc_Error err;
-	if (OSc_Check_Error(err, GetTerminalNameWithDevPrefix(scanWaveformTaskHandle_, "ao/StartTrigger", aoStartTrigName))) {
+	if (OSc_Check_Error(err, GetTerminalNameWithDevPrefix(GetData(device)->scanWaveformTaskHandle_, "ao/StartTrigger", aoStartTrigName))) {
 		return err;
 	}
 	//LogMessage("Get AO Start Trigger name to trigger line clock", true);
@@ -346,7 +349,7 @@ OSc_Error SetTriggers(OSc_Device *device)
 	// Configure counter
 	// line clock generation is triggered by AO StartTrigger internally
 	// and thus sync'ed to scan waveform generation
-	int32 nierr = DAQmxCfgDigEdgeStartTrig(counterTaskHandle_, aoStartTrigName, DAQmx_Val_Rising);
+	int32 nierr = DAQmxCfgDigEdgeStartTrig(GetData(device)->counterTaskHandle_, aoStartTrigName, DAQmx_Val_Rising);
 	if (nierr != 0)
 	{
 		//LogMessage(GetNIDetailedErrorForMostRecentCall().c_str());
@@ -355,7 +358,7 @@ OSc_Error SetTriggers(OSc_Device *device)
 
 	//LogMessage("Configured digital edge start trigger for counter", true);
 
-	nierr = DAQmxCfgDigEdgeStartTrig(acqTaskHandle_, "/PXI1Slot2/PFI12", DAQmx_Val_Rising);
+	nierr = DAQmxCfgDigEdgeStartTrig(GetData(device)->acqTaskHandle_, "/PXI1Slot2/PFI12", DAQmx_Val_Rising);
 	if (nierr != 0)
 	{
 		//LogMessage(GetNIDetailedErrorForMostRecentCall().c_str());
@@ -363,7 +366,7 @@ OSc_Error SetTriggers(OSc_Device *device)
 	}
 	//LogMessage("Configured digital edge start trigger for image acquisition", true);
 
-	nierr = DAQmxSetStartTrigRetriggerable(acqTaskHandle_, 1);
+	nierr = DAQmxSetStartTrigRetriggerable(GetData(device)->acqTaskHandle_, 1);
 	if (nierr != 0)
 	{
 		//LogMessage(GetNIDetailedErrorForMostRecentCall().c_str());
@@ -379,31 +382,31 @@ OSc_Error SetTriggers(OSc_Device *device)
 	return OSc_Error_OK;
 
 Error:
-	if (scanWaveformTaskHandle_)
+	if (GetData(device)->scanWaveformTaskHandle_)
 	{
-		DAQmxStopTask(scanWaveformTaskHandle_);
-		DAQmxClearTask(scanWaveformTaskHandle_);
-		scanWaveformTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
+		DAQmxClearTask(GetData(device)->scanWaveformTaskHandle_);
+		GetData(device)->scanWaveformTaskHandle_ = 0;
 	}
 
-	if (lineClockTaskHandle_)
+	if (GetData(device)->lineClockTaskHandle_)
 	{
-		DAQmxStopTask(lineClockTaskHandle_);
-		DAQmxClearTask(lineClockTaskHandle_);
-		lineClockTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
+		DAQmxClearTask(GetData(device)->lineClockTaskHandle_);
+		GetData(device)->lineClockTaskHandle_ = 0;
 	}
 
-	if (counterTaskHandle_)
+	if (GetData(device)->counterTaskHandle_)
 	{
-		DAQmxStopTask(counterTaskHandle_);
-		DAQmxClearTask(counterTaskHandle_);
-		counterTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->counterTaskHandle_);
+		DAQmxClearTask(GetData(device)->counterTaskHandle_);
+		GetData(device)->counterTaskHandle_ = 0;
 	}
-	if (acqTaskHandle_)
+	if (GetData(device)->acqTaskHandle_)
 	{
-		DAQmxStopTask(acqTaskHandle_);
-		DAQmxClearTask(acqTaskHandle_);
-		acqTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->acqTaskHandle_);
+		DAQmxClearTask(GetData(device)->acqTaskHandle_);
+		GetData(device)->acqTaskHandle_ = 0;
 	}
 	/*
 	err;
