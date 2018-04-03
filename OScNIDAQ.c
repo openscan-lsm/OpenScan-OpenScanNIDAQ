@@ -71,9 +71,6 @@ OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
 
-	// The first FPGA board on the system always has the RIO Resource Name
-	// "RIO0" (as far as I know). For now, only support this one.
-
 	struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
 	//strncpy(data->rioResourceName, "RIO0", OSc_MAX_STR_LEN);
 	strncpy(data->deviceName, "PXI1Slot2", OSc_MAX_STR_LEN);
