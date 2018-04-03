@@ -200,8 +200,7 @@ static OSc_Error GetChannelsValueForName(OSc_Setting *setting, uint32_t *value, 
 	if (!strcmp(name, "Channel1"))
 		*value = CHANNEL1;
 	else if (!strcmp(name, "Channel2"))
-		*value = 
-		2;
+		*value = CHANNEL2;
 	else if (!strcmp(name, "Channel3"))
 		*value = CHANNEL3;
 	else if (!strcmp(name, "Channel4"))
@@ -252,14 +251,11 @@ OSc_Error PrepareSettings(OSc_Device *device)
 
 	OSc_Setting *ss[] = {
 		scanRate, zoom, binFactor,
-		inputVoltageRange,
+		inputVoltageRange, channels,
 	};
 	size_t nSettings = sizeof(ss) / sizeof(OSc_Setting *);
 	OSc_Setting **settings = malloc(sizeof(ss));
-	for (size_t i = 0; i < nSettings; ++i)
-	{
-		settings[i] = ss[i];
-	}
+	memcpy(settings, ss, sizeof(ss));
 
 	GetData(device)->settings = settings;
 	GetData(device)->settingCount = nSettings;
