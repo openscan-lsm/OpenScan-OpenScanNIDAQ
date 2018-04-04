@@ -85,4 +85,4 @@ static inline struct OScNIDAQPrivateData *GetData(OSc_Device *device)
 }
 
 
-OSc_Error PrepareSettings(OSc_Device *device);
+OSc_Error NIDAQ_PrepareSettings(OSc_Device *device);

@@ -224,7 +224,7 @@ static struct OSc_Setting_Impl SettingImpl_Channels = {
 };
 
 
-OSc_Error PrepareSettings(OSc_Device *device)
+OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 {
 	if (GetData(device)->settings)
 		return OSc_Error_OK;

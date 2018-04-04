@@ -12,10 +12,9 @@
 #include <Windows.h>
 
 
-static bool g_NIDAQ_initialized = false;
-static size_t g_openDeviceCount = 0;
-
-// Originally OScNIDAQDevice.c starts...
+/* Originally OScNIDAQDevice.c starts... */
+/* Generic operation on NI DAQ properties */
+/* that are not tied to specific DAQ devices or NIDAQmx functions */
 static OSc_Device **g_devices;
 static size_t g_deviceCount;
 
@@ -91,7 +90,7 @@ static OSc_Error NIDAQHasDetector(OSc_Device *device, bool *hasDetector)
 
 static OSc_Error NIDAQGetSettings(OSc_Device *device, OSc_Setting ***settings, size_t *count)
 {
-	OSc_Return_If_Error(PrepareSettings(device));
+	OSc_Return_If_Error(NIDAQ_PrepareSettings(device));
 	*settings = GetData(device)->settings;
 	*count = GetData(device)->settingCount;
 	return OSc_Error_OK;
@@ -351,7 +350,15 @@ struct OSc_Device_Impl OpenScan_NIDAQ_Device_Impl = {
 	.IsRunning = NIDAQIsRunning,
 	.Wait = NIDAQWait,
 };
-// OScNIDAQDevice.c ends
+/* OScNIDAQDevice.c ends */
+
+
+/* Device-specific scanner and/or detector implementations */
+/* Interact with physical hardware (NI DAQ) */
+/* and rely on specific device library (NIDAQmx) */
+
+static bool g_NIDAQ_initialized = false;
+static size_t g_openDeviceCount = 0;
 
 static inline uint16_t DoubleToFixed16(double d, int intBits)
 {
@@ -406,7 +413,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->acquisition.acquisition = NULL;
 }
 
-
+// TODO: automatically mapping deviceName using DAQmxGetSysDevNames()
 static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
