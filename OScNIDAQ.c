@@ -67,7 +67,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 }
 
 
-OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
+static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
 
