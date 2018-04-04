@@ -2,11 +2,7 @@
 
 #include "OScNIDAQDevicePrivate.h"
 
-#include "OpenScanDeviceImpl.h"
-
-struct OSc_Device_Impl OpenScan_NIDAQ_Device_Impl;
-
-OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *deviceCount);
+OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount);
 OSc_Error OpenDAQ(OSc_Device *device);
 OSc_Error CloseDAQ(OSc_Device *device);
 OSc_Error StartDAQ(OSc_Device *device);

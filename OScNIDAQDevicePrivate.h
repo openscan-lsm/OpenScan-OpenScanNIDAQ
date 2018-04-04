@@ -1,5 +1,7 @@
 #pragma once
 
+#include "OScNIDAQDevice.h"
+
 #include "OpenScanLibPrivate.h"
 #include "OpenScanDeviceImpl.h"
 
