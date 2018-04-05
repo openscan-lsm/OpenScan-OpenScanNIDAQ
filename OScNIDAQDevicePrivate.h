@@ -43,7 +43,7 @@ struct OScNIDAQPrivateData
 	double scanRate;  // MHz
 	double zoom;
 	uint32_t resolution;
-	uint32_t binFactor;
+	int32_t binFactor;
 	double inputVoltageRange;
 
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks

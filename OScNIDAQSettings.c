@@ -78,14 +78,14 @@ static struct OSc_Setting_Impl SettingImpl_Zoom = {
 	.GetFloat64Range = GetZoomRange,
 };
 
-static OSc_Error GetBinFactor(OSc_Setting *setting, double *value)
+static OSc_Error GetBinFactor(OSc_Setting *setting, int32_t *value)
 {
 	*value = GetData(setting->device)->binFactor;
 	return OSc_Error_OK;
 }
 
 // OnBinFactor
-static OSc_Error SetBinFactor(OSc_Setting *setting, double value)
+static OSc_Error SetBinFactor(OSc_Setting *setting, int32_t value)
 {
 	GetData(setting->device)->binFactor = value;
 	GetData(setting->device)->timingSettingsChanged = true;
@@ -94,7 +94,7 @@ static OSc_Error SetBinFactor(OSc_Setting *setting, double value)
 }
 
 
-static OSc_Error GetBinFactorRange(OSc_Setting *setting, uint32_t *min, uint32_t *max)
+static OSc_Error GetBinFactorRange(OSc_Setting *setting, int32_t *min, int32_t *max)
 {
 	*min = 1;
 	*max = 25;
