@@ -39,7 +39,9 @@ struct OScNIDAQPrivateData
 	bool acqSettingsChanged;
 	bool isEveryNSamplesEventRegistered;
 	bool oneFrameScanDone;
-
+	// Flags for scanner and detector
+	bool detectorOnly;
+	bool scannerOnly;
 	double scanRate;  // MHz
 	double zoom;
 	uint32_t resolution;

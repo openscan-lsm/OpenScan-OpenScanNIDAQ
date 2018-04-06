@@ -44,6 +44,9 @@ static OSc_Error DeinitializeNIDAQ(void)
 
 static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 {
+	data->detectorOnly = false;
+	data->scannerOnly = true;
+
 	data->settingsChanged = true;
 	data->timingSettingsChanged = true;
 	data->waveformSettingsChanged = true;
@@ -550,13 +553,18 @@ OSc_Error ReloadWaveform(OSc_Device *device)
 static OSc_Error StartScan(OSc_Device *device)
 {
 	int32 nierr;
-
-	nierr = DAQmxStartTask(GetData(device)->acqTaskHandle_);
-	if (nierr != 0)
-	{
-		goto Error;
+	/*	
+	if (!GetData(device)->scannerOnly) {
+		nierr = DAQmxStartTask(GetData(device)->acqTaskHandle_);
+		if (nierr != 0)
+		{
+			goto Error;
+		}
+		//LogMessage("Armed acquisition", true);
 	}
-	//LogMessage("Armed acquisition", true);
+	else {
+
+	}
 
 	nierr = DAQmxStartTask(GetData(device)->counterTaskHandle_);
 	if (nierr != 0)
@@ -564,6 +572,7 @@ static OSc_Error StartScan(OSc_Device *device)
 		goto Error;
 	}
 	//LogMessage("Armed counter (line clock) generation", true);
+	*/
 
 	nierr = DAQmxStartTask(GetData(device)->scanWaveformTaskHandle_);
 	if (nierr != 0)
@@ -612,13 +621,21 @@ Error:
 
 static OSc_Error StopScan(OSc_Device *device)
 {
-	int32 nierr = DAQmxStopTask(GetData(device)->acqTaskHandle_);
-	if (nierr != 0)
-	{
-		//LogMessage("Error stopping acquisition task", true);
-		goto Error;
+	int32 nierr;
+
+	if (!GetData(device)->scannerOnly) {
+		nierr = DAQmxStopTask(GetData(device)->acqTaskHandle_);
+		if (nierr != 0)
+		{
+			//LogMessage("Error stopping acquisition task", true);
+			goto Error;
+		}
+		//LogMessage("Stopped acquisition task", true);
 	}
-	//LogMessage("Stopped acquisition task", true);
+	else {
+
+	}
+
 
 	nierr = DAQmxStopTask(GetData(device)->counterTaskHandle_);
 	if (nierr != 0)
@@ -693,7 +710,7 @@ static unsigned GetImageHeight(OSc_Device *device) {
 	return  GetData(device)->resolution;
 }
 // DAQ version; acquire from multiple channels
-static OSc_Error ReadImage(OSc_Device *device)
+static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 {
 	
 	//uint32_t resolution_ = GetData(device)->resolution;
@@ -702,32 +719,11 @@ static OSc_Error ReadImage(OSc_Device *device)
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
 	size_t nPixels = GetImageWidth(device) * GetImageHeight(device);
 
-	//GetData(device)->ch1Buffer;
-	/*
-	delete[] ch1Buffer_;
-	delete[] ch2Buffer_;
-	delete[] ch3Buffer_;
-	delete[] rawLineData_;
-	delete[] avgLineData_;
-	delete[] imageData_;
-	*/
-	/*
-	GetData(device)->ch1Buffer = new uint16_t[nPixels];
-	//ch2Buffer_ = new uint16_t[nPixels];
-	//ch3Buffer_ = new uint16_t[nPixels];
-	// raw data acquired by DAQ in each scan line
-	rawLineData_ = new float64[numAIChannels_ * resolution_ * binFactor_];
-	// averaged line data in original format
-	avgLineData_ = new float64[numAIChannels_ * resolution_];
-	// averaged final frame data (all channels)
-	// format: CH1 resolution_ pixels | CH2 resolution pixels | CH1 resolution_ pixels | CH2 ...
-	imageData_ = new uint16_t[numAIChannels_ * nPixels];
-	*/
-
-
 	// TODO
-	GetData(device)->ch1Buffer = realloc(GetData(device)->ch1Buffer, 2 * nPixels);
-	GetData(device)->oneFrameScanDone = false;
+	GetData(device)->ch1Buffer = realloc(GetData(device)->ch1Buffer, sizeof(uint16_t) * nPixels);
+	GetData(device)->ch2Buffer = realloc(GetData(device)->ch2Buffer, sizeof(uint16_t) * nPixels);
+	GetData(device)->ch3Buffer = realloc(GetData(device)->ch3Buffer, sizeof(uint16_t) * nPixels);
+	GetData(device)->oneFrameScanDone = GetData(device) -> scannerOnly;
 
 	OSc_Error err;
 	if (OSc_Check_Error(err, StartScan(device))) {
@@ -742,6 +738,9 @@ static OSc_Error ReadImage(OSc_Device *device)
 		return err;
 	}
 
+	acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
+	acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
+	acq->frameCallback(acq, 2, GetData(device)->ch3Buffer, acq->data);
 	/*
 	if (OSc_Check_Error(err, StartScan(device))) {
 		return err;
@@ -778,7 +777,7 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 }
 
 
-static OSc_Error RunAcquisitionLoop(OSc_Device *device, OSc_Acquisition *acq)
+OSc_Error RunAcquisitionLoop(OSc_Device *device, OSc_Acquisition *acq)
 {
 	GetData(device)->acquisition.acquisition = acq;
 	DWORD id;
@@ -789,7 +788,7 @@ static OSc_Error RunAcquisitionLoop(OSc_Device *device, OSc_Acquisition *acq)
 
 
 
-static OSc_Error StopAcquisitionAndWait(OSc_Device *device, OSc_Acquisition *acq)
+OSc_Error StopAcquisitionAndWait(OSc_Device *device, OSc_Acquisition *acq)
 {
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
@@ -818,7 +817,7 @@ static bool IsCapturing(OSc_Device *device) {
 
 
 // Iscapturing in old openscanDAQ
-static OSc_Error IsAcquisitionRunning(OSc_Device *device, bool *isRunning)
+OSc_Error IsAcquisitionRunning(OSc_Device *device, bool *isRunning)
 {
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	*isRunning = GetData(device)->acquisition.running;
@@ -827,7 +826,7 @@ static OSc_Error IsAcquisitionRunning(OSc_Device *device, bool *isRunning)
 }
 
 
-static OSc_Error WaitForAcquisitionToFinish(OSc_Device *device)
+OSc_Error WaitForAcquisitionToFinish(OSc_Device *device)
 {
 	OSc_Error err = OSc_Error_OK;
 	CONDITION_VARIABLE *cv = &(GetData(device)->acquisition.acquisitionFinishCondition);
@@ -941,7 +940,7 @@ Error:
 
 }
 
-OSc_Error SnapImage(OSc_Device *device) {
+OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
 	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
@@ -953,14 +952,12 @@ OSc_Error SnapImage(OSc_Device *device) {
 	double zoom_ = GetData(device)->zoom;
 	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
 
-	//if (IsCapturing(device))
-		//return OSc_Error_Acquisition_Running;
 	bool isRunning = false;
 	IsAcquisitionRunning(device, &isRunning);
 	if(isRunning)
 		return OSc_Error_Acquisition_Running;
-	OSc_Error err;
 
+	OSc_Error err;
 	// if any of DAQ tasks are not initialized
 	if (!scanWaveformTaskHandle_ || !lineClockTaskHandle_ || !acqTaskHandle_ || !counterTaskHandle_)
 	{
@@ -1010,7 +1007,7 @@ OSc_Error SnapImage(OSc_Device *device) {
 
 	// first check if existing EveryNSamplesEvent needs to be unregistered
 	// to allow new event to get registered when acqSettings has changed since previous scan
-	if (GetData(device)->acqSettingsChanged && GetData(device)->isEveryNSamplesEventRegistered)
+	if (GetData(device)->acqSettingsChanged && GetData(device)->isEveryNSamplesEventRegistered && !GetData(device)->scannerOnly)
 	{
 		if (OSc_Check_Error(err, UnregisterLineAcqEvent(device))) {
 			return err;
@@ -1020,7 +1017,7 @@ OSc_Error SnapImage(OSc_Device *device) {
 	}
 
 	// Re-register event when resolution or binFactor has changed
-	if (GetData(device)->acqSettingsChanged)
+	if (GetData(device)->acqSettingsChanged && !GetData(device)->scannerOnly)
 	{
 		if (OSc_Check_Error(err, RegisterLineAcqEvent(device))) {
 			return err;
@@ -1039,7 +1036,7 @@ OSc_Error SnapImage(OSc_Device *device) {
 		}
 		GetData(device)->settingsChanged = false;
 	}
-	if (OSc_Check_Error(err, ReadImage(device))) {
+	if (OSc_Check_Error(err, ReadImage(device, acq))) {
 		return err;
 	}
 
@@ -1297,8 +1294,7 @@ Error:
 	return DEVICE_ERR;
 }
 */
-
-
-
-
-
+OSc_Error SetScanParameters(OSc_Device *device)
+{
+	return OSc_Error_OK;
+}
