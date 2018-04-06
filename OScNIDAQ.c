@@ -125,20 +125,6 @@ OSc_Error OpenDAQ(OSc_Device *device)
 OSc_Error StartDAQ(OSc_Device *device)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
-	/*
-	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
-	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
-	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
-	TaskHandle acqTaskHandle_ = GetData(device)->acqTaskHandle_;
-	uint32_t resolution_ = GetData(device)->resolution;
-	uint32_t numDOChannels_ = GetData(device)->numDOChannels;
-	double scanRate_ = GetData(device)->scanRate;
-	uint32_t binFactor_ = GetData(device)->binFactor;
-	double zoom_ = GetData(device)->zoom;
-	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
-	*/
-
-
 	int32 nierr;
 	// initialize scan waveform task
 	if (!GetData(device)->scanWaveformTaskHandle_)
@@ -323,19 +309,6 @@ OSc_Error CloseDAQ(OSc_Device *device)
 // Set up how image acq, line clock, and scan waveform are triggered
 OSc_Error SetTriggers(OSc_Device *device)
 {
-	/*
-	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
-	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
-	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
-	TaskHandle acqTaskHandle_ = GetData(device)->acqTaskHandle_;
-	uint32_t resolution_ = GetData(device)->resolution;
-	uint32_t numDOChannels_ = GetData(device)->numDOChannels;
-	double scanRate_ = GetData(device)->scanRate;
-	uint32_t binFactor_ = GetData(device)->binFactor;
-	double zoom_ = GetData(device)->zoom;
-	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
-	*/
-
 	// Use AO StartTrigger to trigger the line clock.
 	// This is an internal trigger signal.
 	char aoStartTrigName[256];
@@ -459,22 +432,9 @@ static OSc_Error SendParameters(OSc_Device *device)
 
 static OSc_Error WriteWaveforms(OSc_Device *device)
 {
-	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
-	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
-	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
-	TaskHandle acqTaskHandle_ = GetData(device)->acqTaskHandle_;
-	uint32_t resolution_ = GetData(device)->resolution;
-	uint32_t numDOChannels_ = GetData(device)->numDOChannels;
-	double scanRate_ = GetData(device)->scanRate;
-	uint32_t binFactor_ = GetData(device)->binFactor;
-	double zoom_ = GetData(device)->zoom;
-	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
-
-
-
-	uint32_t elementsPerLine = X_UNDERSHOOT + resolution_ + X_RETRACE_LEN;
-	uint32_t numScanLines = resolution_;
-	uint32_t yLen = resolution_ + Y_RETRACE_LEN;
+	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
+	uint32_t numScanLines = GetData(device)->resolution;
+	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
 	int32 elementsPerFramePerChan = elementsPerLine * numScanLines;  // without y retrace portion
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
 
@@ -488,13 +448,13 @@ static OSc_Error WriteWaveforms(OSc_Device *device)
 	// digital frame clock pattern for FLIM
 	uInt8 *frameClockFLIM = (uInt8*)malloc(sizeof(uInt8) *elementsPerFramePerChan);
 	// combination of lineClock, lineClockFLIM, and frameClock
-	uInt8 *lineClockPatterns = (uInt8*)malloc(sizeof(uInt8) *elementsPerFramePerChan * numDOChannels_);
-	int err = GenerateGalvoWaveformFrame(resolution_, zoom_, xyWaveformFrame);
+	uInt8 *lineClockPatterns = (uInt8*)malloc(sizeof(uInt8) *elementsPerFramePerChan * GetData(device)->numDOChannels);
+	int err = GenerateGalvoWaveformFrame(GetData(device)->resolution, GetData(device)->zoom, xyWaveformFrame);
 	if (err != 0)
 		return OSc_Error_Waveform_Out_Of_Range;
 
 	int32 numWritten = 0;
-	int32 nierr = DAQmxWriteAnalogF64(scanWaveformTaskHandle_, totalElementsPerFramePerChan, FALSE, 10.0,
+	int32 nierr = DAQmxWriteAnalogF64(GetData(device)->scanWaveformTaskHandle_, totalElementsPerFramePerChan, FALSE, 10.0,
 		DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL);
 	if (nierr != 0)
 	{
@@ -509,13 +469,13 @@ static OSc_Error WriteWaveforms(OSc_Device *device)
 	//LogMessage("One frame waveform written to DAQ memory", true);
 
 	// TODO: why use elementsPerLine instead of elementsPerFramePerChan?
-	err = GenerateLineClock(resolution_, numScanLines, lineClockPattern);
+	err = GenerateLineClock(GetData(device)->resolution, numScanLines, lineClockPattern);
 	if (err != 0)
 		return OSc_Error_Waveform_Out_Of_Range;
-	err = GenerateFLIMLineClock(resolution_, numScanLines, lineClockFLIM);
+	err = GenerateFLIMLineClock(GetData(device)->resolution, numScanLines, lineClockFLIM);
 	if (err != 0)
 		return OSc_Error_Waveform_Out_Of_Range;
-	err = GenerateFLIMFrameClock(resolution_, numScanLines, frameClockFLIM);
+	err = GenerateFLIMFrameClock(GetData(device)->resolution, numScanLines, frameClockFLIM);
 	if (err != 0)
 		return OSc_Error_Waveform_Out_Of_Range;
 
@@ -537,19 +497,19 @@ static OSc_Error WriteWaveforms(OSc_Device *device)
 	return OSc_Error_OK;
 
 Error:
-	if (scanWaveformTaskHandle_)
+	if (GetData(device)->scanWaveformTaskHandle_)
 	{
 		free(xyWaveformFrame);
-		DAQmxStopTask(scanWaveformTaskHandle_);
-		DAQmxClearTask(scanWaveformTaskHandle_);
-		scanWaveformTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
+		DAQmxClearTask(GetData(device)->scanWaveformTaskHandle_);
+		GetData(device)->scanWaveformTaskHandle_ = 0;
 	}
-	if (lineClockTaskHandle_)
+	if (GetData(device)->lineClockTaskHandle_)
 	{
 		free(lineClockPattern);
-		DAQmxStopTask(lineClockTaskHandle_);
-		DAQmxClearTask(lineClockTaskHandle_);
-		lineClockTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
+		DAQmxClearTask(GetData(device)->lineClockTaskHandle_);
+		GetData(device)->lineClockTaskHandle_ = 0;
 	}
 	/*
 	err;
@@ -589,32 +549,23 @@ OSc_Error ReloadWaveform(OSc_Device *device)
 // This will ensure both tasks will start at the same time.
 static OSc_Error StartScan(OSc_Device *device)
 {
-	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
-	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
-	TaskHandle acqTaskHandle_ = GetData(device)->acqTaskHandle_;
-	uint32_t resolution_ = GetData(device)->resolution;
-	uint32_t numDOChannels_ = GetData(device)->numDOChannels;
-	double scanRate_ = GetData(device)->scanRate;
-	uint32_t binFactor_ = GetData(device)->binFactor;
-	double zoom_ = GetData(device)->zoom;
-	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
 	int32 nierr;
 
-	nierr = DAQmxStartTask(acqTaskHandle_);
+	nierr = DAQmxStartTask(GetData(device)->acqTaskHandle_);
 	if (nierr != 0)
 	{
 		goto Error;
 	}
 	//LogMessage("Armed acquisition", true);
 
-	nierr = DAQmxStartTask(counterTaskHandle_);
+	nierr = DAQmxStartTask(GetData(device)->counterTaskHandle_);
 	if (nierr != 0)
 	{
 		goto Error;
 	}
 	//LogMessage("Armed counter (line clock) generation", true);
 
-	nierr = DAQmxStartTask(scanWaveformTaskHandle_);
+	nierr = DAQmxStartTask(GetData(device)->scanWaveformTaskHandle_);
 	if (nierr != 0)
 	{
 		goto Error;
@@ -623,25 +574,25 @@ static OSc_Error StartScan(OSc_Device *device)
 	return OSc_Error_OK;
 
 Error:
-	if (scanWaveformTaskHandle_)
+	if (GetData(device)->scanWaveformTaskHandle_)
 	{
-		DAQmxStopTask(scanWaveformTaskHandle_);
-		DAQmxClearTask(scanWaveformTaskHandle_);
-		scanWaveformTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
+		DAQmxClearTask(GetData(device)->scanWaveformTaskHandle_);
+		GetData(device)->scanWaveformTaskHandle_ = 0;
 	}
 
-	if (counterTaskHandle_)
+	if (GetData(device)->counterTaskHandle_)
 	{
-		DAQmxStopTask(counterTaskHandle_);
-		DAQmxClearTask(counterTaskHandle_);
-		counterTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->counterTaskHandle_);
+		DAQmxClearTask(GetData(device)->counterTaskHandle_);
+		GetData(device)->counterTaskHandle_ = 0;
 	}
 
-	if (acqTaskHandle_)
+	if (GetData(device)->acqTaskHandle_)
 	{
-		DAQmxStopTask(acqTaskHandle_);
-		DAQmxClearTask(acqTaskHandle_);
-		acqTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->acqTaskHandle_);
+		DAQmxClearTask(GetData(device)->acqTaskHandle_);
+		GetData(device)->acqTaskHandle_ = 0;
 	}
 	/*
 	int err;
@@ -661,14 +612,7 @@ Error:
 
 static OSc_Error StopScan(OSc_Device *device)
 {
-	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
-	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
-	TaskHandle acqTaskHandle_ = GetData(device)->acqTaskHandle_;
-	uint32_t resolution_ = GetData(device)->resolution;
-	double scanRate_ = GetData(device)->scanRate;
-	uint32_t binFactor_ = GetData(device)->binFactor;
-
-	int32 nierr = DAQmxStopTask(acqTaskHandle_);
+	int32 nierr = DAQmxStopTask(GetData(device)->acqTaskHandle_);
 	if (nierr != 0)
 	{
 		//LogMessage("Error stopping acquisition task", true);
@@ -676,7 +620,7 @@ static OSc_Error StopScan(OSc_Device *device)
 	}
 	//LogMessage("Stopped acquisition task", true);
 
-	nierr = DAQmxStopTask(counterTaskHandle_);
+	nierr = DAQmxStopTask(GetData(device)->counterTaskHandle_);
 	if (nierr != 0)
 	{
 		//LogMessage("Error stopping line clock task", true);
@@ -691,13 +635,13 @@ static OSc_Error StopScan(OSc_Device *device)
 	// "Finite acquisition or generation has been stopped before the requested number
 	// of samples were acquired or generated."
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
-	uint32_t xLen = resolution_ + X_RETRACE_LEN;
+	uint32_t xLen = GetData(device)->resolution + X_RETRACE_LEN;
 	// TODO: casting
-	uint32_t waitScanToFinish = (5 + 1E-3 * (double)(xLen * Y_RETRACE_LEN * binFactor_ / scanRate_));
+	uint32_t waitScanToFinish = (5 + 1E-3 * (double)(xLen * Y_RETRACE_LEN * GetData(device)->binFactor / GetData(device)->scanRate));
 	//LogMessage("Wait " + boost::lexical_cast<std::string>(waitScanToFinish) +
 		//" ms for scan to finish...", true);
 	Sleep(waitScanToFinish);
-	nierr = DAQmxStopTask(scanWaveformTaskHandle_);
+	nierr = DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
 	if (nierr != 0)
 	{
 		//LogMessage("Error stopping scan waveform task; NI DAQmx error code: " +
@@ -709,22 +653,22 @@ static OSc_Error StopScan(OSc_Device *device)
 
 	return OSc_Error_OK;
 Error:
-	if (scanWaveformTaskHandle_)
+	if (GetData(device)->scanWaveformTaskHandle_)
 	{
-		DAQmxClearTask(scanWaveformTaskHandle_);
-		scanWaveformTaskHandle_ = 0;
+		DAQmxClearTask(GetData(device)->scanWaveformTaskHandle_);
+		GetData(device)->scanWaveformTaskHandle_ = 0;
 	}
 
-	if (counterTaskHandle_)
+	if (GetData(device)->counterTaskHandle_)
 	{
-		DAQmxClearTask(counterTaskHandle_);
-		counterTaskHandle_ = 0;
+		DAQmxClearTask(GetData(device)->counterTaskHandle_);
+		GetData(device)->counterTaskHandle_ = 0;
 	}
 
-	if (acqTaskHandle_)
+	if (GetData(device)->acqTaskHandle_)
 	{
-		DAQmxClearTask(acqTaskHandle_);
-		acqTaskHandle_ = 0;
+		DAQmxClearTask(GetData(device)->acqTaskHandle_);
+		GetData(device)->acqTaskHandle_ = 0;
 	}
 	/*
 	int err;
@@ -751,12 +695,12 @@ static unsigned GetImageHeight(OSc_Device *device) {
 // DAQ version; acquire from multiple channels
 static OSc_Error ReadImage(OSc_Device *device)
 {
-	uint32_t resolution_ = GetData(device)->resolution;
-	uint32_t elementsPerLine = X_UNDERSHOOT + resolution_ + X_RETRACE_LEN;
-	uint32_t scanLines = resolution_;
+	
+	//uint32_t resolution_ = GetData(device)->resolution;
+	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
+	uint32_t scanLines = GetData(device)->resolution;
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
 	size_t nPixels = GetImageWidth(device) * GetImageHeight(device);
-	
 
 	//GetData(device)->ch1Buffer;
 	/*
@@ -899,6 +843,7 @@ static OSc_Error WaitForAcquisitionToFinish(OSc_Device *device)
 
 OSc_Error ReconfigTiming(OSc_Device *device)
 {
+	/*
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
 	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
@@ -909,15 +854,16 @@ OSc_Error ReconfigTiming(OSc_Device *device)
 	uint32_t binFactor_ = GetData(device)->binFactor;
 	double zoom_ = GetData(device)->zoom;
 	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
+	*/
 
 
-	uint32_t elementsPerLine = X_UNDERSHOOT + resolution_ + X_RETRACE_LEN;
-	uint32_t scanLines = resolution_;
+	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
+	uint32_t scanLines = GetData(device)->resolution;
 	uint32_t yLen = scanLines + Y_RETRACE_LEN;
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
 
-	int32 nierr = DAQmxCfgSampClkTiming(scanWaveformTaskHandle_, "", 1E6*scanRate_ / binFactor_,
+	int32 nierr = DAQmxCfgSampClkTiming(GetData(device)->scanWaveformTaskHandle_, "", 1E6*GetData(device)->scanRate / GetData(device)->binFactor,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan); // reload
 	if (nierr != 0)
 	{
@@ -925,8 +871,8 @@ OSc_Error ReconfigTiming(OSc_Device *device)
 	}
 	//LogMessage("Configured sample clock timing for scan waveform", true);
 
-	nierr = DAQmxCfgSampClkTiming(acqTaskHandle_, "", 1E6*scanRate_,
-		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, resolution_ * binFactor_); // reload
+	nierr = DAQmxCfgSampClkTiming(GetData(device)->acqTaskHandle_, "", 1E6*GetData(device)->scanRate,
+		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, GetData(device)->resolution * GetData(device)->binFactor); // reload
 	if (nierr != 0)
 	{
 		goto Error;
@@ -934,16 +880,16 @@ OSc_Error ReconfigTiming(OSc_Device *device)
 	//LogMessage("Configured sample clock timing for acquisition", true);
 
 	// update counter timing-related parameters
-	double effectiveScanPortion = (double)resolution_ / elementsPerLine;
-	double lineFreq = (double)((1E6*scanRate_) / binFactor_ / elementsPerLine);  // unit: Hz
+	double effectiveScanPortion = (double)GetData(device)->resolution / elementsPerLine;
+	double lineFreq = (double)((1E6*GetData(device)->scanRate) / GetData(device)->binFactor/ elementsPerLine);  // unit: Hz
 																				 // adjustment corresponding to galvo undershoot at each line
 																				 // the delay (in second) between the command scan waveform and the actual scanner response
-	double scanPhase = (double)(binFactor_ / (1E6*scanRate_) * X_UNDERSHOOT);
+	double scanPhase = (double)(GetData(device)->binFactor / (1E6*GetData(device)->scanRate) * X_UNDERSHOOT);
 
-	nierr = DAQmxSetChanAttribute(counterTaskHandle_, "", DAQmx_CO_Pulse_Freq, lineFreq);
-	nierr = DAQmxSetChanAttribute(counterTaskHandle_, "", DAQmx_CO_Pulse_Freq_InitialDelay, scanPhase);
-	nierr = DAQmxSetChanAttribute(counterTaskHandle_, "", DAQmx_CO_Pulse_DutyCyc, effectiveScanPortion);
-	nierr = DAQmxCfgImplicitTiming(counterTaskHandle_, DAQmx_Val_FiniteSamps, scanLines);
+	nierr = DAQmxSetChanAttribute(GetData(device)->counterTaskHandle_, "", DAQmx_CO_Pulse_Freq, lineFreq);
+	nierr = DAQmxSetChanAttribute(GetData(device)->counterTaskHandle_, "", DAQmx_CO_Pulse_Freq_InitialDelay, scanPhase);
+	nierr = DAQmxSetChanAttribute(GetData(device)->counterTaskHandle_, "", DAQmx_CO_Pulse_DutyCyc, effectiveScanPortion);
+	nierr = DAQmxCfgImplicitTiming(GetData(device)->counterTaskHandle_, DAQmx_Val_FiniteSamps, scanLines);
 	if (nierr != 0)
 	{
 		goto Error;
@@ -953,32 +899,32 @@ OSc_Error ReconfigTiming(OSc_Device *device)
 	return OSc_Error_OK;
 
 Error:
-	if (scanWaveformTaskHandle_)
+	if (GetData(device)->scanWaveformTaskHandle_)
 	{
-		DAQmxStopTask(scanWaveformTaskHandle_);
-		DAQmxClearTask(scanWaveformTaskHandle_);
-		scanWaveformTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
+		DAQmxClearTask(GetData(device)->scanWaveformTaskHandle_);
+		GetData(device)->scanWaveformTaskHandle_ = 0;
 	}
 
-	if (lineClockTaskHandle_)
+	if (GetData(device)->lineClockTaskHandle_)
 	{
-		DAQmxStopTask(lineClockTaskHandle_);
-		DAQmxClearTask(lineClockTaskHandle_);
-		lineClockTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
+		DAQmxClearTask(GetData(device)->lineClockTaskHandle_);
+		GetData(device)->lineClockTaskHandle_ = 0;
 	}
 
-	if (counterTaskHandle_)
+	if (GetData(device)->counterTaskHandle_)
 	{
-		DAQmxStopTask(counterTaskHandle_);
-		DAQmxClearTask(counterTaskHandle_);
-		counterTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->counterTaskHandle_);
+		DAQmxClearTask(GetData(device)->counterTaskHandle_);
+		GetData(device)->counterTaskHandle_ = 0;
 	}
 
-	if (acqTaskHandle_)
+	if (GetData(device)->acqTaskHandle_)
 	{
-		DAQmxStopTask(acqTaskHandle_);
-		DAQmxClearTask(acqTaskHandle_);
-		acqTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->acqTaskHandle_);
+		DAQmxClearTask(GetData(device)->acqTaskHandle_);
+		GetData(device)->acqTaskHandle_ = 0;
 	}
 	OSc_Error err;
 	if (nierr != 0)
@@ -1110,6 +1056,7 @@ OSc_Error SnapImage(OSc_Device *device) {
 // This allows for very efficient restarts
 OSc_Error CommitTasks(OSc_Device *device)
 {
+	/*
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
 	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
@@ -1120,20 +1067,21 @@ OSc_Error CommitTasks(OSc_Device *device)
 	uint32_t binFactor_ = GetData(device)->binFactor;
 	double zoom_ = GetData(device)->zoom;
 	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
+	*/
 
-	int32 nierr = DAQmxTaskControl(acqTaskHandle_, DAQmx_Val_Task_Commit);
+	int32 nierr = DAQmxTaskControl(GetData(device)->acqTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
 	{
 		goto Error;
 	}
 
-	nierr = DAQmxTaskControl(counterTaskHandle_, DAQmx_Val_Task_Commit);
+	nierr = DAQmxTaskControl(GetData(device)->counterTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
 	{
 		goto Error;
 	}
 
-	nierr = DAQmxTaskControl(scanWaveformTaskHandle_, DAQmx_Val_Task_Commit);
+	nierr = DAQmxTaskControl(GetData(device)->scanWaveformTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
 	{
 		goto Error;
@@ -1143,31 +1091,31 @@ OSc_Error CommitTasks(OSc_Device *device)
 	return OSc_Error_OK;
 
 Error:
-	if (scanWaveformTaskHandle_)
+	if (GetData(device)->scanWaveformTaskHandle_)
 	{
-		DAQmxStopTask(scanWaveformTaskHandle_);
-		DAQmxClearTask(scanWaveformTaskHandle_);
-		scanWaveformTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
+		DAQmxClearTask(GetData(device)->scanWaveformTaskHandle_);
+		GetData(device)->scanWaveformTaskHandle_ = 0;
 	}
 
-	if (lineClockTaskHandle_)
+	if (GetData(device)->lineClockTaskHandle_)
 	{
-		DAQmxStopTask(lineClockTaskHandle_);
-		DAQmxClearTask(lineClockTaskHandle_);
-		lineClockTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
+		DAQmxClearTask(GetData(device)->lineClockTaskHandle_);
+		GetData(device)->lineClockTaskHandle_ = 0;
 	}
 
-	if (counterTaskHandle_)
+	if (GetData(device)->counterTaskHandle_)
 	{
-		DAQmxStopTask(counterTaskHandle_);
-		DAQmxClearTask(counterTaskHandle_);
-		counterTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->counterTaskHandle_);
+		DAQmxClearTask(GetData(device)->counterTaskHandle_);
+		GetData(device)->counterTaskHandle_ = 0;
 	}
-	if (acqTaskHandle_)
+	if (GetData(device)->acqTaskHandle_)
 	{
-		DAQmxStopTask(acqTaskHandle_);
-		DAQmxClearTask(acqTaskHandle_);
-		acqTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->acqTaskHandle_);
+		DAQmxClearTask(GetData(device)->acqTaskHandle_);
+		GetData(device)->acqTaskHandle_ = 0;
 	}
 	OSc_Error err;
 	if (nierr != 0)
@@ -1189,19 +1137,8 @@ Error:
 // Unregister DAQ line acquisition event
 OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
 {
-	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
-	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
-	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
-	TaskHandle acqTaskHandle_ = GetData(device)->acqTaskHandle_;
-	uint32_t resolution_ = GetData(device)->resolution;
-	uint32_t numDOChannels_ = GetData(device)->numDOChannels;
-	double scanRate_ = GetData(device)->scanRate;
-	uint32_t binFactor_ = GetData(device)->binFactor;
-	double zoom_ = GetData(device)->zoom;
-	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
-
-	int32 nierr = DAQmxRegisterEveryNSamplesEvent(acqTaskHandle_, DAQmx_Val_Acquired_Into_Buffer,
-		resolution_ * binFactor_, 0, NULL, NULL);
+	int32 nierr = DAQmxRegisterEveryNSamplesEvent(GetData(device)->acqTaskHandle_, DAQmx_Val_Acquired_Into_Buffer,
+		GetData(device)->resolution * GetData(device)->binFactor, 0, NULL, NULL);
 	if (nierr != 0)
 	{
 		goto Error;
@@ -1211,11 +1148,11 @@ OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
 	return OSc_Error_OK;
 
 Error:
-	if (acqTaskHandle_)
+	if (GetData(device)->acqTaskHandle_)
 	{
-		DAQmxStopTask(acqTaskHandle_);
-		DAQmxClearTask(acqTaskHandle_);
-		acqTaskHandle_ = 0;
+		DAQmxStopTask(GetData(device)->acqTaskHandle_);
+		DAQmxClearTask(GetData(device)->acqTaskHandle_);
+		GetData(device)->acqTaskHandle_ = 0;
 	}
 	OSc_Error err;
 	if (nierr != 0)
@@ -1233,6 +1170,7 @@ Error:
 // register DAQ line acquisition event
 OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 {
+	/*
 	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
 	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
 	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
@@ -1243,6 +1181,7 @@ OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 	uint32_t binFactor_ = GetData(device)->binFactor;
 	double zoom_ = GetData(device)->zoom;
 	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
+	*/
 
 	// TODO
 	/*
