@@ -62,12 +62,13 @@ static OSc_Error NIDAQOpen(OSc_Device *device)
 }
 
 
-static OSc_Error NIDAQClose(OSc_Device *device)
+static OSc_Error NIDAQClose(OSc_Device *device, OSc_Acquisition* acq)
 {
 	// TODO CloseDAQ(). stop and close all tasks
+	StopAcquisitionAndWait(device, acq);
 	OSc_Error err = CloseDAQ(device);
-	DeleteCriticalSection(&(GetData(device)->acquisition.mutex));
-	WakeConditionVariable(&(GetData(device)->acquisition.acquisitionFinishCondition));
+	//DeleteCriticalSection(&(GetData(device)->acquisition.mutex));
+	//WakeConditionVariable(&(GetData(device)->acquisition.acquisitionFinishCondition));
 	return err;
 }
 
@@ -128,8 +129,13 @@ static OSc_Error NIDAQGetImageSize(OSc_Device *device, uint32_t *width, uint32_t
 // Same as OpenScanDAQ::GetNumberOfChannels()
 static OSc_Error NIDAQGetNumberOfChannels(OSc_Device *device, uint32_t *nChannels)
 {
-	*nChannels = GetData(device)->channels == CHANNELS1_2_3 ? 3 :
-		CHANNELS_1_AND_2 ? 2 : 1;
+	struct OScNIDAQPrivateData* privateData= GetData(device);
+	int ch = privateData->channels;
+	 //privateData->binFactor;
+	*nChannels = (GetData(device)->channels) == CHANNELS1_2_3 ? 3 :
+		(GetData(device)->channels) == CHANNELS_1_AND_2 ? 2 : 1;
+
+
 	return OSc_Error_OK;
 }
 

@@ -771,7 +771,11 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 {
 	OSc_Device *device = (OSc_Device *)param;
 	OSc_Acquisition *acq = GetData(device)->acquisition.acquisition;
-
+	OSc_Error err;
+	if (OSc_Check_Error(err, SnapImage(device, acq))) {
+		FinishAcquisition(device);
+		return 0;
+	}
 	FinishAcquisition(device);
 	return 0;
 }
@@ -842,20 +846,6 @@ OSc_Error WaitForAcquisitionToFinish(OSc_Device *device)
 
 OSc_Error ReconfigTiming(OSc_Device *device)
 {
-	/*
-	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
-	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
-	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
-	TaskHandle acqTaskHandle_ = GetData(device)->acqTaskHandle_;
-	uint32_t resolution_ = GetData(device)->resolution;
-	uint32_t numDOChannels_ = GetData(device)->numDOChannels;
-	double scanRate_ = GetData(device)->scanRate;
-	uint32_t binFactor_ = GetData(device)->binFactor;
-	double zoom_ = GetData(device)->zoom;
-	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
-	*/
-
-
 	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t scanLines = GetData(device)->resolution;
 	uint32_t yLen = scanLines + Y_RETRACE_LEN;
@@ -941,25 +931,16 @@ Error:
 }
 
 OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
-	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
-	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
-	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
-	TaskHandle acqTaskHandle_ = GetData(device)->acqTaskHandle_;
-	uint32_t resolution_ = GetData(device)->resolution;
-	uint32_t numDOChannels_ = GetData(device)->numDOChannels;
-	double scanRate_ = GetData(device)->scanRate;
-	uint32_t binFactor_ = GetData(device)->binFactor;
-	double zoom_ = GetData(device)->zoom;
-	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
-
+	/*
 	bool isRunning = false;
 	IsAcquisitionRunning(device, &isRunning);
 	if(isRunning)
 		return OSc_Error_Acquisition_Running;
+	*/
 
 	OSc_Error err;
 	// if any of DAQ tasks are not initialized
-	if (!scanWaveformTaskHandle_ || !lineClockTaskHandle_ || !acqTaskHandle_ || !counterTaskHandle_)
+	if (!GetData(device)->scanWaveformTaskHandle_ || !GetData(device)->lineClockTaskHandle_ || !GetData(device)->acqTaskHandle_ || !GetData(device)->counterTaskHandle_)
 	{
 		if (OSc_Check_Error(err, StartDAQ(device))) {
 			return err;
@@ -1053,19 +1034,6 @@ OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
 // This allows for very efficient restarts
 OSc_Error CommitTasks(OSc_Device *device)
 {
-	/*
-	TaskHandle scanWaveformTaskHandle_ = GetData(device)->scanWaveformTaskHandle_;
-	TaskHandle lineClockTaskHandle_ = GetData(device)->lineClockTaskHandle_;
-	TaskHandle counterTaskHandle_ = GetData(device)->counterTaskHandle_;
-	TaskHandle acqTaskHandle_ = GetData(device)->acqTaskHandle_;
-	uint32_t resolution_ = GetData(device)->resolution;
-	uint32_t numDOChannels_ = GetData(device)->numDOChannels;
-	double scanRate_ = GetData(device)->scanRate;
-	uint32_t binFactor_ = GetData(device)->binFactor;
-	double zoom_ = GetData(device)->zoom;
-	uInt32 numAIChannels_ = GetData(device)->acquisition.numAIChannels;
-	*/
-
 	int32 nierr = DAQmxTaskControl(GetData(device)->acqTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
 	{
