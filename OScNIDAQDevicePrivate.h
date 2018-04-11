@@ -47,7 +47,7 @@ struct OScNIDAQPrivateData
 	uint32_t resolution;
 	int32_t binFactor;
 	double inputVoltageRange;
-
+	int32_t totalRead;
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks
 
 	enum {
