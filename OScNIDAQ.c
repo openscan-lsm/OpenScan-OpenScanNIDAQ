@@ -45,7 +45,7 @@ static OSc_Error DeinitializeNIDAQ(void)
 static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 {
 	data->detectorOnly = false;
-	data->scannerOnly = true;
+	data->scannerOnly = false;
 
 	data->settingsChanged = true;
 	data->timingSettingsChanged = true;
@@ -729,10 +729,22 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	}
 
 	// Wait until one frame is scanned
-	while (!GetData(device)->oneFrameScanDone)
+	int timeout = 0;
+	while (!GetData(device)->oneFrameScanDone) {
 		Sleep(50);
+		timeout++;
+		if (timeout == 500) {
+	
+			break;
+		}
+	}
 
 	if (OSc_Check_Error(err, StopScan(device))) {
+		return err;
+	}
+
+	//SplitChannels
+	if (OSc_Check_Error(err, SplitChannels(device))) {
 		return err;
 	}
 
@@ -744,10 +756,40 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		return err;
 	}
 	*/
-	Sleep(100);
+	Sleep(1000);
 	return OSc_Error_OK;
 }
 
+// split all-channel image buffer to separate channel buffers
+// * works when DAQ acquires in GroupByChannel (non-interlaced) mode
+OSc_Error SplitChannels(OSc_Device *device)
+{
+	// imageData_ if displayed as 2D image will have N channels on each row
+	// data is stored line by line with N channels in a row per line
+	uint32_t rawImageWidth = GetImageWidth(device) * GetData(device)->acquisition.numAIChannels;
+	uint32_t rawImageHeight = GetImageHeight(device);
+	uint32_t xLength = GetImageWidth(device);
+	uint32_t yLength = GetImageHeight(device);
+	// convert big image buffer to separate channel buffers
+	for (uint32_t chan = 0; chan < GetData(device)->acquisition.numAIChannels; chan++)
+		for (uint32_t currRow = 0; currRow < yLength; currRow++)
+			for (uint32_t currCol = 0; currCol < xLength; currCol++)
+				switch (chan) {
+				case 0:
+					GetData(device)->ch1Buffer[currCol + currRow * xLength] =
+						GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
+					break;
+				case 1:
+					GetData(device)->ch2Buffer[currCol + currRow * xLength] =
+						GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
+					break;
+				default:
+					//LogMessage("More than 2 channels available or something wrong", true);
+					break;
+				}
+	//LogMessage("Finished reading one image and splitting data to channel buffers", true);
+	return OSc_Error_OK;
+}
 
 static OSc_Error AcquireFrame(OSc_Device *device, OSc_Acquisition *acq, unsigned kalmanCounter)
 {
@@ -1095,11 +1137,13 @@ Error:
 
 
 
+/*
 int32 CVICALLBACK ReadLineCallbackWrapper(TaskHandle taskHandle, int32 everyNsamplesEventType,
 	uInt32 nSamples, void *callbackData) {
 	OpenScanDAQ * this_ = reinterpret_cast<OpenScanDAQ*>(callbackData);
 	return this_->ReadLineCallback(taskHandle, everyNsamplesEventType, nSamples);
 }
+*/
 
 // Unregister DAQ line acquisition event
 OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
@@ -1140,12 +1184,12 @@ OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 {
 	// nSamples actually means nSamples per channel (refer to https://goo.gl/6zjMgB)
 	int32 nierr = DAQmxRegisterEveryNSamplesEvent(GetData(device)->acqTaskHandle_, DAQmx_Val_Acquired_Into_Buffer,
-		GetData(device)->resolution * GetData(device)->binFactor, 0, ReadLineCallbackWrapper, this);  // readimage
+		GetData(device)->resolution * GetData(device)->binFactor, 0, ReadLineCallback, NULL);  // readimage
 	if (nierr != 0)
 	{
 		goto Error;
 	}
-	LogMessage("Registered line acquisition callback event", true);
+	//LogMessage("Registered line acquisition callback event", true);
 	return OSc_Error_OK;
 Error:
 	if (GetData(device)->acqTaskHandle_)
@@ -1157,7 +1201,7 @@ Error:
 	int err;
 	if (nierr != 0)
 	{
-		LogMessage("Failed registering EveryNSamplesEvent; task cleared");
+		//LogMessage("Failed registering EveryNSamplesEvent; task cleared");
 		err = OSc_Error_Unknown;
 	}
 	else
@@ -1175,7 +1219,7 @@ Error:
 OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, OSc_Device *device)
 {
 	//int32 totalRead_ = GetData(device);
-	bool oneFrameScanDone_ = GetData(device)->oneFrameScanDone;
+	//bool oneFrameScanDone_ = GetData(device)->oneFrameScanDone;
 	//LogMessage("line acq started...", true);
 	int32 readPerChan;
 	int32_t prevPercentRead = -1;
@@ -1213,14 +1257,14 @@ OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, 
 	}
 	else
 	{
-		LogMessage("Callback received but no data read");
+		//LogMessage("Callback received but no data read");
 	}
 
 	if (GetData(device)->totalRead == GetData(device)->resolution * totalSamplesPerLine)
 	{
-		oneFrameScanDone_ = true;
+		GetData(device)->oneFrameScanDone = true;
 		GetData(device)->totalRead = 0;
-		LogMessage("End of scanning one frame", true);
+		//LogMessage("End of scanning one frame", true);
 	}
 
 	return OSc_Error_OK;

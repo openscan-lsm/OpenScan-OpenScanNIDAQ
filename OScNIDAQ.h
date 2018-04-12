@@ -18,10 +18,5 @@ OSc_Error ReconfigTiming(OSc_Device *device);
 OSc_Error UnregisterLineAcqEvent(OSc_Device *device);
 OSc_Error RegisterLineAcqEvent(OSc_Device *device);
 OSc_Error CommitTasks(OSc_Device *device);
-
-int32 CVICALLBACK ReadLineCallbackWrapper(TaskHandle taskHandle, int32 everyNsamplesEventType,
-	uInt32 nSamples, void *callbackData) {
-	OpenScanDAQ * this_ = reinterpret_cast<OpenScanDAQ*>(callbackData);
-	return this_->ReadLineCallback(taskHandle, everyNsamplesEventType, nSamples);
-}
-
+OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq);
+OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, OSc_Device *device);
