@@ -721,7 +721,16 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	GetData(device)->ch1Buffer = realloc(GetData(device)->ch1Buffer, sizeof(uint16_t) * nPixels);
 	GetData(device)->ch2Buffer = realloc(GetData(device)->ch2Buffer, sizeof(uint16_t) * nPixels);
 	GetData(device)->ch3Buffer = realloc(GetData(device)->ch3Buffer, sizeof(uint16_t) * nPixels);
-	GetData(device)->oneFrameScanDone = GetData(device) -> scannerOnly;
+
+	GetData(device)->oneFrameScanDone = GetData(device)->scannerOnly;
+
+	// initialize channel buffers
+	for (size_t i = 0; i < nPixels; ++i)
+	{
+		GetData(device)->ch1Buffer[i] = 0;
+		GetData(device)->ch2Buffer[i] = 255;
+		GetData(device)->ch3Buffer[i] = 32767;
+	}
 
 	OSc_Error err;
 	if (OSc_Check_Error(err, StartScan(device))) {
@@ -743,20 +752,19 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		return err;
 	}
 
-	//SplitChannels
-	if (OSc_Check_Error(err, SplitChannels(device))) {
-		return err;
+	// SplitChannels
+	// skik if set to scanner only mode
+	if (!GetData(device)->scannerOnly)
+	{
+		if (OSc_Check_Error(err, SplitChannels(device))) { return err; }
 	}
 
 	acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
 	acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
 	acq->frameCallback(acq, 2, GetData(device)->ch3Buffer, acq->data);
-	/*
-	if (OSc_Check_Error(err, StartScan(device))) {
-		return err;
-	}
-	*/
+
 	Sleep(1000);
+
 	return OSc_Error_OK;
 }
 
