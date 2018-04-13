@@ -89,8 +89,8 @@ OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 	{
 		char msg[OSc_MAX_STR_LEN + 1] = "Failed to create device ";
 		strcat(msg, data->rioResourceName);
-		OSc_Log_Error(NULL, msg);
-		return err; // TODO
+		showError(msg);
+		return err;
 	}
 
 	PopulateDefaultParameters(GetData(device));
@@ -108,11 +108,6 @@ OSc_Error OpenDAQ(OSc_Device *device)
 	//LogMessage("Initializing NI DAQ...", true);
 	OSc_Error err;
 	if (OSc_Check_Error(err, StartDAQ(device))) {
-		/*
-		char msg[OSc_MAX_STR_LEN + 1] = "Failed to create device ";
-		strcat(msg, data->rioResourceName);
-		OSc_Log_Error(NULL, msg);
-		*/
 		return err;
 	}
 
@@ -120,7 +115,7 @@ OSc_Error OpenDAQ(OSc_Device *device)
 		return err;
 	}
 
-	//LogMessage("DAQ initialized.", true);
+	showInfo("DAQ initialized");
 
 	return OSc_Error_OK;
 }
@@ -136,18 +131,20 @@ OSc_Error StartDAQ(OSc_Device *device)
 		nierr = DAQmxCreateTask("", &GetData(device)->scanWaveformTaskHandle_);
 		if (nierr != 0)
 		{
-			//LogMessage("Error creating scanWaveformTaskHandle_");
+			showError("Error creating scanWaveformTaskHandle");
+
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
-		//LogMessage("Created scan waveform task", true);
+		showInfo("Created scan waveform task");
 		nierr = DAQmxCreateAOVoltageChan(GetData(device)->scanWaveformTaskHandle_, "PXI1Slot2/ao0:1", "",
 			-10.0, 10.0, DAQmx_Val_Volts, NULL);
 		if (nierr != 0)
 		{
-			//LogMessage("Failed to create AO channel");
+			showError("Failed to create AO channel");
 			goto Error;
 		}
-		//LogMessage("Created AO voltage channels for X and Y scan waveforms", true);
+
+		showInfo("Created AO voltage channels for X and Y scan waveforms");
 	}
 
 	// initialize line clock task
@@ -158,7 +155,8 @@ OSc_Error StartDAQ(OSc_Device *device)
 		{
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
-		//LogMessage("Created line clock task", true);
+
+		showInfo("Created line clock task");
 		// wire p0.5 to /PXI1Slot2/PFI7 to trigger acquisition line by line
 		// has to use port0 since it supports buffered opertation
 		// p0.6 to generate line clock for FLIM
@@ -178,6 +176,7 @@ OSc_Error StartDAQ(OSc_Device *device)
 		{
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
+		showInfo("physical DO channels for line clocks and frame clock.");
 		//LogMessage("Created " + boost::lexical_cast<std::string>(numDOChannels_) +
 		//" physical DO channels for line clocks and frame clock.", true);
 	}
@@ -190,7 +189,7 @@ OSc_Error StartDAQ(OSc_Device *device)
 		{
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
-		//LogMessage("Created counter task", true);
+		showInfo("Created counter task.");
 
 		// Create CO Channel.
 		uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
@@ -213,7 +212,7 @@ OSc_Error StartDAQ(OSc_Device *device)
 		{
 			goto Error;
 		}
-		//LogMessage("Configured counter timing", true);
+		showInfo("Configured counter timing");
 
 	}
 
@@ -225,14 +224,14 @@ OSc_Error StartDAQ(OSc_Device *device)
 		{
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
-		//LogMessage("Created acquisition task", true);
+		showInfo("Created acquisition task");
 		nierr = DAQmxCreateAIVoltageChan(GetData(device)->acqTaskHandle_, "PXI1Slot2/ai0:2", "",
 			DAQmx_Val_Cfg_Default, -10.0, 10.0, DAQmx_Val_Volts, NULL);
 		if (nierr != 0)
 		{
 			goto Error;
 		}
-		//LogMessage("Created AI voltage channels for image acquisition", true);
+		showInfo("Created AI voltage channels for image acquisition");
 		// get number of physical AI channels for image acquisition
 		// difference from GetNumberOfChannels() which indicates number of channels to display
 		nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, &GetData(device)->acquisition.numAIChannels);
@@ -279,10 +278,8 @@ Error:
 	OSc_Error err;
 	if (nierr != 0)
 	{
-		/*
-		LogMessage("Failed initializing tasks; task cleared");
-		err = TranslateNIError(nierr);
-		*/
+		
+		showError("Failed initializing tasks; task cleared");
 		err = OSc_Error_Unknown_Enum_Value_Name;
 	}
 	else
@@ -320,8 +317,7 @@ OSc_Error SetTriggers(OSc_Device *device)
 	if (OSc_Check_Error(err, GetTerminalNameWithDevPrefix(GetData(device)->scanWaveformTaskHandle_, "ao/StartTrigger", aoStartTrigName))) {
 		return err;
 	}
-	//LogMessage("Get AO Start Trigger name to trigger line clock", true);
-
+	showInfo("Get AO Start Trigger name to trigger line clock");
 
 	// Configure counter
 	// line clock generation is triggered by AO StartTrigger internally
@@ -330,22 +326,27 @@ OSc_Error SetTriggers(OSc_Device *device)
 	if (nierr != 0)
 	{
 		//LogMessage(GetNIDetailedErrorForMostRecentCall().c_str());
+		// TODO NI error show
+		showError("NI err");
 		goto Error;
 	}
 
-	//LogMessage("Configured digital edge start trigger for counter", true);
+	showInfo("Configured digital edge start trigger for counter");
 
 	nierr = DAQmxCfgDigEdgeStartTrig(GetData(device)->acqTaskHandle_, "/PXI1Slot2/PFI12", DAQmx_Val_Rising);
 	if (nierr != 0)
 	{
+		showError("NI err");
 		//LogMessage(GetNIDetailedErrorForMostRecentCall().c_str());
 		goto Error;
 	}
 	//LogMessage("Configured digital edge start trigger for image acquisition", true);
+	showInfo("Configured digital edge start trigger for image acquisition");
 
 	nierr = DAQmxSetStartTrigRetriggerable(GetData(device)->acqTaskHandle_, 1);
 	if (nierr != 0)
 	{
+		showError("NI err");
 		//LogMessage(GetNIDetailedErrorForMostRecentCall().c_str());
 		goto Error;
 	}
@@ -462,15 +463,18 @@ static OSc_Error WriteWaveforms(OSc_Device *device)
 		DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL);
 	if (nierr != 0)
 	{
+		showError("Write scanwaveform error:");
 		//LogMessage("Write scanwaveform error:", true);
 		goto Error;
 	}
 	if (numWritten != totalElementsPerFramePerChan)
 	{
+		showError("Failed to write complete scan waveform");
 		//LogMessage("Failed to write complete scan waveform");
 		goto Error;
 	}
 	//LogMessage("One frame waveform written to DAQ memory", true);
+	showInfo("One frame waveform written to DAQ memory");
 
 	// TODO: why use elementsPerLine instead of elementsPerFramePerChan?
 	err = GenerateLineClock(GetData(device)->resolution, numScanLines, lineClockPattern);
@@ -560,6 +564,7 @@ static OSc_Error StartScan(OSc_Device *device)
 		{
 			goto Error;
 		}
+		showInfo("Armed acquisition");
 		//LogMessage("Armed acquisition", true);
 	}
 	else {
@@ -571,14 +576,14 @@ static OSc_Error StartScan(OSc_Device *device)
 	{
 		goto Error;
 	}
-	//LogMessage("Armed counter (line clock) generation", true);
+	showInfo("Armed counter (line clock) generation");
 
 	nierr = DAQmxStartTask(GetData(device)->scanWaveformTaskHandle_);
 	if (nierr != 0)
 	{
 		goto Error;
 	}
-	//LogMessage("Armed scan waveform generation. Starting scan...", true);
+	showInfo("Armed scan waveform generation. Starting scan...");
 	return OSc_Error_OK;
 
 Error:
@@ -626,10 +631,11 @@ static OSc_Error StopScan(OSc_Device *device)
 		nierr = DAQmxStopTask(GetData(device)->acqTaskHandle_);
 		if (nierr != 0)
 		{
+			showInfo("Error stopping acquisition task");
 			//LogMessage("Error stopping acquisition task", true);
 			goto Error;
 		}
-		//LogMessage("Stopped acquisition task", true);
+		showInfo("Stopped acquisition task");
 	}
 	else {
 
@@ -639,7 +645,7 @@ static OSc_Error StopScan(OSc_Device *device)
 	nierr = DAQmxStopTask(GetData(device)->counterTaskHandle_);
 	if (nierr != 0)
 	{
-		//LogMessage("Error stopping line clock task", true);
+		showError("NI error");
 		goto Error;
 	}
 	//LogMessage("Stopped line clock task", true);
@@ -660,11 +666,13 @@ static OSc_Error StopScan(OSc_Device *device)
 	nierr = DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
 	if (nierr != 0)
 	{
+		showError("NI error");
 		//LogMessage("Error stopping scan waveform task; NI DAQmx error code: " +
 			//boost::lexical_cast<std::string>(nierr), true);
 		//LogMessage(GetNIDetailedErrorForMostRecentCall().c_str());
 		goto Error;
 	}
+	showInfo("Stopped scan waveform task");
 	//LogMessage("Stopped scan waveform task", true);
 
 	return OSc_Error_OK;
@@ -718,7 +726,6 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
 	size_t nPixels = GetImageWidth(device) * GetImageHeight(device);
 
-	// TODO
 	GetData(device)->imageData = realloc(GetData(device)->imageData,
 		sizeof(uint16_t) * GetData(device)->acquisition.numAIChannels * nPixels);
 	GetData(device)->rawLineData = realloc(GetData(device)->rawLineData, 
@@ -756,9 +763,9 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	while (!GetData(device)->oneFrameScanDone) {
 		Sleep(50);
 		timeout++;
-		//if (timeout == 100) {
-		//	break;
-		//}
+		if (timeout == 100) {
+			break;
+		}
 	}
 
 	if (OSc_Check_Error(err, StopScan(device))) {
@@ -814,7 +821,7 @@ OSc_Error SplitChannels(OSc_Device *device)
 					//LogMessage("More than 2 channels available or something wrong", true);
 					break;
 				}
-	//LogMessage("Finished reading one image and splitting data to channel buffers", true);
+	showInfo("Finished reading one image and splitting data to channel buffers");
 	return OSc_Error_OK;
 }
 
@@ -925,7 +932,7 @@ OSc_Error ReconfigTiming(OSc_Device *device)
 	{
 		goto Error;
 	}
-	//LogMessage("Configured sample clock timing for scan waveform", true);
+	showInfo("Configured sample clock timing for scan waveform");
 
 	nierr = DAQmxCfgSampClkTiming(GetData(device)->acqTaskHandle_, "", 1E6*GetData(device)->scanRate,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, GetData(device)->resolution * GetData(device)->binFactor); // reload
@@ -933,6 +940,7 @@ OSc_Error ReconfigTiming(OSc_Device *device)
 	{
 		goto Error;
 	}
+	showInfo("Configured sample clock timing for acquistion");
 	//LogMessage("Configured sample clock timing for acquisition", true);
 
 	// update counter timing-related parameters
@@ -950,7 +958,7 @@ OSc_Error ReconfigTiming(OSc_Device *device)
 	{
 		goto Error;
 	}
-	//LogMessage("Configured timing for counter generated line clock", true);
+	showInfo("Configured timing for counter generated line clock");
 
 	return OSc_Error_OK;
 
@@ -985,6 +993,7 @@ Error:
 	OSc_Error err;
 	if (nierr != 0)
 	{
+		showError("NI Error");
 		//LogMessage("Failed configuring timing; task cleared");
 		//err = TranslateNIError(nierr);
 		err = OSc_Error_Unknown;
@@ -1044,7 +1053,7 @@ OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
 
 	if (GetData(device)->waveformSettingsChanged)
 	{
-		//LogMessage("Writing scan waveform and line clock pattern to DAQ...", true);
+		showInfo("Writing scan waveform and line clock pattern to DAQ...");
 		if (OSc_Check_Error(err, WriteWaveforms(device))) {
 			return err;
 		}
@@ -1118,7 +1127,7 @@ OSc_Error CommitTasks(OSc_Device *device)
 	{
 		goto Error;
 	}
-	//LogMessage("Committed DAQmx settings to hardware", true);
+	showInfo("Committed DAQmx settings to hardware");
 
 	return OSc_Error_OK;
 
@@ -1152,6 +1161,7 @@ Error:
 	OSc_Error err;
 	if (nierr != 0)
 	{
+		showError("NI Error");
 		//LogMessage("Failed committing tasks; task cleared");
 		err = OSc_Error_Unknown;
 	}
@@ -1172,6 +1182,7 @@ OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
 	{
 		goto Error;
 	}
+	showInfo("Ungistered line acquisition callback event");
 	//LogMessage("Ungistered line acquisition callback event", true);
 
 	return OSc_Error_OK;
@@ -1186,6 +1197,7 @@ Error:
 	OSc_Error err;
 	if (nierr != 0)
 	{
+		showError("NI Error");
 		//LogMessage("Failed unregistering event; task cleared");
 		err = OSc_Error_Unknown;
 	}
@@ -1212,7 +1224,9 @@ OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 	{
 		goto Error;
 	}
-	//LogMessage("Registered line acquisition callback event", true);
+	showInfo("Registered line acquisition callback event");
+	char msg[OSc_MAX_STR_LEN + 1] = "Registered line acquisition callback event";
+	OSc_Log_Info(NULL, msg);
 	return OSc_Error_OK;
 Error:
 	if (GetData(device)->acqTaskHandle_)
@@ -1224,7 +1238,7 @@ Error:
 	int err;
 	if (nierr != 0)
 	{
-		//LogMessage("Failed registering EveryNSamplesEvent; task cleared");
+		showError("Failed registering EveryNSamplesEvent; task cleared");
 		err = OSc_Error_Unknown;
 	}
 	else
@@ -1285,14 +1299,14 @@ OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, 
 	}
 	else
 	{
-		//LogMessage("Callback received but no data read");
+		showInfo("Callback received but no data read");
 	}
 
 	if (GetData(device)->totalRead == GetData(device)->resolution * totalSamplesPerLine)
 	{
 		GetData(device)->oneFrameScanDone = true;
 		GetData(device)->totalRead = 0;
-		//LogMessage("End of scanning one frame", true);
+		showInfo("End of scanning one frame");
 	}
 
 	return OSc_Error_OK;
@@ -1318,4 +1332,12 @@ Error:
 OSc_Error SetScanParameters(OSc_Device *device)
 {
 	return OSc_Error_OK;
+}
+
+void showInfo(char* msg) {
+	OSc_Log_Info(NULL, msg);
+}
+
+void showError(char* msg) {
+	OSc_Log_Error(NULL, msg);
 }

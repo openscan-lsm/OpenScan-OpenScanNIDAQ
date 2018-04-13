@@ -20,3 +20,5 @@ OSc_Error RegisterLineAcqEvent(OSc_Device *device);
 OSc_Error CommitTasks(OSc_Device *device);
 OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq);
 OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, OSc_Device *device);
+void showInfo(char* msg);
+void showError(char* msg);
