@@ -718,6 +718,8 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	size_t nPixels = GetImageWidth(device) * GetImageHeight(device);
 
 	// TODO
+	GetData(device)->imageData = realloc(GetData(device)->imageData,
+		sizeof(uint16_t) * GetData(device)->acquisition.numAIChannels * nPixels);
 	GetData(device)->ch1Buffer = realloc(GetData(device)->ch1Buffer, sizeof(uint16_t) * nPixels);
 	GetData(device)->ch2Buffer = realloc(GetData(device)->ch2Buffer, sizeof(uint16_t) * nPixels);
 	GetData(device)->ch3Buffer = realloc(GetData(device)->ch3Buffer, sizeof(uint16_t) * nPixels);
@@ -730,6 +732,11 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		GetData(device)->ch1Buffer[i] = 0;
 		GetData(device)->ch2Buffer[i] = 255;
 		GetData(device)->ch3Buffer[i] = 32767;
+	}
+
+	for (size_t i = 0; i < GetData(device)->acquisition.numAIChannels; ++i)
+	{
+		GetData(device)->imageData[i] = 16383;
 	}
 
 	OSc_Error err;
