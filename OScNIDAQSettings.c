@@ -223,6 +223,22 @@ static struct OSc_Setting_Impl SettingImpl_Channels = {
 	.GetEnumValueForName = GetChannelsValueForName,
 };
 
+static OSc_Error GetScannerOnly(OSc_Setting *setting, bool *value)
+{
+	*value = GetData(setting->device)->scannerOnly;
+	return OSc_Error_OK;
+}
+
+static OSc_Error SetScannerOnly(OSc_Setting *setting, bool value)
+{
+	GetData(setting->device)->scannerOnly = value;
+	return OSc_Error_OK;
+}
+
+static struct OSc_Setting_Impl SettingImpl_ScannerOnly = {
+	.GetBool = GetScannerOnly,
+	.SetBool = SetScannerOnly,
+};
 
 OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 {
@@ -249,9 +265,13 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 	OSc_Return_If_Error(OSc_Setting_Create(&inputVoltageRange, device, "Input Voltage Range", OSc_Value_Type_Float64,
 		&SettingImpl_InputVoltageRange, NULL));
 
+	OSc_Setting *scannerOnly;
+	OSc_Return_If_Error(OSc_Setting_Create(&scannerOnly, device, "ScannerOnly", OSc_Value_Type_Bool,
+		&SettingImpl_ScannerOnly, NULL));
+
 	OSc_Setting *ss[] = {
 		scanRate, zoom, binFactor,
-		inputVoltageRange, channels,
+		inputVoltageRange, channels, scannerOnly,
 	};
 	size_t nSettings = sizeof(ss) / sizeof(OSc_Setting *);
 	OSc_Setting **settings = malloc(sizeof(ss));
