@@ -46,7 +46,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 {
 	data->detectorOnly = false;
 	data->scannerOnly = false;
-	data->enableCallback = false;
+	data->enableCallback = true;
 
 	data->settingsChanged = true;
 	data->timingSettingsChanged = true;
@@ -721,12 +721,17 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	// TODO
 	GetData(device)->imageData = realloc(GetData(device)->imageData,
 		sizeof(uint16_t) * GetData(device)->acquisition.numAIChannels * nPixels);
+	GetData(device)->rawLineData = realloc(GetData(device)->rawLineData, 
+		sizeof(float64) * GetData(device)->acquisition.numAIChannels * GetData(device)->resolution * GetData(device)->binFactor);
+	GetData(device)->avgLineData = realloc(GetData(device)->avgLineData,
+		sizeof(float64) * GetData(device)->acquisition.numAIChannels * GetData(device)->resolution);
+
 	GetData(device)->ch1Buffer = realloc(GetData(device)->ch1Buffer, sizeof(uint16_t) * nPixels);
 	GetData(device)->ch2Buffer = realloc(GetData(device)->ch2Buffer, sizeof(uint16_t) * nPixels);
 	GetData(device)->ch3Buffer = realloc(GetData(device)->ch3Buffer, sizeof(uint16_t) * nPixels);
 
-	//GetData(device)->oneFrameScanDone = GetData(device)->scannerOnly;
-	GetData(device)->oneFrameScanDone = true;
+	GetData(device)->oneFrameScanDone = GetData(device)->scannerOnly;
+	//GetData(device)->oneFrameScanDone = true;
 
 	// initialize channel buffers
 	for (size_t i = 0; i < nPixels; ++i)
@@ -751,10 +756,9 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	while (!GetData(device)->oneFrameScanDone) {
 		Sleep(50);
 		timeout++;
-		if (timeout == 500) {
-	
-			break;
-		}
+		//if (timeout == 100) {
+		//	break;
+		//}
 	}
 
 	if (OSc_Check_Error(err, StopScan(device))) {
@@ -1159,15 +1163,6 @@ Error:
 }
 
 
-
-/*
-int32 CVICALLBACK ReadLineCallbackWrapper(TaskHandle taskHandle, int32 everyNsamplesEventType,
-	uInt32 nSamples, void *callbackData) {
-	OpenScanDAQ * this_ = reinterpret_cast<OpenScanDAQ*>(callbackData);
-	return this_->ReadLineCallback(taskHandle, everyNsamplesEventType, nSamples);
-}
-*/
-
 // Unregister DAQ line acquisition event
 OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
 {
@@ -1202,12 +1197,17 @@ Error:
 }
 
 
+int32 CVICALLBACK ReadLineCallbackWrapper(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void *callbackData) {
+	//OpenScanDAQ * this_ = reinterpret_cast<OpenScanDAQ*>(callbackData);
+	//return this_->ReadLineCallback(taskHandle, everyNsamplesEventType, nSamples);
+}
+
 // register DAQ line acquisition event
 OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 {
 	// nSamples actually means nSamples per channel (refer to https://goo.gl/6zjMgB)
 	int32 nierr = DAQmxRegisterEveryNSamplesEvent(GetData(device)->acqTaskHandle_, DAQmx_Val_Acquired_Into_Buffer,
-		GetData(device)->resolution * GetData(device)->binFactor, 0, ReadLineCallback, NULL);  // readimage
+		GetData(device)->resolution * GetData(device)->binFactor, 0, ReadLineCallback, device);  // readimage
 	if (nierr != 0)
 	{
 		goto Error;
@@ -1239,19 +1239,24 @@ Error:
 // read from PMT line by line
 // non-interlaced acquisition. 
 // evary line data in format: Channel1 | Channel 2 | Channel 3 | ...
-OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, OSc_Device *device)
+OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData)
 {
-	//int32 totalRead_ = GetData(device);
-	//bool oneFrameScanDone_ = GetData(device)->oneFrameScanDone;
-	//LogMessage("line acq started...", true);
+	OSc_Device *device= (OSc_Device*)(callbackData);
+	struct OScNIDAQPrivateData* privateDevice = GetData(device);
 	int32 readPerChan;
+
 	int32_t prevPercentRead = -1;
 	uInt32 totalSamplesPerLine = GetData(device)->acquisition.numAIChannels * GetData(device)->resolution * GetData(device)->binFactor;
 	int32 currLine = 1 + GetData(device)->totalRead / GetData(device)->acquisition.numAIChannels / GetData(device)->binFactor / GetData(device)->resolution;
 	// rawLineData format with GroupByChannel (non-interlaced) is:
 	// CH1 pixel 1 meas 1..binFactor | CH1 p2 m1..binFactor | ... | CH1 pN m1..binFactor || CH2 p1 m1..binFactor |...
-	int32 nierr = DAQmxReadAnalogF64(taskHandle, -1, 10.0, DAQmx_Val_GroupByChannel,
+	int32 nierr = DAQmxReadAnalogF64(GetData(device)->acqTaskHandle_, -1, 10.0, DAQmx_Val_GroupByChannel,
 		GetData(device)->rawLineData, totalSamplesPerLine, &readPerChan, NULL);
+
+	// Debug: Get ni err string
+	char errbuf[1024];
+	DAQmxGetErrorString(nierr, errbuf, sizeof(errbuf));
+
 	if (nierr != 0)
 	{
 		goto Error;
@@ -1293,11 +1298,19 @@ OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, 
 	return OSc_Error_OK;
 
 Error:
+	/*
 	if (taskHandle)
 	{
 		DAQmxStopTask(taskHandle);
 		DAQmxClearTask(taskHandle);
 		taskHandle = 0;
+	}
+	*/
+	if (GetData(device)->acqTaskHandle_)
+	{
+		DAQmxStopTask(GetData(device)->acqTaskHandle_);
+		DAQmxClearTask(GetData(device)->acqTaskHandle_);
+		GetData(device)->acqTaskHandle_ = 0;
 	}
 	return OSc_Error_Unknown;
 }
