@@ -46,6 +46,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 {
 	data->detectorOnly = false;
 	data->scannerOnly = false;
+	data->enableCallback = false;
 
 	data->settingsChanged = true;
 	data->timingSettingsChanged = true;
@@ -724,7 +725,8 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	GetData(device)->ch2Buffer = realloc(GetData(device)->ch2Buffer, sizeof(uint16_t) * nPixels);
 	GetData(device)->ch3Buffer = realloc(GetData(device)->ch3Buffer, sizeof(uint16_t) * nPixels);
 
-	GetData(device)->oneFrameScanDone = GetData(device)->scannerOnly;
+	//GetData(device)->oneFrameScanDone = GetData(device)->scannerOnly;
+	GetData(device)->oneFrameScanDone = true;
 
 	// initialize channel buffers
 	for (size_t i = 0; i < nPixels; ++i)
@@ -734,7 +736,7 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		GetData(device)->ch3Buffer[i] = 32767;
 	}
 
-	for (size_t i = 0; i < GetData(device)->acquisition.numAIChannels; ++i)
+	for (size_t i = 0; i < GetData(device)->acquisition.numAIChannels * nPixels; ++i)
 	{
 		GetData(device)->imageData[i] = 16383;
 	}
@@ -798,6 +800,12 @@ OSc_Error SplitChannels(OSc_Device *device)
 					GetData(device)->ch2Buffer[currCol + currRow * xLength] =
 						GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
 					break;
+
+				case 2:
+					GetData(device)->ch3Buffer[currCol + currRow * xLength] =
+						GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
+					break;
+
 				default:
 					//LogMessage("More than 2 channels available or something wrong", true);
 					break;
@@ -1043,7 +1051,7 @@ OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
 
 	// first check if existing EveryNSamplesEvent needs to be unregistered
 	// to allow new event to get registered when acqSettings has changed since previous scan
-	if (GetData(device)->acqSettingsChanged && GetData(device)->isEveryNSamplesEventRegistered && !GetData(device)->scannerOnly)
+	if (GetData(device)->enableCallback && GetData(device)->acqSettingsChanged && GetData(device)->isEveryNSamplesEventRegistered && !GetData(device)->scannerOnly)
 	{
 		if (OSc_Check_Error(err, UnregisterLineAcqEvent(device))) {
 			return err;
@@ -1053,7 +1061,7 @@ OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
 	}
 
 	// Re-register event when resolution or binFactor has changed
-	if (GetData(device)->acqSettingsChanged && !GetData(device)->scannerOnly)
+	if (GetData(device)->enableCallback && GetData(device)->acqSettingsChanged && !GetData(device)->scannerOnly)
 	{
 		if (OSc_Check_Error(err, RegisterLineAcqEvent(device))) {
 			return err;
