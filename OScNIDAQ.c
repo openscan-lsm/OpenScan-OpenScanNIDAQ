@@ -132,7 +132,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		if (nierr != 0)
 		{
 			OSc_Log_Error(device, "Error creating scanWaveformTaskHandle: ");		
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			return OSc_Error_Unknown_Enum_Value_Name;
@@ -144,7 +144,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		if (nierr != 0)
 		{
 			OSc_Log_Error(device, "Failed to create AO channel: ");
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			goto Error;
@@ -160,7 +160,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		if (nierr != 0)
 		{
 			OSc_Log_Error(device, "Failed to create line clock task: ");
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			return OSc_Error_Unknown_Enum_Value_Name;
@@ -180,7 +180,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		if (nierr != 0)
 		{
 			OSc_Log_Error(device, "Failed to create DO channels");
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			goto Error;
@@ -190,7 +190,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		nierr = DAQmxGetReadNumChans(GetData(device)->lineClockTaskHandle_, &GetData(device)->numDOChannels);
 		if (nierr != 0)
 		{
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			return OSc_Error_Unknown_Enum_Value_Name;
@@ -207,7 +207,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		nierr = DAQmxCreateTask("", &GetData(device)->counterTaskHandle_);
 		if (nierr != 0)
 		{
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			return OSc_Error_Unknown_Enum_Value_Name;
@@ -233,7 +233,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		nierr = DAQmxCfgImplicitTiming(GetData(device)->counterTaskHandle_, DAQmx_Val_FiniteSamps, scanLines);
 		if (nierr != 0)
 		{
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			goto Error;
@@ -255,7 +255,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 			DAQmx_Val_Cfg_Default, -10.0, 10.0, DAQmx_Val_Volts, NULL);
 		if (nierr != 0)
 		{
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			goto Error;
@@ -266,7 +266,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, &GetData(device)->acquisition.numAIChannels);
 		if (nierr != 0)
 		{
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			return OSc_Error_Unknown_Enum_Value_Name;
@@ -356,7 +356,7 @@ OSc_Error SetTriggers(OSc_Device *device)
 	if (nierr != 0)
 	{
 		OSc_Log_Error(device, "Error: cannot config counter trigger: ");
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -368,7 +368,7 @@ OSc_Error SetTriggers(OSc_Device *device)
 	if (nierr != 0)
 	{
 		OSc_Log_Error(device, "Error: cannot config start trigger for acquisition");
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -379,7 +379,7 @@ OSc_Error SetTriggers(OSc_Device *device)
 	if (nierr != 0)
 	{
 		OSc_Log_Error(device, "Error: cannot set start trigger retriggable: ");
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -498,7 +498,7 @@ static OSc_Error WriteWaveforms(OSc_Device *device)
 	if (nierr != 0)
 	{
 		OSc_Log_Error(device, "Write scanwaveform error:");
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -581,7 +581,7 @@ static OSc_Error StartScan(OSc_Device *device)
 		nierr = DAQmxStartTask(GetData(device)->acqTaskHandle_);
 		if (nierr != 0)
 		{
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			goto Error;
@@ -595,7 +595,7 @@ static OSc_Error StartScan(OSc_Device *device)
 	nierr = DAQmxStartTask(GetData(device)->counterTaskHandle_);
 	if (nierr != 0)
 	{
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -605,7 +605,7 @@ static OSc_Error StartScan(OSc_Device *device)
 	nierr = DAQmxStartTask(GetData(device)->scanWaveformTaskHandle_);
 	if (nierr != 0)
 	{
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -659,7 +659,7 @@ static OSc_Error StopScan(OSc_Device *device)
 		if (nierr != 0)
 		{
 			OSc_Log_Error(device, "Error stopping acquisition task: ");
-			char buf[OSc_MAX_STR_LEN + 1];
+			char buf[1024];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 			OSc_Log_Error(device, buf);
 			goto Error;
@@ -692,7 +692,7 @@ static OSc_Error StopScan(OSc_Device *device)
 	if (nierr != 0)
 	{
 		OSc_Log_Error(device, "Error stopping counter task: ");
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -703,7 +703,7 @@ static OSc_Error StopScan(OSc_Device *device)
 	if (nierr != 0)
 	{
 		OSc_Log_Error(device, "Error stopping scan waveform task: ");
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -968,7 +968,7 @@ OSc_Error ReconfigTiming(OSc_Device *device)
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan); // reload
 	if (nierr != 0)
 	{
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -979,7 +979,7 @@ OSc_Error ReconfigTiming(OSc_Device *device)
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, GetData(device)->resolution * GetData(device)->binFactor); // reload
 	if (nierr != 0)
 	{
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -1150,7 +1150,7 @@ OSc_Error CommitTasks(OSc_Device *device)
 	int32 nierr = DAQmxTaskControl(GetData(device)->acqTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
 	{
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -1159,7 +1159,7 @@ OSc_Error CommitTasks(OSc_Device *device)
 	nierr = DAQmxTaskControl(GetData(device)->counterTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
 	{
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -1168,7 +1168,7 @@ OSc_Error CommitTasks(OSc_Device *device)
 	nierr = DAQmxTaskControl(GetData(device)->scanWaveformTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
 	{
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -1225,7 +1225,7 @@ OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
 		GetData(device)->resolution * GetData(device)->binFactor, 0, NULL, NULL);
 	if (nierr != 0)
 	{
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -1269,7 +1269,7 @@ OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 		GetData(device)->resolution * GetData(device)->binFactor, 0, ReadLineCallback, device);  // readimage
 	if (nierr != 0)
 	{
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
@@ -1320,7 +1320,7 @@ OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, 
 		char msg[OSc_MAX_STR_LEN + 1];
 		snprintf(msg, OSc_MAX_STR_LEN, "Reading line failed after line %d", currLine);
 		OSc_Log_Debug(device, msg);
-		char buf[OSc_MAX_STR_LEN + 1];
+		char buf[1024];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 		OSc_Log_Error(device, buf);
 		goto Error;
