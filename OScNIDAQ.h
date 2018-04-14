@@ -5,7 +5,7 @@
 OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount);
 OSc_Error OpenDAQ(OSc_Device *device);
 OSc_Error CloseDAQ(OSc_Device *device);
-OSc_Error StartDAQ(OSc_Device *device);
+OSc_Error InitDAQ(OSc_Device *device);
 OSc_Error SetScanParameters(OSc_Device *device);
 OSc_Error ReloadWaveform(OSc_Device *device);
 OSc_Error RunAcquisitionLoop(OSc_Device *device, OSc_Acquisition *acq);
@@ -19,6 +19,5 @@ OSc_Error UnregisterLineAcqEvent(OSc_Device *device);
 OSc_Error RegisterLineAcqEvent(OSc_Device *device);
 OSc_Error CommitTasks(OSc_Device *device);
 OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq);
-OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, OSc_Device *device);
-void showInfo(char* msg);
-void showError(char* msg);
+OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData);
+
