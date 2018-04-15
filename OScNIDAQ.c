@@ -46,7 +46,6 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 {
 	data->detectorOnly = false;
 	data->scannerOnly = false;
-	data->enableCallback = true;
 
 	data->settingsChanged = true;
 	data->timingSettingsChanged = true;
@@ -106,7 +105,7 @@ OSc_Error OpenDAQ(OSc_Device *device)
 {
 	OSc_Log_Debug(device, "Initializing NI DAQ...");
 	OSc_Return_If_Error(InitDAQ(device));
-	OSc_Return_If_Error(SetDAQTriggers(device));
+	OSc_Return_If_Error(SetTriggers(device));
 	OSc_Log_Debug(device, "DAQ initialized");
 
 	return OSc_Error_OK;
@@ -331,15 +330,14 @@ OSc_Error CloseDAQ(OSc_Device *device)
 
 
 // Set up how image acq, line clock, and scan waveform are triggered
-OSc_Error SetDAQTriggers(OSc_Device *device)
+static OSc_Error SetTriggers(OSc_Device *device)
 {
 	// Use AO StartTrigger to trigger the line clock.
 	// This is an internal trigger signal.
 	char aoStartTrigName[256];
 	OSc_Error err;
-	if (OSc_Check_Error(err, GetTerminalNameWithDevPrefix(GetData(device)->scanWaveformTaskHandle_, "ao/StartTrigger", aoStartTrigName))) {
-		return err;
-	}
+	OSc_Return_If_Error(GetTerminalNameWithDevPrefix(GetData(device)->scanWaveformTaskHandle_,
+		"ao/StartTrigger", aoStartTrigName));
 	OSc_Log_Debug(device, "Get AO Start Trigger name to trigger line clock");
 
 	// Configure counter
@@ -428,7 +426,7 @@ Error:
 	return err;
 }
 
-OSc_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char terminalName[], char triggerName[])
+static OSc_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char terminalName[], char triggerName[])
 {
 	int32	error = 0;
 	char	device[256];
@@ -454,15 +452,8 @@ OSc_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char termina
 	return OSc_Error_OK;
 }
 
-/// no use in DAQ version
-//static OSc_Error SendParameters(OSc_Device *device)
-//{
-//	OSc_Return_If_Error(InitDAQ(device));
-//
-//		return OSc_Error_OK;
-//}
 
-OSc_Error WriteWaveformsToDAQ(OSc_Device *device)
+static OSc_Error WriteWaveforms(OSc_Device *device)
 {
 	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t numScanLines = GetData(device)->resolution;
@@ -950,16 +941,6 @@ OSc_Error StopAcquisitionAndWait(OSc_Device *device, OSc_Acquisition *acq)
 }
 
 
-static bool IsCapturing(OSc_Device *device) {
-	bool running = false;
-	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
-	{
-		running = (GetData(device)->acquisition.running) ? true : false;
-	}
-	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-	return running;
-}
-
 
 // Iscapturing in old openscanDAQ
 OSc_Error IsAcquisitionRunning(OSc_Device *device, bool *isRunning)
@@ -985,7 +966,7 @@ OSc_Error WaitForAcquisitionToFinish(OSc_Device *device)
 	return err;
 }
 
-OSc_Error ReconfigDAQTiming(OSc_Device *device)
+static OSc_Error ReconfigTiming(OSc_Device *device)
 {
 	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t scanLines = GetData(device)->resolution;
@@ -1077,105 +1058,10 @@ Error:
 
 }
 
-// no use in C API
-OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
-	/*
-	bool isRunning = false;
-	IsAcquisitionRunning(device, &isRunning);
-	if(isRunning)
-		return OSc_Error_Acquisition_Running;
-	*/
-
-	OSc_Error err;
-	// if any of DAQ tasks are not initialized
-	if (!GetData(device)->scanWaveformTaskHandle_ || !GetData(device)->lineClockTaskHandle_ || !GetData(device)->acqTaskHandle_ || !GetData(device)->counterTaskHandle_)
-	{
-		OSc_Log_Debug(device, "Re-initializing NI DAQ...");
-		if (OSc_Check_Error(err, InitDAQ(device))) {
-			return err;
-		}
-
-		if (OSc_Check_Error(err, SetDAQTriggers(device))) {
-			return err;
-		}
-		OSc_Log_Debug(device, "DAQ re-initialized.");
-
-		// all the timing, waveforms, etc. have to reset as well
-		// as new tasks, although bear the same names as previously failed/cleared ones,
-		// have different memory address (pointers) and their relationship to
-		// timing, triggers, etc. need to be re-established.
-		GetData(device)->timingSettingsChanged = true;
-		GetData(device)->waveformSettingsChanged = true;
-		GetData(device)->acqSettingsChanged = true;
-	}
-
-	if (GetData(device)->timingSettingsChanged)
-	{
-		if (OSc_Check_Error(err, ReconfigDAQTiming(device))) {
-			return err;
-		}
-		GetData(device)->timingSettingsChanged = false;
-		GetData(device)->settingsChanged = true;
-	}
-
-	if (GetData(device)->waveformSettingsChanged)
-	{
-		OSc_Log_Debug(device, "Writing scan waveform and line clock pattern to DAQ...");
-		if (OSc_Check_Error(err, WriteWaveformsToDAQ(device))) {
-			return err;
-		}
-
-		GetData(device)->waveformSettingsChanged = false;
-		GetData(device)->settingsChanged = true;
-	}
-
-	// first check if existing EveryNSamplesEvent needs to be unregistered
-	// to allow new event to get registered when acqSettings has changed since previous scan
-	if (GetData(device)->enableCallback && GetData(device)->acqSettingsChanged && GetData(device)->isEveryNSamplesEventRegistered && !GetData(device)->scannerOnly)
-	{
-		if (OSc_Check_Error(err, UnregisterLineAcqEvent(device))) {
-			return err;
-		}
-
-		GetData(device)->isEveryNSamplesEventRegistered = false;
-	}
-
-	// Re-register event when resolution or binFactor has changed
-	if (GetData(device)->enableCallback && GetData(device)->acqSettingsChanged && !GetData(device)->scannerOnly)
-	{
-		if (OSc_Check_Error(err, RegisterLineAcqEvent(device))) {
-			return err;
-		}
-
-		GetData(device)->acqSettingsChanged = false;
-		GetData(device)->settingsChanged = true;
-		GetData(device)->isEveryNSamplesEventRegistered = true;
-	}
-
-	// commit tasks whenever settings have changed
-	if (GetData(device)->settingsChanged)
-	{
-		if (OSc_Check_Error(err, CommitTasks(device))) {
-			return err;
-		}
-		GetData(device)->settingsChanged = false;
-	}
-	if (OSc_Check_Error(err, ReadImage(device, acq))) {
-		return err;
-	}
-
-	//// TODO: DLL appears working fine even without DAQmxRegisterDoneEvent and Task_Commit
-	//nierr = DAQmxRegisterDoneEvent(lineClockTaskHandle_, 0, DoneCallbackWrapper, this);
-	//nierr = DAQmxRegisterDoneEvent(scanWaveformTaskHandle_, 0, DoneCallbackWrapper, this);
-	//nierr = DAQmxRegisterDoneEvent(acqTaskHandle_, 0, DoneCallbackWrapper, this);
-
-
-	return OSc_Error_OK;
-}
 
 // DAQmx Commit the settings into hardware 
 // This allows for very efficient restarts
-OSc_Error CommitTasks(OSc_Device *device)
+static OSc_Error CommitTasks(OSc_Device *device)
 {
 	int32 nierr = DAQmxTaskControl(GetData(device)->acqTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
@@ -1249,7 +1135,7 @@ Error:
 
 
 // Unregister DAQ line acquisition event
-OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
+static OSc_Error UnregisterLineAcqEvent(OSc_Device *device)
 {
 	int32 nierr = DAQmxRegisterEveryNSamplesEvent(GetData(device)->acqTaskHandle_, DAQmx_Val_Acquired_Into_Buffer,
 		GetData(device)->resolution * GetData(device)->binFactor, 0, NULL, NULL);
@@ -1286,7 +1172,7 @@ Error:
 
 
 // register DAQ line acquisition event
-OSc_Error RegisterLineAcqEvent(OSc_Device *device)
+static OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 {
 	// nSamples actually means nSamples per channel (refer to https://goo.gl/6zjMgB)
 	int32 nierr = DAQmxRegisterEveryNSamplesEvent(GetData(device)->acqTaskHandle_, DAQmx_Val_Acquired_Into_Buffer,
@@ -1326,12 +1212,11 @@ Error:
 // read from PMT line by line
 // non-interlaced acquisition. 
 // evary line data in format: Channel1 | Channel 2 | Channel 3 | ...
-OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData)
+static OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData)
 {
 	OSc_Device *device= (OSc_Device*)(callbackData);
-	//struct OScNIDAQPrivateData* privateDevice = GetData(device);
-	int32 readPerChan;
 
+	int32 readPerChan;
 	int32_t prevPercentRead = -1;
 	uInt32 totalSamplesPerLine = GetData(device)->acquisition.numAIChannels * GetData(device)->resolution * GetData(device)->binFactor;
 	int32 currLine = 1 + GetData(device)->totalRead / GetData(device)->acquisition.numAIChannels / GetData(device)->binFactor / GetData(device)->resolution;
@@ -1395,4 +1280,69 @@ Error:
 		GetData(device)->acqTaskHandle_ = 0;
 	}
 	return OSc_Error_Unknown;
+}
+
+
+// Update DAQ configurations when settings change
+OSc_Error ReconfigDAQ(OSc_Device * device)
+{
+	// if any of DAQ tasks are not initialized
+	if (!GetData(device)->scanWaveformTaskHandle_ || !GetData(device)->lineClockTaskHandle_ ||
+		!GetData(device)->acqTaskHandle_ || !GetData(device)->counterTaskHandle_)
+	{
+		OSc_Log_Debug(device, "Re-initializing NI DAQ...");
+		OSc_Return_If_Error(InitDAQ(device));
+		OSc_Return_If_Error(SetTriggers(device));
+		OSc_Log_Debug(device, "DAQ re-initialized.");
+
+		// all the timing, waveforms, etc. have to reset as well
+		// as new tasks, although bear the same names as previously failed/cleared ones,
+		// have different memory address (pointers) and their relationship to
+		// timing, triggers, etc. need to be re-established.
+		GetData(device)->timingSettingsChanged = true;
+		GetData(device)->waveformSettingsChanged = true;
+		GetData(device)->acqSettingsChanged = true;
+	}
+
+	if (GetData(device)->timingSettingsChanged)
+	{
+		OSc_Log_Debug(device, "Reconfiguring timing...");
+		OSc_Return_If_Error(ReconfigTiming(device));
+		GetData(device)->timingSettingsChanged = false;
+		GetData(device)->settingsChanged = true;
+	}
+
+	if (GetData(device)->waveformSettingsChanged)
+	{
+		OSc_Log_Debug(device, "Writing scan waveform and line clock pattern to DAQ...");
+		OSc_Return_If_Error(WriteWaveforms(device));
+		GetData(device)->waveformSettingsChanged = false;
+		GetData(device)->settingsChanged = true;
+	}
+
+	// first check if existing EveryNSamplesEvent needs to be unregistered
+	// to allow new event to get registered when acqSettings has changed since previous scan
+	if (GetData(device)->acqSettingsChanged && GetData(device)->isEveryNSamplesEventRegistered && !GetData(device)->scannerOnly)
+	{
+		OSc_Return_If_Error(UnregisterLineAcqEvent(device));
+		GetData(device)->isEveryNSamplesEventRegistered = false;
+	}
+
+	// Re-register event when resolution or binFactor has changed
+	if (GetData(device)->acqSettingsChanged && !GetData(device)->scannerOnly)
+	{
+		OSc_Return_If_Error(RegisterLineAcqEvent(device));
+		GetData(device)->acqSettingsChanged = false;
+		GetData(device)->settingsChanged = true;
+		GetData(device)->isEveryNSamplesEventRegistered = true;
+	}
+
+	// commit tasks whenever settings have changed
+	if (GetData(device)->settingsChanged)
+	{
+		OSc_Return_If_Error(CommitTasks(device));
+		GetData(device)->settingsChanged = false;
+	}
+
+	return OSc_Error_OK;
 }

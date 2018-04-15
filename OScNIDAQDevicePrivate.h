@@ -42,7 +42,6 @@ struct OScNIDAQPrivateData
 	// Flags for scanner and detector
 	bool detectorOnly;
 	bool scannerOnly;
-	bool enableCallback;
 
 	double scanRate;  // MHz
 	double zoom;

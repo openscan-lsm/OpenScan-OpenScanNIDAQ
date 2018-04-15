@@ -161,63 +161,7 @@ static OSc_Error ArmImpl(OSc_Device *device, OSc_Acquisition *acq)
 	}
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
 
-	// if any of DAQ tasks are not initialized
-	if (!GetData(device)->scanWaveformTaskHandle_ || !GetData(device)->lineClockTaskHandle_ || 
-		!GetData(device)->acqTaskHandle_ || !GetData(device)->counterTaskHandle_)
-	{
-		OSc_Log_Debug(device, "Re-initializing NI DAQ...");
-		OSc_Return_If_Error(InitDAQ(device));
-		OSc_Return_If_Error(SetDAQTriggers(device));
-		OSc_Log_Debug(device, "DAQ re-initialized.");
-
-		// all the timing, waveforms, etc. have to reset as well
-		// as new tasks, although bear the same names as previously failed/cleared ones,
-		// have different memory address (pointers) and their relationship to
-		// timing, triggers, etc. need to be re-established.
-		GetData(device)->timingSettingsChanged = true;
-		GetData(device)->waveformSettingsChanged = true;
-		GetData(device)->acqSettingsChanged = true;
-	}
-
-	if (GetData(device)->timingSettingsChanged)
-	{
-		OSc_Log_Debug(device, "Reconfiguring timing...");
-		OSc_Return_If_Error(ReconfigDAQTiming(device));
-		GetData(device)->timingSettingsChanged = false;
-		GetData(device)->settingsChanged = true;
-	}
-
-	if (GetData(device)->waveformSettingsChanged)
-	{
-		OSc_Log_Debug(device, "Writing scan waveform and line clock pattern to DAQ...");
-		OSc_Return_If_Error(WriteWaveformsToDAQ(device));
-		GetData(device)->waveformSettingsChanged = false;
-		GetData(device)->settingsChanged = true;
-	}
-
-	// first check if existing EveryNSamplesEvent needs to be unregistered
-	// to allow new event to get registered when acqSettings has changed since previous scan
-	if (GetData(device)->enableCallback && GetData(device)->acqSettingsChanged && GetData(device)->isEveryNSamplesEventRegistered && !GetData(device)->scannerOnly)
-	{
-		OSc_Return_If_Error(UnregisterLineAcqEvent(device));
-		GetData(device)->isEveryNSamplesEventRegistered = false;
-	}
-
-	// Re-register event when resolution or binFactor has changed
-	if (GetData(device)->enableCallback && GetData(device)->acqSettingsChanged && !GetData(device)->scannerOnly)
-	{
-		OSc_Return_If_Error(RegisterLineAcqEvent(device));
-		GetData(device)->acqSettingsChanged = false;
-		GetData(device)->settingsChanged = true;
-		GetData(device)->isEveryNSamplesEventRegistered = true;
-	}
-
-	// commit tasks whenever settings have changed
-	if (GetData(device)->settingsChanged)
-	{
-		OSc_Return_If_Error(CommitTasks(device));
-		GetData(device)->settingsChanged = false;
-	}
+	OSc_Return_If_Error(ReconfigDAQ(device));
 
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
