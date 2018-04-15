@@ -55,7 +55,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->isEveryNSamplesEventRegistered = false;
 	data->oneFrameScanDone = false;
 
-	data->scanRate = 1.0;  // MHz
+	data->scanRate = 1.25;  // MHz
 	data->resolution = 512;
 	data->zoom = 1.0;
 	data->binFactor = 2;
@@ -105,15 +105,8 @@ OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 OSc_Error OpenDAQ(OSc_Device *device)
 {
 	OSc_Log_Debug(device, "Initializing NI DAQ...");
-	OSc_Error err;
-	if (OSc_Check_Error(err, InitDAQ(device))) {
-		return err;
-	}
-
-	if (OSc_Check_Error(err, SetTriggers(device))) {
-		return err;
-	}
-
+	OSc_Return_If_Error(InitDAQ(device));
+	OSc_Return_If_Error(SetDAQTriggers(device));
 	OSc_Log_Debug(device, "DAQ initialized");
 
 	return OSc_Error_OK;
@@ -338,7 +331,7 @@ OSc_Error CloseDAQ(OSc_Device *device)
 
 
 // Set up how image acq, line clock, and scan waveform are triggered
-OSc_Error SetTriggers(OSc_Device *device)
+OSc_Error SetDAQTriggers(OSc_Device *device)
 {
 	// Use AO StartTrigger to trigger the line clock.
 	// This is an internal trigger signal.
@@ -469,7 +462,7 @@ OSc_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char termina
 //		return OSc_Error_OK;
 //}
 
-static OSc_Error WriteWaveforms(OSc_Device *device)
+OSc_Error WriteWaveformsToDAQ(OSc_Device *device)
 {
 	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t numScanLines = GetData(device)->resolution;
@@ -658,9 +651,10 @@ static OSc_Error StopScan(OSc_Device *device)
 		nierr = DAQmxStopTask(GetData(device)->acqTaskHandle_);
 		if (nierr != 0)
 		{
-			OSc_Log_Error(device, "Error stopping acquisition task: ");
-			char buf[1024];
+			char buf[1024], msg[OSc_MAX_STR_LEN + 1];
 			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+			snprintf(msg, OSc_MAX_STR_LEN, "Error stopping acquisition task: %d", (int)nierr);
+			OSc_Log_Error(device, msg);
 			OSc_Log_Error(device, buf);
 			goto Error;
 		}
@@ -679,8 +673,8 @@ static OSc_Error StopScan(OSc_Device *device)
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
 	uint32_t xLen = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
-	uint32_t yRetraceTime = 5 + 1E-3 * (double)(xLen * Y_RETRACE_LEN * GetData(device)->binFactor / GetData(device)->scanRate);
-	uint32_t estFrameTime = 5 + 1E-3 * (double)(xLen * yLen * GetData(device)->binFactor / GetData(device)->scanRate);
+	uint32_t yRetraceTime = (uint32_t)(5 + 1E-3 * (double)(xLen * Y_RETRACE_LEN * GetData(device)->binFactor / GetData(device)->scanRate));
+	uint32_t estFrameTime = (uint32_t)(5 + 1E-3 * (double)(xLen * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
 	// TODO: casting
 	uint32_t waitScanToFinish = GetData(device)->scannerOnly ? estFrameTime : yRetraceTime;  // wait longer if no real acquisition;
 	char msg[OSc_MAX_STR_LEN + 1];
@@ -691,20 +685,22 @@ static OSc_Error StopScan(OSc_Device *device)
 	nierr = DAQmxStopTask(GetData(device)->counterTaskHandle_);
 	if (nierr != 0)
 	{
-		OSc_Log_Error(device, "Error stopping counter task: ");
-		char buf[1024];
+		char buf[1024], msg[OSc_MAX_STR_LEN + 1];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		snprintf(msg, OSc_MAX_STR_LEN, "Error stopping counter task: %d", (int)nierr);
+		OSc_Log_Error(device, msg);
 		OSc_Log_Error(device, buf);
 		goto Error;
 	}
-	OSc_Log_Debug(device, "Stopped line clock task");
+	OSc_Log_Debug(device, "Stopped counter (line clock) task");
 
 	nierr = DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
 	if (nierr != 0)
 	{
-		OSc_Log_Error(device, "Error stopping scan waveform task: ");
-		char buf[1024];
+		char buf[1024], msg[OSc_MAX_STR_LEN + 1];
 		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		snprintf(msg, OSc_MAX_STR_LEN, "Error stopping scan waveform task: %d", (int)nierr);
+		OSc_Log_Error(device, msg);
 		OSc_Log_Error(device, buf);
 		goto Error;
 	}
@@ -776,7 +772,6 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	GetData(device)->ch3Buffer = realloc(GetData(device)->ch3Buffer, sizeof(uint16_t) * nPixels);
 
 	GetData(device)->oneFrameScanDone = GetData(device)->scannerOnly;
-	//GetData(device)->oneFrameScanDone = true;
 
 	// initialize channel buffers
 	for (size_t i = 0; i < nPixels; ++i)
@@ -785,50 +780,48 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		GetData(device)->ch2Buffer[i] = 255;
 		GetData(device)->ch3Buffer[i] = 32767;
 	}
-
 	for (size_t i = 0; i < GetData(device)->acquisition.numAIChannels * nPixels; ++i)
 	{
 		GetData(device)->imageData[i] = 16383;
 	}
 
-	OSc_Error err;
-	if (OSc_Check_Error(err, StartScan(device))) {
-		return err;
-	}
+	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
+	uint32_t estFrameTime = (uint32_t)(1E-3 * (double)(elementsPerLine * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
+	uint32_t totalWaitTime = 0;  // mSec
+	OSc_Return_If_Error(StartScan(device));
 
 	// Wait until one frame is scanned
-	int timeout = 0;
 	while (!GetData(device)->oneFrameScanDone) {
 		Sleep(50);
-		timeout++;
-		if (timeout == 100) {
+		totalWaitTime += 50;
+		if (totalWaitTime > 2 * estFrameTime)
+		{
+			OSc_Log_Error(device, "Error: Acquisition timeout!");
 			break;
 		}
 	}
 
-	if (OSc_Check_Error(err, StopScan(device))) {
-		return err;
-	}
+	OSc_Return_If_Error(StopScan(device));
 
 	// SplitChannels
 	// skik if set to scanner only mode
 	if (!GetData(device)->scannerOnly)
 	{
-		if (OSc_Check_Error(err, SplitChannels(device))) { return err; }
+		OSc_Return_If_Error(SplitChannels(device));
 	}
 
 	acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
 	acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
 	acq->frameCallback(acq, 2, GetData(device)->ch3Buffer, acq->data);
 
-	Sleep(1000);
+	Sleep(100);
 
 	return OSc_Error_OK;
 }
 
 // split all-channel image buffer to separate channel buffers
 // * works when DAQ acquires in GroupByChannel (non-interlaced) mode
-OSc_Error SplitChannels(OSc_Device *device)
+static OSc_Error SplitChannels(OSc_Device *device)
 {
 	// imageData_ if displayed as 2D image will have N channels on each row
 	// data is stored line by line with N channels in a row per line
@@ -836,6 +829,8 @@ OSc_Error SplitChannels(OSc_Device *device)
 	uint32_t rawImageHeight = GetImageHeight(device);
 	uint32_t xLength = GetImageWidth(device);
 	uint32_t yLength = GetImageHeight(device);
+
+	OSc_Error err = OSc_Error_OK;
 	// convert big image buffer to separate channel buffers
 	for (uint32_t chan = 0; chan < GetData(device)->acquisition.numAIChannels; chan++)
 		for (uint32_t currRow = 0; currRow < yLength; currRow++)
@@ -856,14 +851,22 @@ OSc_Error SplitChannels(OSc_Device *device)
 					break;
 
 				default:
+					OSc_Log_Error(device, "More than 3 channels available or something wrong");
+					err = OSc_Error_Unknown;
 					break;
 				}
+
 	OSc_Log_Debug(device, "Finished reading one image and splitting data to channel buffers");
-	return OSc_Error_OK;
+	return err;
 }
 
-static OSc_Error AcquireFrame(OSc_Device *device, OSc_Acquisition *acq, unsigned kalmanCounter)
+// equal to SequenceThread::AcquireFrame()
+static OSc_Error AcquireFrame(OSc_Device *device, OSc_Acquisition *acq)
 {
+	OSc_Log_Debug(device, "Reading image...");
+	OSc_Return_If_Error(ReadImage(device, acq));
+	OSc_Log_Debug(device, "Finished reading image");
+
 	return OSc_Error_OK;
 }
 
@@ -878,16 +881,42 @@ static void FinishAcquisition(OSc_Device *device)
 }
 
 
-// TODO: maybe need rework -- refer to old style live mode
+// equal to SequenceThread::svc()
 static DWORD WINAPI AcquisitionLoop(void *param)
 {
 	OSc_Device *device = (OSc_Device *)param;
 	OSc_Acquisition *acq = GetData(device)->acquisition.acquisition;
-	OSc_Error err;
-	if (OSc_Check_Error(err, SnapImage(device, acq))) {
-		FinishAcquisition(device);
-		return 0;
+
+	int totalFrames;
+	if (acq->numberOfFrames == INT32_MAX)
+		totalFrames = INT32_MAX;
+	else 
+		totalFrames = acq->numberOfFrames;
+
+	for (int frame = 0; frame < totalFrames; ++frame)
+	{
+		bool stopRequested;
+		EnterCriticalSection(&(GetData(device)->acquisition.mutex));
+		stopRequested = GetData(device)->acquisition.stopRequested;
+		LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+		if (stopRequested)
+			break;
+
+		char msg[OSc_MAX_STR_LEN + 1];
+		snprintf(msg, OSc_MAX_STR_LEN, "Sequence acquiring frame # %d", frame);
+		OSc_Log_Debug(device, msg);
+
+		OSc_Error err;
+		if (OSc_Check_Error(err, AcquireFrame(device, acq)))
+		{
+			char msg[OSc_MAX_STR_LEN + 1];
+			snprintf(msg, OSc_MAX_STR_LEN, "Error during sequence acquisition: %d", (int)err);
+			OSc_Log_Error(device, msg);
+			FinishAcquisition(device);
+			return 0;
+		}
 	}
+
 	FinishAcquisition(device);
 	return 0;
 }
@@ -956,7 +985,7 @@ OSc_Error WaitForAcquisitionToFinish(OSc_Device *device)
 	return err;
 }
 
-OSc_Error ReconfigTiming(OSc_Device *device)
+OSc_Error ReconfigDAQTiming(OSc_Device *device)
 {
 	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t scanLines = GetData(device)->resolution;
@@ -1048,6 +1077,7 @@ Error:
 
 }
 
+// no use in C API
 OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
 	/*
 	bool isRunning = false;
@@ -1065,7 +1095,7 @@ OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
 			return err;
 		}
 
-		if (OSc_Check_Error(err, SetTriggers(device))) {
+		if (OSc_Check_Error(err, SetDAQTriggers(device))) {
 			return err;
 		}
 		OSc_Log_Debug(device, "DAQ re-initialized.");
@@ -1081,7 +1111,7 @@ OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
 
 	if (GetData(device)->timingSettingsChanged)
 	{
-		if (OSc_Check_Error(err, ReconfigTiming(device))) {
+		if (OSc_Check_Error(err, ReconfigDAQTiming(device))) {
 			return err;
 		}
 		GetData(device)->timingSettingsChanged = false;
@@ -1091,7 +1121,7 @@ OSc_Error SnapImage(OSc_Device *device, OSc_Acquisition *acq) {
 	if (GetData(device)->waveformSettingsChanged)
 	{
 		OSc_Log_Debug(device, "Writing scan waveform and line clock pattern to DAQ...");
-		if (OSc_Check_Error(err, WriteWaveforms(device))) {
+		if (OSc_Check_Error(err, WriteWaveformsToDAQ(device))) {
 			return err;
 		}
 
@@ -1255,12 +1285,6 @@ Error:
 }
 
 
-// probably no use
-//int32 ReadLineCallbackWrapper(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void *callbackData) {
-	//OpenScanDAQ * this_ = reinterpret_cast<OpenScanDAQ*>(callbackData);
-	//return this_->ReadLineCallback(taskHandle, everyNsamplesEventType, nSamples);
-//}
-
 // register DAQ line acquisition event
 OSc_Error RegisterLineAcqEvent(OSc_Device *device)
 {
@@ -1333,7 +1357,7 @@ OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, 
 		{
 			// pixel averaging
 			GetData(device)->avgLineData[i / GetData(device)->binFactor] = GetData(device)->rawLineData[i] / GetData(device)->binFactor;
-			for (unsigned j = 1; j < GetData(device)->binFactor; j++)
+			for (unsigned j = 1; j < (unsigned)GetData(device)->binFactor; j++)
 				GetData(device)->avgLineData[i / GetData(device)->binFactor] += (GetData(device)->rawLineData[i + j] / GetData(device)->binFactor);
 			// convert processed line and append to output image frame
 			GetData(device)->imageData[i / GetData(device)->binFactor + GetData(device)->totalRead / GetData(device)->binFactor] =
@@ -1371,10 +1395,4 @@ Error:
 		GetData(device)->acqTaskHandle_ = 0;
 	}
 	return OSc_Error_Unknown;
-}
-
-/// no use for NI DAQ
-OSc_Error SetScanParameters(OSc_Device *device)
-{
-	return OSc_Error_OK;
 }
