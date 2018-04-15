@@ -1256,10 +1256,10 @@ Error:
 
 
 // probably no use
-int32 ReadLineCallbackWrapper(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void *callbackData) {
+//int32 ReadLineCallbackWrapper(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void *callbackData) {
 	//OpenScanDAQ * this_ = reinterpret_cast<OpenScanDAQ*>(callbackData);
 	//return this_->ReadLineCallback(taskHandle, everyNsamplesEventType, nSamples);
-}
+//}
 
 // register DAQ line acquisition event
 OSc_Error RegisterLineAcqEvent(OSc_Device *device)

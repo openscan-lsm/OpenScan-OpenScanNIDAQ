@@ -62,13 +62,10 @@ static OSc_Error NIDAQOpen(OSc_Device *device)
 }
 
 
-static OSc_Error NIDAQClose(OSc_Device *device, OSc_Acquisition* acq)
+static OSc_Error NIDAQClose(OSc_Device *device)
 {
-	// TODO CloseDAQ(). stop and close all tasks
-	StopAcquisitionAndWait(device, acq);
+	StopAcquisitionAndWait(device, GetData(device)->acquisition.acquisition);
 	OSc_Error err = CloseDAQ(device);
-	//DeleteCriticalSection(&(GetData(device)->acquisition.mutex));
-	//WakeConditionVariable(&(GetData(device)->acquisition.acquisitionFinishCondition));
 	return err;
 }
 
@@ -115,7 +112,9 @@ static OSc_Error NIDAQSetResolution(OSc_Device *device, size_t width, size_t hei
 	if (width == GetData(device)->resolution)
 		return OSc_Error_OK;
 	GetData(device)->resolution = (uint32_t)width;
-	GetData(device)->settingsChanged = true;
+	GetData(device)->timingSettingsChanged = true;
+	GetData(device)->waveformSettingsChanged = true;
+	GetData(device)->acqSettingsChanged = true;
 	return OSc_Error_OK;
 }
 
@@ -129,13 +128,8 @@ static OSc_Error NIDAQGetImageSize(OSc_Device *device, uint32_t *width, uint32_t
 // Same as OpenScanDAQ::GetNumberOfChannels()
 static OSc_Error NIDAQGetNumberOfChannels(OSc_Device *device, uint32_t *nChannels)
 {
-	struct OScNIDAQPrivateData* privateData= GetData(device);
-	int ch = privateData->channels;
-	 //privateData->binFactor;
 	*nChannels = (GetData(device)->channels) == CHANNELS1_2_3 ? 3 :
 		(GetData(device)->channels) == CHANNELS_1_AND_2 ? 2 : 1;
-
-
 	return OSc_Error_OK;
 }
 
@@ -168,7 +162,6 @@ static OSc_Error ArmImpl(OSc_Device *device, OSc_Acquisition *acq)
 
 	if (GetData(device)->settingsChanged)
 	{
-		// TODO: Reload param
 		OSc_Return_If_Error(ReconfigTiming(device));
 		GetData(device)->settingsChanged = false;
 	}
@@ -336,7 +329,6 @@ struct OSc_Device_Impl OpenScan_NIDAQ_Device_Impl = {
 	.Close = NIDAQClose,
 	.HasScanner = NIDAQHasScanner,
 	.HasDetector = NIDAQHasDetector,
-	// New added
 	.GetSettings = NIDAQGetSettings,
 	.GetAllowedResolutions = NIDAQGetAllowedResolutions,
 	.GetResolution = NIDAQGetResolution,
