@@ -18,4 +18,6 @@ void SplineInterpolate(int32_t n, double yFirst, double yLast,
 int GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines, uint8_t * lineClock);
 int GenerateFLIMLineClock(uint32_t x_resolution, uint32_t numScanLines, uint8_t * lineClockFLIM);
 int GenerateFLIMFrameClock(uint32_t x_resolution, uint32_t numScanLines, uint8_t * frameClockFLIM);
-int GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, double *xyWaveformFrame);
+//int GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, double *xyWaveformFrame);
+int GenerateGalvoWaveformFrame(uint32_t resolution, double zoom,
+	double galvoOffsetX, double galvoOffsetY, double *xyWaveformFrame);

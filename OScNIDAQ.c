@@ -46,6 +46,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->detectorOnly = false;
 	data->scannerOnly = false;
 
+	data->offsetXY[0] = data->offsetXY[1] = 0.0;
 	data->settingsChanged = true;
 	data->timingSettingsChanged = true;
 	data->waveformSettingsChanged = true;
@@ -531,7 +532,8 @@ static OSc_Error WriteWaveforms(OSc_Device *device)
 	uInt8 *frameClockFLIM = (uInt8*)malloc(sizeof(uInt8) *elementsPerFramePerChan);
 	// combination of lineClock, lineClockFLIM, and frameClock
 	uInt8 *lineClockPatterns = (uInt8*)malloc(sizeof(uInt8) *elementsPerFramePerChan * GetData(device)->numDOChannels);
-	int err = GenerateGalvoWaveformFrame(GetData(device)->resolution, GetData(device)->zoom, xyWaveformFrame);
+	int err = GenerateGalvoWaveformFrame(GetData(device)->resolution, GetData(device)->zoom, 
+		GetData(device)->offsetXY[0], GetData(device)->offsetXY[1], xyWaveformFrame);
 	if (err != 0)
 		return OSc_Error_Waveform_Out_Of_Range;
 

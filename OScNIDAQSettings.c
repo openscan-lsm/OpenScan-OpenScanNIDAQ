@@ -240,6 +240,43 @@ static struct OSc_Setting_Impl SettingImpl_ScannerOnly = {
 	.SetBool = SetScannerOnly,
 };
 
+static OSc_Error GetOffset(OSc_Setting *setting, double *value)
+{
+	*value = GetData(setting->device)->offsetXY[(intptr_t)(setting->implData)];
+	return OSc_Error_OK;
+}
+
+
+static OSc_Error SetOffset(OSc_Setting *setting, double value)
+{
+	GetData(setting->device)->offsetXY[(intptr_t)(setting->implData)] = value;
+	GetData(setting->device)->waveformSettingsChanged = true;
+	GetData(setting->device)->settingsChanged = true;
+	return OSc_Error_OK;
+}
+
+
+static OSc_Error GetOffsetRange(OSc_Setting *setting, double *min, double *max)
+{
+	/*The galvoOffsetX and galvoOffsetY variables are expressed  in optical degrees
+	This is a rough correspondence - it likely needs to be calibrated to the actual
+	sensitivity of the galvos*/
+	*min = -10.0;
+	*max = +10.0;
+	return OSc_Error_OK;
+}
+
+
+static struct OSc_Setting_Impl SettingImpl_Offset = {
+	.GetFloat64 = GetOffset,
+	.SetFloat64 = SetOffset,
+	.GetNumericConstraintType = OSc_Setting_NumericConstraintRange,
+	.GetFloat64Range = GetOffsetRange,
+};
+
+
+
+
 OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 {
 	if (GetData(device)->settings)
@@ -252,6 +289,14 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 	OSc_Setting *zoom;
 	OSc_Return_If_Error(OSc_Setting_Create(&zoom, device, "Zoom", OSc_Value_Type_Float64,
 		&SettingImpl_Zoom, NULL));
+
+	OSc_Setting *offsetX;
+	OSc_Return_If_Error(OSc_Setting_Create(&offsetX, device, "GalvoOffsetX", OSc_Value_Type_Float64,
+		&SettingImpl_Offset, (void *)0));
+
+	OSc_Setting *offsetY;
+	OSc_Return_If_Error(OSc_Setting_Create(&offsetY, device, "GalvoOffsetY", OSc_Value_Type_Float64,
+		&SettingImpl_Offset, (void *)1));
 
 	OSc_Setting *binFactor;
 	OSc_Return_If_Error(OSc_Setting_Create(&binFactor, device, "Bin Factor", OSc_Value_Type_Int32,
@@ -270,7 +315,7 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 		&SettingImpl_ScannerOnly, NULL));
 
 	OSc_Setting *ss[] = {
-		scanRate, zoom, binFactor,
+		scanRate, zoom, offsetX, offsetY, binFactor,
 		inputVoltageRange, channels, scannerOnly,
 	};
 	size_t nSettings = sizeof(ss) / sizeof(OSc_Setting *);

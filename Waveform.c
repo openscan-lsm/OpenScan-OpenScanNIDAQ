@@ -138,7 +138,7 @@ Analog voltage range (-0.5V, 0.5V) at zoom 1
 Including Y retrace waveform that moves the slow galvo back to its starting position
 */
 int
-GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, double * xyWaveformFrame)
+GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, double galvoOffsetX, double galvoOffsetY, double * xyWaveformFrame)
 {
 	size_t xLength = X_UNDERSHOOT + resolution + X_RETRACE_LEN;
 	size_t numScanLines = resolution;  // num of scan lines
@@ -148,6 +148,10 @@ GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, double * xyWaveform
 	GenerateGalvoWaveform(resolution, X_RETRACE_LEN, X_UNDERSHOOT, -0.5 / zoom, 0.5 / zoom, xWaveform);
 	GenerateGalvoWaveform(resolution, Y_RETRACE_LEN, 0, -0.5 / zoom, 0.5 / zoom, yWaveform);
 
+	// convert to optical degree assuming 10V equal to 30 optical degree
+	double offsetXinDegree = galvoOffsetX / 3.0;
+	double offsetYinDegree = galvoOffsetY / 3.0;
+
 	// effective scan waveform for a whole frame
 	for (unsigned j = 0; j < yLength; ++j)
 	{
@@ -156,12 +160,13 @@ GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, double * xyWaveform
 			// first half is X waveform,
 			// x line scan repeated yLength times (sawteeth) 
 			// galvo x stays at starting position after one frame is scanned
-			xyWaveformFrame[i + j*xLength] = (j < numScanLines) ? xWaveform[i] : xWaveform[0];
+			xyWaveformFrame[i + j*xLength] = (j < numScanLines) ?
+				(xWaveform[i] + offsetXinDegree) : (xWaveform[0] + offsetXinDegree);
 			//xyWaveformFrame[i + j*xLength] = xWaveform[i];
 			// second half is Y waveform
 			// at each x (fast) scan line, y value is constant
 			// effectively y retrace takes (Y_RETRACE_LENGTH * xLength) steps
-			xyWaveformFrame[i + j*xLength + yLength*xLength] = yWaveform[j];
+			xyWaveformFrame[i + j*xLength + yLength*xLength] = (yWaveform[j] + offsetYinDegree);
 		}
 	}
 

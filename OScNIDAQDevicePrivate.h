@@ -50,6 +50,7 @@ struct OScNIDAQPrivateData
 	double inputVoltageRange;
 	int32_t totalRead;
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks
+	double offsetXY[2];
 
 	enum {
 		CHANNEL1,
