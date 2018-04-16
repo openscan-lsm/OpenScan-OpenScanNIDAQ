@@ -174,7 +174,9 @@ OSc_Error InitDAQ(OSc_Device *device)
 		}
 		OSc_Log_Debug(device, "Created scan waveform task");
 
-		nierr = DAQmxCreateAOVoltageChan(GetData(device)->scanWaveformTaskHandle_, "PXI1Slot2/ao0:1", "",
+		char aoTerminals[OSc_MAX_STR_LEN + 1];
+		strcat(strcpy(aoTerminals, GetData(device)->deviceName), "/ao0:1");
+		nierr = DAQmxCreateAOVoltageChan(GetData(device)->scanWaveformTaskHandle_, aoTerminals, "",
 			-10.0, 10.0, DAQmx_Val_Volts, NULL);
 		if (nierr != 0)
 		{
@@ -209,8 +211,9 @@ OSc_Error InitDAQ(OSc_Device *device)
 		//nierr = DAQmxCreateDOChan(lineClockTaskHandle_, "PXI1Slot2/port0/line5:6",
 		//	"", DAQmx_Val_ChanForAllLines );
 
-
-		nierr = DAQmxCreateDOChan(GetData(device)->lineClockTaskHandle_,  "PXI1Slot2/port0/line5:7",
+		char doTerminals[OSc_MAX_STR_LEN + 1];
+		strcat(strcpy(doTerminals, GetData(device)->deviceName), "/port0/line5:7");
+		nierr = DAQmxCreateDOChan(GetData(device)->lineClockTaskHandle_,  doTerminals,
 			"", DAQmx_Val_ChanPerLine);
 		if (nierr != 0)
 		{
@@ -257,7 +260,9 @@ OSc_Error InitDAQ(OSc_Device *device)
 		// adjustment corresponding to galvo undershoot at each line
 	    // the delay (in second) between the command scan waveform and the actual scanner response
 		double scanPhase = (double)(GetData(device)->binFactor / (1E6*GetData(device)->scanRate) * X_UNDERSHOOT);
-		nierr = DAQmxCreateCOPulseChanFreq(GetData(device)->counterTaskHandle_, "PXI1Slot2/ctr0",
+		char counterTerminals[OSc_MAX_STR_LEN + 1];
+		strcat(strcpy(counterTerminals, GetData(device)->deviceName), "/ctr0");
+		nierr = DAQmxCreateCOPulseChanFreq(GetData(device)->counterTaskHandle_, counterTerminals,
 			"", DAQmx_Val_Hz, DAQmx_Val_Low, scanPhase, lineFreq, effectiveScanPortion); // CTR0 OUT = PFI12
 		if (nierr != 0)
 		{
@@ -286,7 +291,9 @@ OSc_Error InitDAQ(OSc_Device *device)
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
 		OSc_Log_Debug(device, "Created acquisition task");
-		nierr = DAQmxCreateAIVoltageChan(GetData(device)->acqTaskHandle_, "PXI1Slot2/ai0:2", "",
+		char aiTerminals[OSc_MAX_STR_LEN + 1];
+		strcat(strcpy(aiTerminals, GetData(device)->deviceName), "/ai0:2");
+		nierr = DAQmxCreateAIVoltageChan(GetData(device)->acqTaskHandle_, aiTerminals, "",
 			DAQmx_Val_Cfg_Default, -10.0, 10.0, DAQmx_Val_Volts, NULL);
 		if (nierr != 0)
 		{
@@ -395,10 +402,16 @@ static OSc_Error SetTriggers(OSc_Device *device)
 		OSc_Log_Error(device, buf);
 		goto Error;
 	}
+	OSc_Log_Debug(device, "Configured digital edge start trigger for counter (line clock)");
 
-	OSc_Log_Debug(device, "Configured digital edge start trigger for counter");
+	// TODO: MM crashed when the following lines are enabled
+	char acqTriggerSource[OSc_MAX_STR_LEN + 1] = "/";
+	strcat(strcat(acqTriggerSource, GetData(device)->deviceName), "/PFI12");
+	/*char msg[OSc_MAX_STR_LEN + 1];
+	snprintf(msg, OSc_MAX_STR_LEN, "length of trigger souce %s is %d: ", acqTriggerSource, (int)strlen(acqTriggerSource) );
+	OSc_Log_Debug(device, msg);*/
 
-	nierr = DAQmxCfgDigEdgeStartTrig(GetData(device)->acqTaskHandle_, "/PXI1Slot2/PFI12", DAQmx_Val_Rising);
+	nierr = DAQmxCfgDigEdgeStartTrig(GetData(device)->acqTaskHandle_, acqTriggerSource, DAQmx_Val_Rising);
 	if (nierr != 0)
 	{
 		OSc_Log_Error(device, "Error: cannot config start trigger for acquisition");
