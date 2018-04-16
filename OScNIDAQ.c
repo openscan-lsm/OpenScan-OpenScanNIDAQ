@@ -53,6 +53,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->isEveryNSamplesEventRegistered = false;
 	data->oneFrameScanDone = false;
 
+	data->totalRead = 0;
 	data->scanRate = 1.25;  // MHz
 	data->resolution = 512;
 	data->zoom = 1.0;
@@ -162,7 +163,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
 	int32 nierr;
-
+	GetData(device)->totalRead = 0;
 	// initialize scan waveform task
 	if (!GetData(device)->scanWaveformTaskHandle_)
 	{
@@ -802,7 +803,7 @@ static unsigned GetImageHeight(OSc_Device *device) {
 // DAQ version; acquire from multiple channels
 static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 {
-	
+	//struct OScNIDAQPrivateData* debugData = GetData(device);
 	//uint32_t resolution_ = GetData(device)->resolution;
 	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t scanLines = GetData(device)->resolution;
@@ -1295,6 +1296,7 @@ static OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEven
 
 	if (readPerChan > 0)
 	{
+		//struct OScNIDAQPrivateData* debugData = GetData(device);
 		//  append data line by line to the frame data array
 		for (uint32_t i = 0; i < totalSamplesPerLine; i += GetData(device)->binFactor)
 		{
