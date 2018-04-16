@@ -149,6 +149,9 @@ OSc_Error OpenDAQ(OSc_Device *device)
 	OSc_Log_Debug(device, "Initializing NI DAQ...");
 	OSc_Return_If_Error(InitDAQ(device));
 	OSc_Return_If_Error(SetTriggers(device));
+
+	++g_openDeviceCount;
+
 	OSc_Log_Debug(device, "DAQ initialized");
 
 	return OSc_Error_OK;
@@ -317,9 +320,9 @@ OSc_Error InitDAQ(OSc_Device *device)
 		snprintf(msg, OSc_MAX_STR_LEN, "%d physical AI channels available.", GetData(device)->acquisition.numAIChannels);
 		OSc_Log_Debug(device, msg);
 	}
-	++g_openDeviceCount;
 
 	return OSc_Error_OK;
+
 Error:
 	if (GetData(device)->scanWaveformTaskHandle_)
 	{
@@ -404,7 +407,6 @@ static OSc_Error SetTriggers(OSc_Device *device)
 	}
 	OSc_Log_Debug(device, "Configured digital edge start trigger for counter (line clock)");
 
-	// TODO: MM crashed when the following lines are enabled
 	char acqTriggerSource[OSc_MAX_STR_LEN + 1] = "/";
 	strcat(strcat(acqTriggerSource, GetData(device)->deviceName), "/PFI12");
 	/*char msg[OSc_MAX_STR_LEN + 1];

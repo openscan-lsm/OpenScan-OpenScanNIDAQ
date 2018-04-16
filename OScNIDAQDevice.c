@@ -230,40 +230,41 @@ static OSc_Error NIDAQIsRunning(OSc_Device *device, bool *isRunning)
 }
 
 
-//
-//// bug: not working - only returns 1st device padded with null bytes
-//static void ParseDeviceNameList(const char *names,
-//	void(*callback)(const char *name))
-//{
-//	// The value of the Device Names property is a list, separated by ", "
-//	const char *sep = NULL;
-//	const char *prevSep = names;
-//	const char *end = names + strlen(names);
-//	for (;;)
-//	{
-//		// Skip any spaces after comma
-//		while (*prevSep == ' ')
-//			++prevSep;
-//
-//		sep = strchr(prevSep, ',');
-//		if (!sep)
-//			sep = end;
-//
-//		size_t len = sep - prevSep;
-//		if (len == 0 || len > OSc_MAX_STR_LEN)
-//			continue;
-//		char name[OSc_MAX_STR_LEN + 1];
-//		strncpy(name, prevSep, len);
-//
-//		callback(name);
-//
-//		if (sep == end)
-//			return;
-//		prevSep = sep;
-//	}
-//}
+/*
+// bug: not working - only returns 1st device padded with null bytes
+static void ParseDeviceNameList(const char *names,
+	void(*callback)(const char *name))
+{
+	// The value of the Device Names property is a list, separated by ", "
+	const char *sep = NULL;
+	const char *prevSep = names;
+	const char *end = names + strlen(names);
+	for (;;)
+	{
+		// Skip any spaces after comma
+		while (*prevSep == ' ')
+			++prevSep;
 
+		sep = strchr(prevSep, ',');
+		if (!sep)
+			sep = end;
 
+		size_t len = sep - prevSep;
+		if (len == 0 || len > OSc_MAX_STR_LEN)
+			continue;
+		char name[OSc_MAX_STR_LEN + 1];
+		strncpy(name, prevSep, len);
+
+		callback(name);
+
+		if (sep == end)
+			return;
+		prevSep = sep;
+	}
+}
+*/
+
+/*
 // no use
 static void CreateDevice(const char* name)
 {
@@ -292,7 +293,7 @@ static void CreateDevice(const char* name)
 
 	g_devices[g_deviceCount++] = device;
 }
-
+*/
 
 static OSc_Error NIDAQWait(OSc_Device *device)
 {
