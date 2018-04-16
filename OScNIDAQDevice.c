@@ -230,38 +230,41 @@ static OSc_Error NIDAQIsRunning(OSc_Device *device, bool *isRunning)
 }
 
 
-static void ParseDeviceNameList(const char *names,
-	void(*callback)(const char *name))
-{
-	// The value of the Device Names property is a list, separated by ", "
-	const char *sep = NULL;
-	const char *prevSep = names;
-	const char *end = names + strlen(names);
-	for (;;)
-	{
-		// Skip any spaces after comma
-		while (*prevSep == ' ')
-			++prevSep;
+//
+//// bug: not working - only returns 1st device padded with null bytes
+//static void ParseDeviceNameList(const char *names,
+//	void(*callback)(const char *name))
+//{
+//	// The value of the Device Names property is a list, separated by ", "
+//	const char *sep = NULL;
+//	const char *prevSep = names;
+//	const char *end = names + strlen(names);
+//	for (;;)
+//	{
+//		// Skip any spaces after comma
+//		while (*prevSep == ' ')
+//			++prevSep;
+//
+//		sep = strchr(prevSep, ',');
+//		if (!sep)
+//			sep = end;
+//
+//		size_t len = sep - prevSep;
+//		if (len == 0 || len > OSc_MAX_STR_LEN)
+//			continue;
+//		char name[OSc_MAX_STR_LEN + 1];
+//		strncpy(name, prevSep, len);
+//
+//		callback(name);
+//
+//		if (sep == end)
+//			return;
+//		prevSep = sep;
+//	}
+//}
 
-		sep = strchr(prevSep, ',');
-		if (!sep)
-			sep = end;
 
-		size_t len = sep - prevSep;
-		if (len == 0 || len > OSc_MAX_STR_LEN)
-			continue;
-		char name[OSc_MAX_STR_LEN + 1];
-		strncpy(name, prevSep, len);
-
-		callback(name);
-
-		if (sep == end)
-			return;
-		prevSep = sep;
-	}
-}
-
-// what is this for?
+// no use
 static void CreateDevice(const char* name)
 {
 	if (!g_devices)
@@ -295,7 +298,9 @@ static OSc_Error NIDAQWait(OSc_Device *device)
 {
 	return WaitForAcquisitionToFinish(device);
 }
+
 /*
+// imcomplete and no use
 static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *count)
 {
 if (g_devices)

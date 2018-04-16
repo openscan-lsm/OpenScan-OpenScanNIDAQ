@@ -32,7 +32,6 @@ static OSc_Error EnsureNIDAQInitialized(void)
 }
 
 
-
 static OSc_Error DeinitializeNIDAQ(void)
 {
 	if (!g_NIDAQ_initialized)
@@ -72,21 +71,37 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->acquisition.acquisition = NULL;
 }
 
-// TODO: automatically mapping deviceName using DAQmxGetSysDevNames()
+// automatically detect deviceName using DAQmxGetSysDevNames()
 OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
 
+	// get a comma - delimited list of all of the devices installed in the system
+	char deviceNames[4096];
+	int32 nierr = DAQmxGetSysDevNames(deviceNames, sizeof(deviceNames));
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	char deviceList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(deviceNames, deviceList, deviceCount)))
+	{
+		return err;
+	}
+
 	struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
-	strncpy(data->deviceName, "PXI1Slot2", OSc_MAX_STR_LEN);
-	
+	// TODO - able to select which DAQ device to use in MM GUI
+	// for now assume the DAQ is installed in the 1st available slot in the chassis
+	strncpy(data->deviceName, deviceList[0], OSc_MAX_STR_LEN);
 
 	OSc_Device *device;
-	OSc_Error err;
 	if (OSc_Check_Error(err, OSc_Device_Create(&device, &OpenScan_NIDAQ_Device_Impl, data)))
 	{
 		char msg[OSc_MAX_STR_LEN + 1] = "Failed to create device ";
-		strcat(msg, data->rioResourceName);
+		strcat(msg, data->deviceName);
 		OSc_Log_Error(device, msg);
 		return err;
 	}
@@ -99,6 +114,34 @@ OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 
 	return OSc_Error_OK;
 }
+
+
+// convert comma comma - delimited device list to a 2D string array
+// each row contains the name of one device
+static OSc_Error ParseDeviceNameList(char *names,
+	char deviceNames[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1], size_t *deviceCount)
+{
+	const char s[3] = ", ";
+	int count = 0;
+
+	// token is a static pointer to the input string
+	// input string will be modified between iterations
+	for (char *token = strtok(names, s); token != NULL; token = strtok(NULL, s))
+	{
+		if (count < NUM_SLOTS_IN_CHASSIS)
+		{
+			strcpy(deviceNames[count], token);
+			count++;
+		}
+		else
+			return OSc_Error_Unknown;  //TODO
+	}
+
+	*deviceCount = (size_t)count;
+
+	return OSc_Error_OK;
+}
+
 
 // same to Initialize() in old OpenScan format
 OSc_Error OpenDAQ(OSc_Device *device)
