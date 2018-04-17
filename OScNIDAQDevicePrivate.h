@@ -49,6 +49,7 @@ struct OScNIDAQPrivateData
 	int32_t binFactor;
 	double inputVoltageRange;
 	int32_t totalRead;
+	uInt32 numAIChannels;
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks
 	double offsetXY[2];
 
@@ -78,8 +79,6 @@ struct OScNIDAQPrivateData
 		bool armed; // Valid when running == true
 		bool started; // Valid when running == true
 		bool stopRequested; // Valid when running == true
-		int32 totalRead;
-		uInt32 numAIChannels;
 		OSc_Acquisition *acquisition;
 	} acquisition;
 };

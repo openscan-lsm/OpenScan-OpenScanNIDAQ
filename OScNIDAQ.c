@@ -164,7 +164,12 @@ OSc_Error InitDAQ(OSc_Device *device)
 {
 	OSc_Return_If_Error(EnsureNIDAQInitialized());
 	int32 nierr;
-	GetData(device)->totalRead = 0;
+
+	// reset num of data read from PMTs
+	// so that when restarting an imaging session from an unsuccessful acquisition
+	// error won't occur due to mismatch between totalRead and resolution * totalSamplesPerLine
+	GetData(device)->totalRead = 0; 
+
 	// initialize scan waveform task
 	if (!GetData(device)->scanWaveformTaskHandle_)
 	{
@@ -310,7 +315,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		OSc_Log_Debug(device, "Created AI voltage channels for image acquisition");
 		// get number of physical AI channels for image acquisition
 		// difference from GetNumberOfChannels() which indicates number of channels to display
-		nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, &GetData(device)->acquisition.numAIChannels);
+		nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, &GetData(device)->numAIChannels);
 		if (nierr != 0)
 		{
 			char buf[1024];
@@ -319,7 +324,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
 		char msg[OSc_MAX_STR_LEN + 1];
-		snprintf(msg, OSc_MAX_STR_LEN, "%d physical AI channels available.", GetData(device)->acquisition.numAIChannels);
+		snprintf(msg, OSc_MAX_STR_LEN, "%d physical AI channels available.", GetData(device)->numAIChannels);
 		OSc_Log_Debug(device, msg);
 	}
 
@@ -813,11 +818,11 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 	size_t nPixels = GetImageWidth(device) * GetImageHeight(device);
 
 	GetData(device)->imageData = realloc(GetData(device)->imageData,
-		sizeof(uint16_t) * GetData(device)->acquisition.numAIChannels * nPixels);
+		sizeof(uint16_t) * GetData(device)->numAIChannels * nPixels);
 	GetData(device)->rawLineData = realloc(GetData(device)->rawLineData, 
-		sizeof(float64) * GetData(device)->acquisition.numAIChannels * GetData(device)->resolution * GetData(device)->binFactor);
+		sizeof(float64) * GetData(device)->numAIChannels * GetData(device)->resolution * GetData(device)->binFactor);
 	GetData(device)->avgLineData = realloc(GetData(device)->avgLineData,
-		sizeof(float64) * GetData(device)->acquisition.numAIChannels * GetData(device)->resolution);
+		sizeof(float64) * GetData(device)->numAIChannels * GetData(device)->resolution);
 
 	GetData(device)->ch1Buffer = realloc(GetData(device)->ch1Buffer, sizeof(uint16_t) * nPixels);
 	GetData(device)->ch2Buffer = realloc(GetData(device)->ch2Buffer, sizeof(uint16_t) * nPixels);
@@ -832,7 +837,7 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		GetData(device)->ch2Buffer[i] = 255;
 		GetData(device)->ch3Buffer[i] = 32767;
 	}
-	for (size_t i = 0; i < GetData(device)->acquisition.numAIChannels * nPixels; ++i)
+	for (size_t i = 0; i < GetData(device)->numAIChannels * nPixels; ++i)
 	{
 		GetData(device)->imageData[i] = 16383;
 	}
@@ -877,14 +882,14 @@ static OSc_Error SplitChannels(OSc_Device *device)
 {
 	// imageData_ if displayed as 2D image will have N channels on each row
 	// data is stored line by line with N channels in a row per line
-	uint32_t rawImageWidth = GetImageWidth(device) * GetData(device)->acquisition.numAIChannels;
+	uint32_t rawImageWidth = GetImageWidth(device) * GetData(device)->numAIChannels;
 	uint32_t rawImageHeight = GetImageHeight(device);
 	uint32_t xLength = GetImageWidth(device);
 	uint32_t yLength = GetImageHeight(device);
 
 	OSc_Error err = OSc_Error_OK;
 	// convert big image buffer to separate channel buffers
-	for (uint32_t chan = 0; chan < GetData(device)->acquisition.numAIChannels; chan++)
+	for (uint32_t chan = 0; chan < GetData(device)->numAIChannels; chan++)
 		for (uint32_t currRow = 0; currRow < yLength; currRow++)
 			for (uint32_t currCol = 0; currCol < xLength; currCol++)
 				switch (chan) {
@@ -1279,8 +1284,8 @@ static OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEven
 
 	int32 readPerChan;
 	int32_t prevPercentRead = -1;
-	uInt32 totalSamplesPerLine = GetData(device)->acquisition.numAIChannels * GetData(device)->resolution * GetData(device)->binFactor;
-	int32 currLine = 1 + GetData(device)->totalRead / GetData(device)->acquisition.numAIChannels / GetData(device)->binFactor / GetData(device)->resolution;
+	uInt32 totalSamplesPerLine = GetData(device)->numAIChannels * GetData(device)->resolution * GetData(device)->binFactor;
+	int32 currLine = 1 + GetData(device)->totalRead / GetData(device)->numAIChannels / GetData(device)->binFactor / GetData(device)->resolution;
 	// rawLineData format with GroupByChannel (non-interlaced) is:
 	// CH1 pixel 1 meas 1..binFactor | CH1 p2 m1..binFactor | ... | CH1 pN m1..binFactor || CH2 p1 m1..binFactor |...
 	int32 nierr = DAQmxReadAnalogF64(GetData(device)->acqTaskHandle_, -1, 10.0, DAQmx_Val_GroupByChannel,
@@ -1311,7 +1316,7 @@ static OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEven
 				(int16)abs(GetData(device)->avgLineData[i / GetData(device)->binFactor] / GetData(device)->inputVoltageRange * 32768);
 		}
 
-		GetData(device)->totalRead += (GetData(device)->acquisition.numAIChannels * readPerChan); // update total elements acquired
+		GetData(device)->totalRead += (GetData(device)->numAIChannels * readPerChan); // update total elements acquired
 
 		if (currLine % 128 == 0)
 		{
