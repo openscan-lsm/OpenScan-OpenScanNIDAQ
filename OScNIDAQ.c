@@ -867,47 +867,36 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		OSc_Return_If_Error(SplitChannels(device));
 	}
 
-	int dispChannelidx[3];
-
 	switch (GetData(device)->channels)
 	{
 	case CHANNEL1:
-		dispChannelidx[0] = 0;
-		dispChannelidx[1] = 0;
-		dispChannelidx[2] = 0;
+		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
 		break;
 	case CHANNEL2:
-		dispChannelidx[0] = 1;
-		dispChannelidx[1] = 1;
-		dispChannelidx[2] = 1;
+		acq->frameCallback(acq, 0, GetData(device)->ch2Buffer, acq->data);
 		break;
 	case CHANNEL3:
-		dispChannelidx[0] = 2;
-		dispChannelidx[1] = 2;
-		dispChannelidx[2] = 2;
+		acq->frameCallback(acq, 0, GetData(device)->ch3Buffer, acq->data);
 		break;
+	
 	case CHANNELS_1_AND_2:
-		dispChannelidx[0] = 0;
-		dispChannelidx[1] = 1;
-		dispChannelidx[2] = 1;
+		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
+		acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
 		break;
+
 	case CHANNELS1_2_3:
-		dispChannelidx[0] = 0;
-		dispChannelidx[1] = 1;
-		dispChannelidx[2] = 2;
+		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
+		acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
+		acq->frameCallback(acq, 2, GetData(device)->ch3Buffer, acq->data);
 		break;
 	
 	default:
-		dispChannelidx[0] = 0;
-		dispChannelidx[1] = 1;
-		dispChannelidx[2] = 2;
+		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
+		acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
+		acq->frameCallback(acq, 2, GetData(device)->ch3Buffer, acq->data);
 		break;
 	}
-
-	acq->frameCallback(acq, dispChannelidx[0], GetData(device)->ch1Buffer, acq->data);
-	acq->frameCallback(acq, dispChannelidx[1], GetData(device)->ch2Buffer, acq->data);
-	acq->frameCallback(acq, dispChannelidx[2], GetData(device)->ch3Buffer, acq->data);
-
+	
 	Sleep(100);
 
 	return OSc_Error_OK;
