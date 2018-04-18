@@ -65,8 +65,8 @@ static OSc_Error SetZoom(OSc_Setting *setting, double value)
 
 static OSc_Error GetZoomRange(OSc_Setting *setting, double *min, double *max)
 {
-	*min = 1.0;
-	*max = 40.0;
+	*min = 0.2;
+	*max = 20.0;
 	return OSc_Error_OK;
 }
 
