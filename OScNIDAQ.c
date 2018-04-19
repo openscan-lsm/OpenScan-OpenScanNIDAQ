@@ -116,6 +116,47 @@ OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 
 	return OSc_Error_OK;
 }
+OSc_Error GetVoltageRangeForDevice(OSc_Device ***devices, size_t *deviceCount) {
+	//const int MAX_RANGES = 64;
+	#define MAX_RANGES 64
+	float64 ranges[2 * MAX_RANGES];
+	for (int i = 0; i < MAX_RANGES; ++i)
+	{
+		ranges[2 * i] = 0.0;
+		ranges[2 * i + 1] = 0.0;
+	}
+
+
+	return OSc_Error_OK;
+}
+
+OSc_Error GetAllTerminalsForDevice(OSc_Device ***devices, size_t *deviceCount) {
+	return OSc_Error_OK;
+}
+
+OSc_Error GetAOPortsForDevice(OSc_Device ***devices) {
+	return OSc_Error_OK;
+}
+
+OSc_Error GetAIPortsForDevice(OSc_Device ***devices) {
+	return OSc_Error_OK;
+}
+
+OSc_Error GetDOPortsForDevice(OSc_Device ***devices) {
+	return OSc_Error_OK;
+}
+
+OSc_Error GetCOPortsForDevice(OSc_Device ***devices) {
+	return OSc_Error_OK;
+}
+
+OSc_Error GetCOTerminalsForDevice(OSc_Device ***devices) {
+	return OSc_Error_OK;
+}
+
+OSc_Error GetTriggerPortsForDevice(OSc_Device ***devices) {
+	return OSc_Error_OK;
+}
 
 
 // convert comma comma - delimited device list to a 2D string array
