@@ -116,6 +116,30 @@ OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 
 	return OSc_Error_OK;
 }
+
+OSc_Error DetectInstalledDevices(char* result, size_t *deviceCount) {
+	
+	char devices[1024];
+	int32 nierr = DAQmxGetSysDevNames(devices, sizeof(devices)); // list how many devices installed in a chassis
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	char deviceList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(devices, deviceList, deviceCount)))
+	{
+		return err;
+	}
+
+	result = deviceList;
+
+	return OSc_Error_OK;
+}
+
+
 OSc_Error GetVoltageRangeForDevice(OSc_Device ***devices, size_t *deviceCount) {
 	//const int MAX_RANGES = 64;
 	#define MAX_RANGES 64
@@ -134,27 +158,124 @@ OSc_Error GetAllTerminalsForDevice(OSc_Device ***devices, size_t *deviceCount) {
 	return OSc_Error_OK;
 }
 
-OSc_Error GetAOPortsForDevice(OSc_Device ***devices) {
+OSc_Error GetAOPortsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
+	char ports[4096];
+	int32 nierr = DAQmxGetDevAOPhysicalChans(devices, ports, sizeof(ports));
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	char portList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
+	{
+		return err;
+	}
+
+	result = portList;
+
 	return OSc_Error_OK;
 }
 
-OSc_Error GetAIPortsForDevice(OSc_Device ***devices) {
+OSc_Error GetAIPortsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
+	char ports[4096];
+	int32 nierr = DAQmxGetDevAIPhysicalChans(devices, ports, sizeof(ports));
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	char portList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
+	{
+		return err;
+	}
+
+	result = portList;
+
 	return OSc_Error_OK;
 }
 
-OSc_Error GetDOPortsForDevice(OSc_Device ***devices) {
+OSc_Error GetDOPortsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
+	char ports[4096];
+	int32 nierr = DAQmxGetDevDOLines(devices, ports, sizeof(ports));
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	char portList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
+	{
+		return err;
+	}
+	result = portList;
+
 	return OSc_Error_OK;
 }
 
-OSc_Error GetCOPortsForDevice(OSc_Device ***devices) {
+OSc_Error GetCOPortsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
+	char ports[4096];
+	int32 nierr = DAQmxGetDevCOPhysicalChans(devices, ports, sizeof(ports));
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	char portList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
+	{
+		return err;
+	}
+	result = portList;
 	return OSc_Error_OK;
 }
 
-OSc_Error GetCOTerminalsForDevice(OSc_Device ***devices) {
+OSc_Error GetCOTerminalsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
+	char ports[4096];
+	int32 nierr = DAQmxGetDevTerminals(devices, ports, sizeof(ports));
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	char portList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
+	{
+		return err;
+	}
+	result = portList;
+
 	return OSc_Error_OK;
 }
 
-OSc_Error GetTriggerPortsForDevice(OSc_Device ***devices) {
+OSc_Error GetTriggerPortsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
+	char ports[4096];
+	int32 nierr = DAQmxGetDevTerminals(devices, ports, sizeof(ports));
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	char portList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
+	{
+		return err;
+	}
+	result = portList;
+
 	return OSc_Error_OK;
 }
 
