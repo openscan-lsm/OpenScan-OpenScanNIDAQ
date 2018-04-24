@@ -14,7 +14,12 @@
 
 static bool g_NIDAQ_initialized = false;
 static size_t g_openDeviceCount = 0;
-
+const char* const PROPERTY_VALUE_Channel1 = "Channel1";
+const char* const PROPERTY_VALUE_Channel2 = "Channel2";
+const char* const PROPERTY_VALUE_Channel3 = "Channel3";
+const char* const PROPERTY_VALUE_Channel1and2 = "Channel1and2";
+const char* const PROPERTY_VALUE_Channel1and3 = "Channel1and3";
+const char* const PROPERTY_VALUE_Channel1and2and3 = "Channels1-3";
 
 static inline uint16_t DoubleToFixed16(double d, int intBits)
 {
@@ -154,7 +159,24 @@ OSc_Error GetVoltageRangeForDevice(OSc_Device ***devices, size_t *deviceCount) {
 	return OSc_Error_OK;
 }
 
-OSc_Error GetAllTerminalsForDevice(OSc_Device ***devices, size_t *deviceCount) {
+OSc_Error GetAllTerminalsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
+	char ports[4096];
+	int32 nierr = DAQmxGetDevTerminals(devices, ports, sizeof(ports));
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	char portList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
+	{
+		return err;
+	}
+
+	result = portList;
+
 	return OSc_Error_OK;
 }
 
@@ -305,6 +327,76 @@ static OSc_Error ParseDeviceNameList(char *names,
 
 	return OSc_Error_OK;
 }
+
+OSc_Error GetSelectedDispChannels(OSc_Device *device)
+{
+	//selectedDispChan_.clear();  // clear all elements first
+	free(GetData(device)->selectedDispChan_);
+
+	switch (GetData(device)->channels)
+	{
+	case CHANNEL1:
+		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*));
+		*GetData(device)->selectedDispChan_ = PROPERTY_VALUE_Channel1;
+		break;
+	case CHANNEL2:
+		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*));
+		*GetData(device)->selectedDispChan_ = PROPERTY_VALUE_Channel2;
+		break;
+	case CHANNEL3:
+		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*));
+		*GetData(device)->selectedDispChan_ = PROPERTY_VALUE_Channel3;
+		break;
+	case CHANNELS_1_AND_2:
+		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*) * 2);
+		*(GetData(device)->selectedDispChan_) =  PROPERTY_VALUE_Channel1;
+		*(GetData(device)->selectedDispChan_ + 1) = PROPERTY_VALUE_Channel2;
+		break;
+	case CHANNELS_1_AND_3:
+		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*) * 2);
+		*(GetData(device)->selectedDispChan_) =  PROPERTY_VALUE_Channel1;
+		*(GetData(device)->selectedDispChan_ + 1) = PROPERTY_VALUE_Channel3;
+		break;
+	case CHANNELS1_2_3:
+		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*) * 3);
+		*(GetData(device)->selectedDispChan_) =  PROPERTY_VALUE_Channel1;
+		*(GetData(device)->selectedDispChan_ + 1) = PROPERTY_VALUE_Channel2;
+		*(GetData(device)->selectedDispChan_ + 2) = PROPERTY_VALUE_Channel3;
+		break;
+	}
+
+	//for (std::vector<std::string>::const_iterator it = selectedDispChan_.begin(),
+	//	end = selectedDispChan_.end(); it != end; ++it)
+	//	LogMessage(it->c_str());
+	return OSc_Error_OK;
+}
+
+OSc_Error MapDispChanToAIPorts(OSc_Device* device)
+{
+	char** dispChannels;
+	dispChannels = malloc(3*sizeof(char*));
+	*dispChannels = malloc(sizeof(char) * strlen(PROPERTY_VALUE_Channel1));
+	*dispChannels = PROPERTY_VALUE_Channel1;
+	*dispChannels = malloc(sizeof(char) * strlen(PROPERTY_VALUE_Channel2));
+	*dispChannels = PROPERTY_VALUE_Channel2;
+	*dispChannels = malloc(sizeof(char) * strlen(PROPERTY_VALUE_Channel3));
+	*dispChannels = PROPERTY_VALUE_Channel3;
+
+	int numDispChannels = (int)sizeof(dispChannels)/sizeof(char*);
+	// TODO
+	GetData(device)->aiPorts_ = GetAIPortsForDevice(GetData(device)->niDAQname_);
+	int numAIPorts = (int)sizeof(GetData(device)->aiPorts_) / sizeof(char*);
+	int numChannels = (numDispChannels > numAIPorts) ? numAIPorts : numDispChannels;
+	for (int i = 0; i < numChannels; ++i)
+	{
+		sm_put(GetData(device)->channelMap_, dispChannels[i], GetData(device)->aiPorts_[i]);
+		//GetData(device)->channelMap_[dispChannels.at(i)] = aiPorts_.at(i);
+		// e.g., channelMap["Channel1"] = "PXI1Slot2/ai0";
+	}
+
+	return OSc_Error_OK;
+}
+
 
 
 // same to Initialize() in old OpenScan format

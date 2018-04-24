@@ -1,5 +1,5 @@
 #pragma once
-
+#include "strmap.h"
 #include "OScNIDAQDevice.h"
 
 #include "OpenScanLibPrivate.h"
@@ -52,6 +52,13 @@ struct OScNIDAQPrivateData
 	uInt32 numAIChannels;
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks
 	double offsetXY[2];
+	
+	char* niDAQname_; // DAQ used for OpenScan
+	char** aiPorts_;  // std::vector<std::string> aiPorts_
+	char* aoChanList_, doChanList_, coChanList_, acqTrigPort_;
+	char** selectedDispChan_;  //std::vector<std::string> selectedDispChan_
+	char* enabledAIPorts_;
+	StrMap* channelMap_;
 
 	enum {
 		CHANNEL1,
@@ -59,6 +66,7 @@ struct OScNIDAQPrivateData
 		CHANNEL3,
 		CHANNEL4,
 		CHANNELS_1_AND_2,
+		CHANNELS_1_AND_3,
 		CHANNELS1_2_3,
 		CHANNELS_NUM_VALUES
 	} channels;
