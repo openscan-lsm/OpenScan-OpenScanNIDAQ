@@ -94,28 +94,33 @@ OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 		return err;
 	}
 
-	struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
-	// TODO - able to select which DAQ device to use in MM GUI
-	// for now assume the DAQ is installed in the 1st available slot in the chassis
-	strncpy(data->deviceName, deviceList[0], OSc_MAX_STR_LEN);
+	*devices = malloc(*deviceCount * sizeof(OSc_Device *));
 
-	OSc_Device *device;
-	if (OSc_Check_Error(err, OSc_Device_Create(&device, &OpenScan_NIDAQ_Device_Impl, data)))
+	for (int i = 0; i < (int)(*deviceCount); ++i)
 	{
-		char msg[OSc_MAX_STR_LEN + 1] = "Failed to create device ";
-		strcat(msg, data->deviceName);
-		OSc_Log_Error(device, msg);
-		return err;
+		struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
+		// TODO - able to select which DAQ device to use in MM GUI
+		// for now assume the DAQ is installed in the 1st available slot in the chassis
+		strncpy(data->deviceName, deviceList[i], OSc_MAX_STR_LEN);
+
+		OSc_Device *device;
+		if (OSc_Check_Error(err, OSc_Device_Create(&device, &OpenScan_NIDAQ_Device_Impl, data)))
+		{
+			char msg[OSc_MAX_STR_LEN + 1] = "Failed to create device ";
+			strcat(msg, data->deviceName);
+			OSc_Log_Error(device, msg);
+			return err;
+		}
+
+		PopulateDefaultParameters(GetData(device));
+
+		(*devices)[i] = device;
 	}
-
-	PopulateDefaultParameters(GetData(device));
-
-	*devices = malloc(sizeof(OSc_Device *));
-	*deviceCount = 1;
-	(*devices)[0] = device;
-
+	
 	return OSc_Error_OK;
 }
+
+
 OSc_Error GetVoltageRangeForDevice(OSc_Device ***devices, size_t *deviceCount) {
 	//const int MAX_RANGES = 64;
 	#define MAX_RANGES 64
@@ -162,7 +167,7 @@ OSc_Error GetTriggerPortsForDevice(OSc_Device ***devices) {
 // convert comma comma - delimited device list to a 2D string array
 // each row contains the name of one device
 static OSc_Error ParseDeviceNameList(char *names,
-	char deviceNames[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1], size_t *deviceCount)
+	char (*deviceNames)[OSc_MAX_STR_LEN + 1], size_t *deviceCount)
 {
 	const char s[3] = ", ";
 	int count = 0;
