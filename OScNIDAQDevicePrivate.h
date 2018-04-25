@@ -47,6 +47,7 @@ struct OScNIDAQPrivateData
 	double zoom;
 	uint32_t resolution;
 	int32_t binFactor;
+	int32_t numLinesToBuffer;
 	double inputVoltageRange;
 	int32_t totalRead;
 	uInt32 numAIChannels;

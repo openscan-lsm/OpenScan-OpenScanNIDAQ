@@ -59,6 +59,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->resolution = 512;
 	data->zoom = 1.0;
 	data->binFactor = 2;
+	data->numLinesToBuffer = 8;
 	data->inputVoltageRange = 10.0;
 	data->channels = CHANNEL1;
 	data->numDOChannels = 1;
@@ -1123,6 +1124,7 @@ static OSc_Error ReconfigTiming(OSc_Device *device)
 	}
 	OSc_Log_Debug(device, "Configured sample clock timing for scan waveform");
 
+	// by default, acquire data for one scan line each time
 	nierr = DAQmxCfgSampClkTiming(GetData(device)->acqTaskHandle_, "", 1E6*GetData(device)->scanRate,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, GetData(device)->resolution * GetData(device)->binFactor); // reload
 	if (nierr != 0)
@@ -1133,6 +1135,20 @@ static OSc_Error ReconfigTiming(OSc_Device *device)
 		goto Error;
 	}
 	OSc_Log_Debug(device, "Configured sample clock timing for acquistion");
+
+	// manually increase acquisition buffer size to avoid input buffer overflow
+	nierr = DAQmxCfgInputBuffer(GetData(device)->acqTaskHandle_, GetData(device)->numLinesToBuffer *
+		GetData(device)->resolution * GetData(device)->binFactor * GetData(device)->numAIChannels);
+	if (nierr != 0)
+	{
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OSc_Log_Error(device, buf);
+		goto Error;
+	}
+	char msg[OSc_MAX_STR_LEN + 1];
+	snprintf(msg, OSc_MAX_STR_LEN, "Change acquisition buffer to size of %d scan lines", GetData(device)->numLinesToBuffer);
+	OSc_Log_Debug(device, msg);
 
 	// update counter timing-related parameters
 	double effectiveScanPortion = (double)GetData(device)->resolution / elementsPerLine;

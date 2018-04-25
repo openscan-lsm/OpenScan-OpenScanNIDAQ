@@ -101,12 +101,50 @@ static OSc_Error GetBinFactorRange(OSc_Setting *setting, int32_t *min, int32_t *
 	return OSc_Error_OK;
 }
 
-
 static struct OSc_Setting_Impl SettingImpl_BinFactor = {
 	.GetInt32 = GetBinFactor,
 	.SetInt32 = SetBinFactor,
 	.GetNumericConstraintType = OSc_Setting_NumericConstraintRange,
 	.GetInt32Range = GetBinFactorRange,
+};
+
+static OSc_Error GetAcqBufferSize(OSc_Setting *setting, int32_t *value)
+{
+	*value = GetData(setting->device)->numLinesToBuffer;
+	return OSc_Error_OK;
+}
+
+// OnAcqBufferSize
+static OSc_Error SetAcqBufferSize(OSc_Setting *setting, int32_t value)
+{
+	GetData(setting->device)->numLinesToBuffer = value;
+	GetData(setting->device)->timingSettingsChanged = true;
+	GetData(setting->device)->acqSettingsChanged = true;
+	return OSc_Error_OK;
+}
+
+static OSc_Error GetAcqBufferSizeValues(OSc_Setting *setting, int32_t **values, size_t *count)
+{
+	static int32_t v[] = {
+		2,
+		4,
+		8,
+		16,
+		32,
+		64,
+		128,
+		256,
+	};
+	*values = v;
+	*count = sizeof(v) / sizeof(int32_t);
+	return OSc_Error_OK;
+}
+
+static struct OSc_Setting_Impl SettingImpl_AcqBufferSize = {
+	.GetInt32 = GetAcqBufferSize,
+	.SetInt32 = SetAcqBufferSize,
+	.GetNumericConstraintType = OSc_Setting_NumericConstraintDiscreteValues,
+	.GetInt32DiscreteValues = GetAcqBufferSizeValues,
 };
 
 static OSc_Error GetInputVoltageRange(OSc_Setting *setting, double *value)
@@ -302,6 +340,10 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 	OSc_Return_If_Error(OSc_Setting_Create(&binFactor, device, "Bin Factor", OSc_Value_Type_Int32,
 		&SettingImpl_BinFactor, NULL));
 
+	OSc_Setting *numLinesToBuffer;
+	OSc_Return_If_Error(OSc_Setting_Create(&numLinesToBuffer, device, "Acq Buffer Size (lines)", OSc_Value_Type_Int32,
+		&SettingImpl_AcqBufferSize, NULL));
+
 	OSc_Setting *channels;
 	OSc_Return_If_Error(OSc_Setting_Create(&channels, device, "Channels", OSc_Value_Type_Enum,
 		&SettingImpl_Channels, NULL));
@@ -315,7 +357,7 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 		&SettingImpl_ScannerOnly, NULL));
 
 	OSc_Setting *ss[] = {
-		scanRate, zoom, offsetX, offsetY, binFactor,
+		scanRate, zoom, offsetX, offsetY, binFactor, numLinesToBuffer,
 		inputVoltageRange, channels, scannerOnly,
 	};
 	size_t nSettings = sizeof(ss) / sizeof(OSc_Setting *);
