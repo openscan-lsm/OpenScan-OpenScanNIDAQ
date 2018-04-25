@@ -301,6 +301,21 @@ OSc_Error GetTriggerPortsForDevice(OSc_Device ***devices, size_t *deviceCount, c
 	return OSc_Error_OK;
 }
 
+OSc_Error GetEnabledAIPorts(OSc_Device *device, size_t *deviceCount, char* result) {
+	char portList[2048];
+	int channelNum = sizeof(GetData(device)->selectedDispChan_) / sizeof(char*);
+	for (int i = 0; i < channelNum; i++) {
+		char mappedStr[255]; // Assume string len is less than 255 char
+		sm_get(GetData(device)->channelMap_, GetData(device)->selectedDispChan_[i],  mappedStr, sizeof(mappedStr));
+		// Append comma
+		// port0, port1, port3...
+		if (i > 0) 
+			strcat(portList, ",");
+		strcat(portList, mappedStr);
+	}
+	result = portList;
+}
+
 
 // convert comma comma - delimited device list to a 2D string array
 // each row contains the name of one device
