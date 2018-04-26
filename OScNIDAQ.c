@@ -58,6 +58,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->scanRate = 1.25;  // MHz
 	data->resolution = 512;
 	data->zoom = 1.0;
+	data->magnification = 1.0;
 	data->binFactor = 2;
 	data->numLinesToBuffer = 8;
 	data->inputVoltageRange = 10.0;

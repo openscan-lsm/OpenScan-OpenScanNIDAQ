@@ -52,6 +52,11 @@ static struct OSc_Setting_Impl SettingImpl_ScanRate = {
 static OSc_Error GetZoom(OSc_Setting *setting, double *value)
 {
 	*value = GetData(setting->device)->zoom;
+
+	GetData(setting->device)->magnification =
+		(double)GetData(setting->device)->resolution / (double)OSc_DEFAULT_RESOLUTION 
+		* GetData(setting->device)->zoom / OSc_DEFAULT_ZOOM;
+
 	return OSc_Error_OK;
 }
 
@@ -59,6 +64,12 @@ static OSc_Error SetZoom(OSc_Setting *setting, double value)
 {
 	GetData(setting->device)->zoom = value;
 	GetData(setting->device)->waveformSettingsChanged = true;
+
+	// reflect the change to magnification as well
+	GetData(setting->device)->magnification = 
+		(double)GetData(setting->device)->resolution / (double)OSc_DEFAULT_RESOLUTION 
+		* value / OSc_DEFAULT_ZOOM;
+
 	return OSc_Error_OK;
 }
 
@@ -299,8 +310,8 @@ static OSc_Error GetOffsetRange(OSc_Setting *setting, double *min, double *max)
 	/*The galvoOffsetX and galvoOffsetY variables are expressed  in optical degrees
 	This is a rough correspondence - it likely needs to be calibrated to the actual
 	sensitivity of the galvos*/
-	*min = -10.0;
-	*max = +10.0;
+	*min = -5.0;
+	*max = +5.0;
 	return OSc_Error_OK;
 }
 
@@ -329,11 +340,11 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 		&SettingImpl_Zoom, NULL));
 
 	OSc_Setting *offsetX;
-	OSc_Return_If_Error(OSc_Setting_Create(&offsetX, device, "GalvoOffsetX", OSc_Value_Type_Float64,
+	OSc_Return_If_Error(OSc_Setting_Create(&offsetX, device, "GalvoOffsetX (degree)", OSc_Value_Type_Float64,
 		&SettingImpl_Offset, (void *)0));
 
 	OSc_Setting *offsetY;
-	OSc_Return_If_Error(OSc_Setting_Create(&offsetY, device, "GalvoOffsetY", OSc_Value_Type_Float64,
+	OSc_Return_If_Error(OSc_Setting_Create(&offsetY, device, "GalvoOffsetY (degree)", OSc_Value_Type_Float64,
 		&SettingImpl_Offset, (void *)1));
 
 	OSc_Setting *binFactor;

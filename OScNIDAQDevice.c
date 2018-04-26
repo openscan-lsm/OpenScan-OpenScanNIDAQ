@@ -115,8 +115,31 @@ static OSc_Error NIDAQSetResolution(OSc_Device *device, size_t width, size_t hei
 	GetData(device)->timingSettingsChanged = true;
 	GetData(device)->waveformSettingsChanged = true;
 	GetData(device)->acqSettingsChanged = true;
+
+	// reflect the change to magnification as well
+	GetData(device)->magnification =
+		(double)width / OSc_DEFAULT_RESOLUTION * GetData(device)->zoom / OSc_DEFAULT_ZOOM;
+
 	return OSc_Error_OK;
 }
+
+
+static OSc_Error NIDAQGetMagnification(OSc_Device *device, double *magnification)
+{
+	*magnification = GetData(device)->magnification;
+	return OSc_Error_OK;
+}
+
+// probably incorrect and no use as it doesn't reflect the change of resolution or zoom
+static OSc_Error NIDAQSetMagnification(OSc_Device *device)
+{
+	size_t resolution = GetData(device)->resolution;
+	double zoom = GetData(device)->zoom;
+	GetData(device)->magnification = 
+		(double)(resolution / OSc_DEFAULT_RESOLUTION) * (zoom / OSc_DEFAULT_ZOOM);
+	return OSc_Error_OK;
+}
+
 
 static OSc_Error NIDAQGetImageSize(OSc_Device *device, uint32_t *width, uint32_t *height)
 {
@@ -334,6 +357,8 @@ struct OSc_Device_Impl OpenScan_NIDAQ_Device_Impl = {
 	.GetAllowedResolutions = NIDAQGetAllowedResolutions,
 	.GetResolution = NIDAQGetResolution,
 	.SetResolution = NIDAQSetResolution,
+	.GetMagnification = NIDAQGetMagnification,
+	.SetMagnification = NIDAQSetMagnification,
 	.GetImageSize = NIDAQGetImageSize,
 	.GetNumberOfChannels = NIDAQGetNumberOfChannels,
 	.GetBytesPerSample = NIDAQGetBytesPerSample,
