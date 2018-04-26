@@ -56,7 +56,7 @@ struct OScNIDAQPrivateData
 	char* niDAQname_; // DAQ used for OpenScan
 	char** aiPorts_;  // std::vector<std::string> aiPorts_
 	char* aoChanList_, doChanList_, coChanList_, acqTrigPort_;
-	char** selectedDispChan_;  //std::vector<std::string> selectedDispChan_
+	char** selectedDispChan_; 
 	char* enabledAIPorts_;
 	StrMap* channelMap_;
 

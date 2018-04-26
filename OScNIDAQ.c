@@ -14,12 +14,7 @@
 
 static bool g_NIDAQ_initialized = false;
 static size_t g_openDeviceCount = 0;
-const char* const PROPERTY_VALUE_Channel1 = "Channel1";
-const char* const PROPERTY_VALUE_Channel2 = "Channel2";
-const char* const PROPERTY_VALUE_Channel3 = "Channel3";
-const char* const PROPERTY_VALUE_Channel1and2 = "Channel1and2";
-const char* const PROPERTY_VALUE_Channel1and3 = "Channel1and3";
-const char* const PROPERTY_VALUE_Channel1and2and3 = "Channels1-3";
+
 
 static inline uint16_t DoubleToFixed16(double d, int intBits)
 {
@@ -50,6 +45,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 {
 	data->detectorOnly = false;
 	data->scannerOnly = false;
+	//data->selectedDispChan_ = malloc(OSc_Total_Channel_Num * (OSc_MAX_STR_LEN + 1) * sizeof(char));
 
 	data->offsetXY[0] = data->offsetXY[1] = 0.0;
 	data->settingsChanged = true;
@@ -122,6 +118,7 @@ OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 	return OSc_Error_OK;
 }
 
+/*
 OSc_Error DetectInstalledDevices(char* result, size_t *deviceCount) {
 	
 	char devices[1024];
@@ -145,19 +142,6 @@ OSc_Error DetectInstalledDevices(char* result, size_t *deviceCount) {
 }
 
 
-OSc_Error GetVoltageRangeForDevice(OSc_Device ***devices, size_t *deviceCount) {
-	//const int MAX_RANGES = 64;
-	#define MAX_RANGES 64
-	float64 ranges[2 * MAX_RANGES];
-	for (int i = 0; i < MAX_RANGES; ++i)
-	{
-		ranges[2 * i] = 0.0;
-		ranges[2 * i + 1] = 0.0;
-	}
-
-
-	return OSc_Error_OK;
-}
 
 OSc_Error GetAllTerminalsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
 	char ports[4096];
@@ -300,20 +284,62 @@ OSc_Error GetTriggerPortsForDevice(OSc_Device ***devices, size_t *deviceCount, c
 
 	return OSc_Error_OK;
 }
+*/
 
-OSc_Error GetEnabledAIPorts(OSc_Device *device, size_t *deviceCount, char* result) {
-	char portList[2048];
-	int channelNum = sizeof(GetData(device)->selectedDispChan_) / sizeof(char*);
-	for (int i = 0; i < channelNum; i++) {
-		char mappedStr[255]; // Assume string len is less than 255 char
-		sm_get(GetData(device)->channelMap_, GetData(device)->selectedDispChan_[i],  mappedStr, sizeof(mappedStr));
-		// Append comma
-		// port0, port1, port3...
-		if (i > 0) 
-			strcat(portList, ",");
-		strcat(portList, mappedStr);
+OSc_Error GetVoltageRangeForDevice(OSc_Device* device, double* minVolts, double* maxVolts){
+	//const int MAX_RANGES = 64;
+	#define MAX_RANGES 64
+	float64 ranges[2 * MAX_RANGES];
+	for (int i = 0; i < MAX_RANGES; ++i)
+	{
+		ranges[2 * i] = 0.0;
+		ranges[2 * i + 1] = 0.0;
 	}
-	result = portList;
+
+	// TODO: device should be a string
+	int32 nierr = DAQmxGetDevAOVoltageRngs(device, ranges,
+		sizeof(ranges) / sizeof(float64));
+	if (nierr != 0)
+	{
+		LogMessage("Error getting analog voltage ranges");
+	}
+
+	// Find the common min and max.
+	*minVolts = ranges[0];
+	*maxVolts = ranges[1];
+	for (int i = 0; i < MAX_RANGES; ++i)
+	{
+		if (ranges[2 * i] == 0.0 && ranges[2 * i + 1] == 0.0)
+			break;
+
+		if (ranges[2 * i + 1] > *maxVolts)
+		{
+			*minVolts = ranges[2 * i];
+			*maxVolts = ranges[2 * i + 1];
+		}
+	}
+
+
+	return OSc_Error_OK;
+}
+
+OSc_Error GetEnabledAIPorts(OSc_Device *device) {
+	char portList[2048];
+	// Assume three channels at most
+	int channelNum = 3;
+	for (int i = 0; i < channelNum; i++) {
+		// If string is not null string, do mapping 
+		if (GetData(device)->selectedDispChan_[i][0] != 0) {
+			char mappedStr[255]; // Assume string len is less than 255 char
+			sm_get(GetData(device)->channelMap_, GetData(device)->selectedDispChan_[i],  mappedStr, sizeof(mappedStr));
+			// Append comma
+			// port0, port1, port3...
+			if (i > 0) 
+				strcat(portList, ",");
+			strcat(portList, mappedStr);
+		}
+	}
+	GetData(device)->enabledAIPorts_ = portList;
 }
 
 
@@ -343,49 +369,7 @@ static OSc_Error ParseDeviceNameList(char *names,
 	return OSc_Error_OK;
 }
 
-OSc_Error GetSelectedDispChannels(OSc_Device *device)
-{
-	//selectedDispChan_.clear();  // clear all elements first
-	free(GetData(device)->selectedDispChan_);
-
-	switch (GetData(device)->channels)
-	{
-	case CHANNEL1:
-		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*));
-		*GetData(device)->selectedDispChan_ = PROPERTY_VALUE_Channel1;
-		break;
-	case CHANNEL2:
-		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*));
-		*GetData(device)->selectedDispChan_ = PROPERTY_VALUE_Channel2;
-		break;
-	case CHANNEL3:
-		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*));
-		*GetData(device)->selectedDispChan_ = PROPERTY_VALUE_Channel3;
-		break;
-	case CHANNELS_1_AND_2:
-		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*) * 2);
-		*(GetData(device)->selectedDispChan_) =  PROPERTY_VALUE_Channel1;
-		*(GetData(device)->selectedDispChan_ + 1) = PROPERTY_VALUE_Channel2;
-		break;
-	case CHANNELS_1_AND_3:
-		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*) * 2);
-		*(GetData(device)->selectedDispChan_) =  PROPERTY_VALUE_Channel1;
-		*(GetData(device)->selectedDispChan_ + 1) = PROPERTY_VALUE_Channel3;
-		break;
-	case CHANNELS1_2_3:
-		GetData(device)->selectedDispChan_ = realloc(GetData(device)->selectedDispChan_, sizeof(char*) * 3);
-		*(GetData(device)->selectedDispChan_) =  PROPERTY_VALUE_Channel1;
-		*(GetData(device)->selectedDispChan_ + 1) = PROPERTY_VALUE_Channel2;
-		*(GetData(device)->selectedDispChan_ + 2) = PROPERTY_VALUE_Channel3;
-		break;
-	}
-
-	//for (std::vector<std::string>::const_iterator it = selectedDispChan_.begin(),
-	//	end = selectedDispChan_.end(); it != end; ++it)
-	//	LogMessage(it->c_str());
-	return OSc_Error_OK;
-}
-
+/*
 OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 {
 	char** dispChannels;
@@ -412,6 +396,7 @@ OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 	return OSc_Error_OK;
 }
 
+*/
 
 
 // same to Initialize() in old OpenScan format
@@ -570,6 +555,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
 		OSc_Log_Debug(device, "Created acquisition task");
+		/*
 		char aiTerminals[OSc_MAX_STR_LEN + 1];
 		strcat(strcpy(aiTerminals, GetData(device)->deviceName), "/ai0:2");
 		nierr = DAQmxCreateAIVoltageChan(GetData(device)->acqTaskHandle_, aiTerminals, "",
@@ -595,6 +581,13 @@ OSc_Error InitDAQ(OSc_Device *device)
 		char msg[OSc_MAX_STR_LEN + 1];
 		snprintf(msg, OSc_MAX_STR_LEN, "%d physical AI channels available.", GetData(device)->numAIChannels);
 		OSc_Log_Debug(device, msg);
+		*/
+
+		OSc_Error err = ReconfigAIVoltageChannels();
+		if (err != OSc_Error_OK)
+		{
+			return err;
+		}
 	}
 
 	return OSc_Error_OK;
@@ -642,6 +635,53 @@ Error:
 	}
 	return err;
 
+}
+
+OSc_Error ReconfigAIVoltageChannels(OSc_Device* device)
+{
+	// TODO: Get device name
+	double* minVolts_;
+	double* maxVolts_;
+	OSc_Error err = GetVoltageRangeForDevice(device, minVolts_, maxVolts_);
+
+	// dynamically adjust ai ports according to which display channels are selected
+	GetEnabledAIPorts(device);
+
+	int32 nierr = DAQmxCreateAIVoltageChan(GetData(device)->acqTaskHandle_, GetData(device)->enabledAIPorts_, "",
+		DAQmx_Val_Cfg_Default, *minVolts_, *maxVolts_, DAQmx_Val_Volts, NULL);
+	if (nierr != 0)
+	{
+		goto Error;
+	}
+	LogMessage("Created AI voltage channels for image acquisition", true);
+
+	// get number of physical AI channels for image acquisition
+	// difference from GetNumberOfChannels() which indicates number of channels to display
+	nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, GetData(device)->numAIChannels);
+	if (nierr != 0)
+	{
+		return nierr;
+	}
+
+	return OSc_Error_OK;
+
+Error:
+	if (GetData(device)->acqTaskHandle_)
+	{
+		DAQmxStopTask(GetData(device)->acqTaskHandle_);
+		DAQmxClearTask(GetData(device)->acqTaskHandle_);
+		GetData(device)->acqTaskHandle_ = 0;
+	}
+
+	if (nierr != 0)
+	{
+		err = OSc_Error_Unknown_Enum_Value_Name;
+	}
+	else
+	{
+		err = OSc_Error_Unknown_Enum_Value_Name;
+	}
+	return err;
 }
 
 

@@ -5,6 +5,12 @@
 
 #include <string.h>
 
+const char* const PROPERTY_VALUE_Channel1 = "Channel1";
+const char* const PROPERTY_VALUE_Channel2 = "Channel2";
+const char* const PROPERTY_VALUE_Channel3 = "Channel3";
+const char* const PROPERTY_VALUE_Channel1and2 = "Channel1and2";
+const char* const PROPERTY_VALUE_Channel1and3 = "Channel1and3";
+const char* const PROPERTY_VALUE_Channel1and2and3 = "Channels1-3";
 
 static OSc_Error GetScanRate(OSc_Setting *setting, double *value)
 {
@@ -192,6 +198,7 @@ static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, c
 		strcpy(name, "");
 		return OSc_Error_Unknown;
 	}
+	OSc_Error err = GetSelectedDispChannels();
 	return OSc_Error_OK;
 }
 
@@ -324,5 +331,43 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 
 	GetData(device)->settings = settings;
 	GetData(device)->settingCount = nSettings;
+	return OSc_Error_OK;
+}
+
+static OSc_Error GetSelectedDispChannels(OSc_Device *device)
+{
+	// clear selectedDispChan
+	GetData(device)->selectedDispChan_ = calloc(OSc_Total_Channel_Num * (OSc_MAX_STR_LEN + 1) * sizeof(char));
+	//memset(GetData(device)->selectedDispChan_, 0, sizeof(char) * 3 * (OSc_MAX_STR_LEN + 1));
+
+	switch (GetData(device)->channels)
+	{
+	case CHANNEL1:
+		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel1;
+		break;
+	case CHANNEL2:
+		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel2;
+		break;
+	case CHANNEL3:
+		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel3;
+		break;
+	case CHANNELS_1_AND_2:
+		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel1;
+		GetData(device)->selectedDispChan_[1] = PROPERTY_VALUE_Channel2;
+		break;
+	case CHANNELS_1_AND_3:
+		GetData(device)->selectedDispChan_[0] =  PROPERTY_VALUE_Channel1;
+		GetData(device)->selectedDispChan_[1] = PROPERTY_VALUE_Channel3;
+		break;
+	case CHANNELS1_2_3:
+		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel1;
+		GetData(device)->selectedDispChan_[1] = PROPERTY_VALUE_Channel2;
+		GetData(device)->selectedDispChan_[2] = PROPERTY_VALUE_Channel3;
+		break;
+	}
+
+	//for (std::vector<std::string>::const_iterator it = selectedDispChan_.begin(),
+	//	end = selectedDispChan_.end(); it != end; ++it)
+	//	LogMessage(it->c_str());
 	return OSc_Error_OK;
 }
