@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 static const uint32_t X_UNDERSHOOT = 50;
-static const uint32_t X_RETRACE_LEN = 438;
+static const uint32_t X_RETRACE_LEN = 128;
 static const uint32_t Y_RETRACE_LEN = 16;
 
 

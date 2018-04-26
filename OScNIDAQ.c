@@ -897,8 +897,8 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 
 	// Wait until one frame is scanned
 	while (!GetData(device)->oneFrameScanDone) {
-		Sleep(50);
-		totalWaitTime += 50;
+		Sleep(10);
+		totalWaitTime += 10;
 		if (totalWaitTime > 2 * estFrameTime)
 		{
 			OSc_Log_Error(device, "Error: Acquisition timeout!");
@@ -945,7 +945,7 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		break;
 	}
 	
-	Sleep(100);
+	//Sleep(100);
 
 	return OSc_Error_OK;
 }
