@@ -46,6 +46,11 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->detectorOnly = false;
 	data->scannerOnly = false;
 	//data->selectedDispChan_ = malloc(OSc_Total_Channel_Num * (OSc_MAX_STR_LEN + 1) * sizeof(char));
+	data->channelMap_ = sm_new(32);
+	//data->niDAQname_ = "NA";
+	data->aiPorts_ = malloc(8 * 255 * sizeof(char));
+	data->enabledAIPorts_ = malloc(sizeof(char) * 2048);
+
 
 	data->offsetXY[0] = data->offsetXY[1] = 0.0;
 	data->settingsChanged = true;
@@ -185,26 +190,7 @@ OSc_Error GetAOPortsForDevice(OSc_Device ***devices, size_t *deviceCount, char* 
 	return OSc_Error_OK;
 }
 
-OSc_Error GetAIPortsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
-	char ports[4096];
-	int32 nierr = DAQmxGetDevAIPhysicalChans(devices, ports, sizeof(ports));
-	if (nierr != 0)
-	{
-		return OSc_Error_Unknown;  //TODO
-	}
 
-	char portList[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1];
-
-	OSc_Error err;
-	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
-	{
-		return err;
-	}
-
-	result = portList;
-
-	return OSc_Error_OK;
-}
 
 OSc_Error GetDOPortsForDevice(OSc_Device ***devices, size_t *deviceCount, char* result) {
 	char ports[4096];
@@ -285,6 +271,27 @@ OSc_Error GetTriggerPortsForDevice(OSc_Device ***devices, size_t *deviceCount, c
 	return OSc_Error_OK;
 }
 */
+OSc_Error GetAIPortsForDevice(char* devices, int* deviceCount,char** result) {
+	char ports[4096];
+	int32 nierr = DAQmxGetDevAIPhysicalChans(devices, ports, sizeof(ports));
+	if (nierr != 0)
+	{
+		return OSc_Error_Unknown;  //TODO
+	}
+
+	// TODO: Max number of AI ports
+	char **portList = malloc(sizeof(char) * 32 * (OSc_MAX_STR_LEN + 1));
+
+	OSc_Error err;
+	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
+	{
+		return err;
+	}
+
+	result = portList;
+
+	return OSc_Error_OK;
+}
 
 OSc_Error GetVoltageRangeForDevice(OSc_Device* device, double* minVolts, double* maxVolts){
 	//const int MAX_RANGES = 64;
@@ -296,12 +303,11 @@ OSc_Error GetVoltageRangeForDevice(OSc_Device* device, double* minVolts, double*
 		ranges[2 * i + 1] = 0.0;
 	}
 
-	// TODO: device should be a string
-	int32 nierr = DAQmxGetDevAOVoltageRngs(device, ranges,
+	int32 nierr = DAQmxGetDevAOVoltageRngs(GetData(device)->deviceName, ranges,
 		sizeof(ranges) / sizeof(float64));
 	if (nierr != 0)
 	{
-		LogMessage("Error getting analog voltage ranges");
+		//LogMessage("Error getting analog voltage ranges");
 	}
 
 	// Find the common min and max.
@@ -340,6 +346,7 @@ OSc_Error GetEnabledAIPorts(OSc_Device *device) {
 		}
 	}
 	GetData(device)->enabledAIPorts_ = portList;
+	return OSc_Error_OK;
 }
 
 
@@ -369,22 +376,24 @@ static OSc_Error ParseDeviceNameList(char *names,
 	return OSc_Error_OK;
 }
 
-/*
 OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 {
-	char** dispChannels;
-	dispChannels = malloc(3*sizeof(char*));
-	*dispChannels = malloc(sizeof(char) * strlen(PROPERTY_VALUE_Channel1));
-	*dispChannels = PROPERTY_VALUE_Channel1;
-	*dispChannels = malloc(sizeof(char) * strlen(PROPERTY_VALUE_Channel2));
-	*dispChannels = PROPERTY_VALUE_Channel2;
-	*dispChannels = malloc(sizeof(char) * strlen(PROPERTY_VALUE_Channel3));
-	*dispChannels = PROPERTY_VALUE_Channel3;
+	char** dispChannels = malloc(3 * 512 * sizeof(char));
+	dispChannels[0] = "Channel1";
+	dispChannels[1] = "Channel2";
+	dispChannels[2] = "Channel3";
 
-	int numDispChannels = (int)sizeof(dispChannels)/sizeof(char*);
-	// TODO
-	GetData(device)->aiPorts_ = GetAIPortsForDevice(GetData(device)->niDAQname_);
-	int numAIPorts = (int)sizeof(GetData(device)->aiPorts_) / sizeof(char*);
+	int numDispChannels = 3;
+	int* deviceCount = 0;
+	GetData(device)->aiPorts_ = GetAIPortsForDevice(GetData(device)->deviceName, deviceCount, GetData(device)->aiPorts_);
+	//int numAIPorts = (int)sizeof(GetData(device)->aiPorts_) / sizeof(char*);
+	// Count number of AI ports, assume AIports has 32 entries (TODO)
+	int numAIPorts = 0;
+	for (int i = 0; i < 32; i++) {
+		if (GetData(device)->aiPorts_[i][0] != '0')
+			numAIPorts++;
+	}
+
 	int numChannels = (numDispChannels > numAIPorts) ? numAIPorts : numDispChannels;
 	for (int i = 0; i < numChannels; ++i)
 	{
@@ -396,12 +405,26 @@ OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 	return OSc_Error_OK;
 }
 
-*/
 
 
 // same to Initialize() in old OpenScan format
 OSc_Error OpenDAQ(OSc_Device *device)
 {
+	OSc_Error err = MapDispChanToAIPorts(device);
+
+	// TODO: allow user to select these channels -- probably need a Hub structure
+	GetData(device)->aoChanList_ = malloc(sizeof(char) * 512);
+	strcpy(GetData(device)->aoChanList_, strcat(GetData(device)->deviceName, "/ao0:1"));
+
+	GetData(device)->doChanList_ = malloc(sizeof(char) * 512);
+	strcpy(GetData(device)->doChanList_, strcat(GetData(device)->deviceName, "/port0/line5:7"));
+
+	GetData(device)->coChanList_ = malloc(sizeof(char) * 512);
+	strcpy(GetData(device)->aoChanList_, strcat(GetData(device)->deviceName, "/ctr0"));
+
+	GetData(device)->acqTrigPort_ = malloc(sizeof(char) * 512);
+	strcpy(GetData(device)->acqTrigPort_,  strcat("/", strcat(GetData(device)->deviceName, "/PFI12")));
+
 	OSc_Log_Debug(device, "Initializing NI DAQ...");
 	OSc_Return_If_Error(InitDAQ(device));
 	OSc_Return_If_Error(SetTriggers(device));
@@ -583,7 +606,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		OSc_Log_Debug(device, msg);
 		*/
 
-		OSc_Error err = ReconfigAIVoltageChannels();
+		OSc_Error err = ReconfigAIVoltageChannels(device);
 		if (err != OSc_Error_OK)
 		{
 			return err;
@@ -640,9 +663,9 @@ Error:
 OSc_Error ReconfigAIVoltageChannels(OSc_Device* device)
 {
 	// TODO: Get device name
-	double* minVolts_;
-	double* maxVolts_;
-	OSc_Error err = GetVoltageRangeForDevice(device, minVolts_, maxVolts_);
+	double* minVolts_ = -10;
+	double* maxVolts_ = 10;
+	OSc_Error err = GetVoltageRangeForDevice(GetData(device)->deviceName, minVolts_, maxVolts_);
 
 	// dynamically adjust ai ports according to which display channels are selected
 	GetEnabledAIPorts(device);
@@ -653,7 +676,7 @@ OSc_Error ReconfigAIVoltageChannels(OSc_Device* device)
 	{
 		goto Error;
 	}
-	LogMessage("Created AI voltage channels for image acquisition", true);
+	//LogMessage("Created AI voltage channels for image acquisition", true);
 
 	// get number of physical AI channels for image acquisition
 	// difference from GetNumberOfChannels() which indicates number of channels to display

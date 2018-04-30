@@ -9,6 +9,15 @@
 
 #include <Windows.h>
 
+/*
+const char* const PROPERTY_VALUE_Channel1 = "Channel1";
+const char* const PROPERTY_VALUE_Channel2 = "Channel2";
+const char* const PROPERTY_VALUE_Channel3 = "Channel3";
+const char* const PROPERTY_VALUE_Channel1and2 = "Channel1and2";
+const char* const PROPERTY_VALUE_Channel1and3 = "Channel1and3";
+const char* const PROPERTY_VALUE_Channel1and2and3 = "Channels1-3";
+*/
+
 enum
 {
 	DAQ_STATE_IDLE,
@@ -53,12 +62,16 @@ struct OScNIDAQPrivateData
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks
 	double offsetXY[2];
 	
-	char* niDAQname_; // DAQ used for OpenScan
+	//char* niDAQname_; // DAQ used for OpenScan
 	char** aiPorts_;  // std::vector<std::string> aiPorts_
-	char* aoChanList_, doChanList_, coChanList_, acqTrigPort_;
+	char* aoChanList_; 
+	char* doChanList_; 
+	char* coChanList_; 
+	char* acqTrigPort_;
 	char** selectedDispChan_; 
 	char* enabledAIPorts_;
 	StrMap* channelMap_;
+
 
 	enum {
 		CHANNEL1,
@@ -99,3 +112,4 @@ static inline struct OScNIDAQPrivateData *GetData(OSc_Device *device)
 
 
 OSc_Error NIDAQ_PrepareSettings(OSc_Device *device);
+OSc_Error GetSelectedDispChannels(OSc_Device *device);

@@ -198,7 +198,7 @@ static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, c
 		strcpy(name, "");
 		return OSc_Error_Unknown;
 	}
-	OSc_Error err = GetSelectedDispChannels();
+	OSc_Error err = GetSelectedDispChannels(setting->device);
 	return OSc_Error_OK;
 }
 
@@ -337,7 +337,7 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 static OSc_Error GetSelectedDispChannels(OSc_Device *device)
 {
 	// clear selectedDispChan
-	GetData(device)->selectedDispChan_ = calloc(OSc_Total_Channel_Num * (OSc_MAX_STR_LEN + 1) * sizeof(char));
+	GetData(device)->selectedDispChan_ = calloc(OSc_Total_Channel_Num * (OSc_MAX_STR_LEN + 1), sizeof(char));
 	//memset(GetData(device)->selectedDispChan_, 0, sizeof(char) * 3 * (OSc_MAX_STR_LEN + 1));
 
 	switch (GetData(device)->channels)
@@ -366,8 +366,5 @@ static OSc_Error GetSelectedDispChannels(OSc_Device *device)
 		break;
 	}
 
-	//for (std::vector<std::string>::const_iterator it = selectedDispChan_.begin(),
-	//	end = selectedDispChan_.end(); it != end; ++it)
-	//	LogMessage(it->c_str());
 	return OSc_Error_OK;
 }
