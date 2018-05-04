@@ -198,7 +198,10 @@ static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, c
 		strcpy(name, "");
 		return OSc_Error_Unknown;
 	}
-	OSc_Error err = GetSelectedDispChannels(setting->device);
+	OSc_Error err;
+	if (OSc_Check_Error(err, GetSelectedDispChannels(setting->device))) {
+		OSc_Log_Error(setting->device, "Fail to get selected disp channels");
+	}
 	return OSc_Error_OK;
 }
 

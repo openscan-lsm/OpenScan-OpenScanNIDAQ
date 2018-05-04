@@ -280,10 +280,10 @@ OSc_Error GetAIPortsForDevice(char* devices, int* deviceCount,char** result) {
 	}
 
 	// TODO: Max number of AI ports
-	char **portList = malloc(sizeof(char) * 32 * (OSc_MAX_STR_LEN + 1));
+	char portList[256][32];
 
 	OSc_Error err;
-	if (OSc_Check_Error(err, ParseDeviceNameList(devices, portList, deviceCount)))
+	if (OSc_Check_Error(err, ParseAIPortList(ports, portList, deviceCount)))
 	{
 		return err;
 	}
@@ -376,23 +376,55 @@ static OSc_Error ParseDeviceNameList(char *names,
 	return OSc_Error_OK;
 }
 
+// convert comma comma - delimited device list to a 2D string array
+// each row contains the name of one ai port
+static OSc_Error ParseAIPortList(char *names,
+	// assume there are maximum 256 port 
+	char deviceNames[256][32], size_t *deviceCount)
+{
+	const char s[3] = ", ";
+	int count = 0;
+
+	// token is a static pointer to the input string
+	// input string will be modified between iterations
+	for (char *token = strtok(names, s); token != NULL; token = strtok(NULL, s))
+	{
+		if (count < 256)
+		{
+			strcpy(deviceNames[count], token);
+			count++;
+		}
+		else
+			return OSc_Error_Unknown;  //TODO
+	}
+
+	*deviceCount = (size_t)count;
+
+	return OSc_Error_OK;
+}
+
 OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 {
-	char** dispChannels = malloc(3 * 512 * sizeof(char));
-	dispChannels[0] = "Channel1";
-	dispChannels[1] = "Channel2";
-	dispChannels[2] = "Channel3";
+	//char** dispChannels = malloc(3 * 512 * sizeof(char));
+	char dispChannels[3][512] = {
+		{"Channel1"},
+		{"Channel2"},
+		{"Channel3" }
+	};
 
 	int numDispChannels = 3;
-	int* deviceCount = 0;
+	size_t i = 0;
+	size_t* numAIPorts= &i;
 	GetData(device)->aiPorts_ = GetAIPortsForDevice(GetData(device)->deviceName, deviceCount, GetData(device)->aiPorts_);
 	//int numAIPorts = (int)sizeof(GetData(device)->aiPorts_) / sizeof(char*);
 	// Count number of AI ports, assume AIports has 32 entries (TODO)
+	/*
 	int numAIPorts = 0;
 	for (int i = 0; i < 32; i++) {
 		if (GetData(device)->aiPorts_[i][0] != '0')
 			numAIPorts++;
 	}
+	*/
 
 	int numChannels = (numDispChannels > numAIPorts) ? numAIPorts : numDispChannels;
 	for (int i = 0; i < numChannels; ++i)
@@ -410,8 +442,11 @@ OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 // same to Initialize() in old OpenScan format
 OSc_Error OpenDAQ(OSc_Device *device)
 {
-	OSc_Error err = MapDispChanToAIPorts(device);
-
+	OSc_Log_Debug(device, "Start initializing DAQ");
+	OSc_Error err;
+	if (OSc_Check_Error(err, MapDispChanToAIPorts(device))) {
+		OSc_Log_Error(device, "Fail to init hash table");
+	}
 	// TODO: allow user to select these channels -- probably need a Hub structure
 	GetData(device)->aoChanList_ = malloc(sizeof(char) * 512);
 	strcpy(GetData(device)->aoChanList_, strcat(GetData(device)->deviceName, "/ao0:1"));
