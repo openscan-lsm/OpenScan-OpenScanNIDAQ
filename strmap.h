@@ -34,13 +34,19 @@
  *    You should have received a copy of the GNU Lesser General Public License
  *    along with strmap.  If not, see <http://www.gnu.org/licenses/>.
  */
+#pragma once
+
+/*
 #ifndef _STRMAP_H_
 #define _STRMAP_H_
+*/
 
+/*
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+*/
 
 #include <stdlib.h>
 #include <string.h>
@@ -179,11 +185,13 @@ int sm_get_count(const StrMap *map);
  */
 int sm_enum(const StrMap *map, sm_enum_func enum_func, const void *obj);
 
+/*
 #ifdef __cplusplus
 }
 #endif
 
 #endif
+*/
 
 /*
 

@@ -4,7 +4,7 @@
 
 #include "OScNIDAQ.h"
 #include "Waveform.h"
-
+#include "strmap.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -47,10 +47,13 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->scannerOnly = false;
 	//data->selectedDispChan_ = malloc(OSc_Total_Channel_Num * (OSc_MAX_STR_LEN + 1) * sizeof(char));
 	data->channelMap_ = sm_new(32);
-	//data->niDAQname_ = "NA";
-	data->aiPorts_ = malloc(8 * 255 * sizeof(char));
+	//Assume portList[256][32];
+	data->aiPorts_ = malloc(256 * (sizeof(char)*32));
+	for (int i = 0; i < 256; i++) {
+		data->aiPorts_[i] = malloc(32 * sizeof(char));
+	}
+	//data->aiPorts_ = malloc(256 * 32 * sizeof(char));
 	data->enabledAIPorts_ = malloc(sizeof(char) * 2048);
-
 
 	data->offsetXY[0] = data->offsetXY[1] = 0.0;
 	data->settingsChanged = true;
@@ -288,8 +291,15 @@ OSc_Error GetAIPortsForDevice(char* devices, int* deviceCount,char** result) {
 		return err;
 	}
 
-	result = portList;
-
+	// Return char** result from portlist[256][32]
+	for (int i = 0; i < *deviceCount; i++) {
+		for (int j = 0; j < 32; j++) {
+			result[i][j] = portList[i][j];
+			if (portList[i][j] == '\0')
+				break;
+		}
+	}
+	//result = &portList[0][0];
 	return OSc_Error_OK;
 }
 
@@ -415,7 +425,7 @@ OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 	int numDispChannels = 3;
 	size_t i = 0;
 	size_t* numAIPorts= &i;
-	GetData(device)->aiPorts_ = GetAIPortsForDevice(GetData(device)->deviceName, deviceCount, GetData(device)->aiPorts_);
+	GetAIPortsForDevice(GetData(device)->deviceName, numAIPorts, GetData(device)->aiPorts_);
 	//int numAIPorts = (int)sizeof(GetData(device)->aiPorts_) / sizeof(char*);
 	// Count number of AI ports, assume AIports has 32 entries (TODO)
 	/*
@@ -427,6 +437,7 @@ OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 	*/
 
 	int numChannels = (numDispChannels > numAIPorts) ? numAIPorts : numDispChannels;
+	struct OScNIDAQPrivateData* dData = GetData(device);
 	for (int i = 0; i < numChannels; ++i)
 	{
 		sm_put(GetData(device)->channelMap_, dispChannels[i], GetData(device)->aiPorts_[i]);
