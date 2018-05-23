@@ -28,6 +28,9 @@ enum
 	DAQ_STATE_STOP,
 };
 
+#define OSc_DEFAULT_RESOLUTION 512
+#define OSc_DEFAULT_ZOOM 1.0
+
 
 struct OScNIDAQPrivateData
 {
@@ -55,7 +58,9 @@ struct OScNIDAQPrivateData
 	double scanRate;  // MHz
 	double zoom;
 	uint32_t resolution;
+	double magnification;  // =(resolution/512) * (zoom/1)
 	int32_t binFactor;
+	int32_t numLinesToBuffer;
 	double inputVoltageRange;
 	int32_t totalRead;
 	uInt32 numAIChannels;

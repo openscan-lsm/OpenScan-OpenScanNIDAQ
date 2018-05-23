@@ -73,7 +73,9 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->scanRate = 1.25;  // MHz
 	data->resolution = 512;
 	data->zoom = 1.0;
+	data->magnification = 1.0;
 	data->binFactor = 2;
+	data->numLinesToBuffer = 8;
 	data->inputVoltageRange = 10.0;
 	data->channels = CHANNEL1;
 	data->numDOChannels = 1;
@@ -109,26 +111,29 @@ OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 		return err;
 	}
 
-	struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
-	// TODO - able to select which DAQ device to use in MM GUI
-	// for now assume the DAQ is installed in the 1st available slot in the chassis
-	strncpy(data->deviceName, deviceList[0], OSc_MAX_STR_LEN);
+	*devices = malloc(*deviceCount * sizeof(OSc_Device *));
 
-	OSc_Device *device;
-	if (OSc_Check_Error(err, OSc_Device_Create(&device, &OpenScan_NIDAQ_Device_Impl, data)))
+	for (int i = 0; i < (int)(*deviceCount); ++i)
 	{
-		char msg[OSc_MAX_STR_LEN + 1] = "Failed to create device ";
-		strcat(msg, data->deviceName);
-		OSc_Log_Error(device, msg);
-		return err;
+		struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
+		// TODO - able to select which DAQ device to use in MM GUI
+		// for now assume the DAQ is installed in the 1st available slot in the chassis
+		strncpy(data->deviceName, deviceList[i], OSc_MAX_STR_LEN);
+
+		OSc_Device *device;
+		if (OSc_Check_Error(err, OSc_Device_Create(&device, &OpenScan_NIDAQ_Device_Impl, data)))
+		{
+			char msg[OSc_MAX_STR_LEN + 1] = "Failed to create device ";
+			strcat(msg, data->deviceName);
+			OSc_Log_Error(device, msg);
+			return err;
+		}
+
+		PopulateDefaultParameters(GetData(device));
+
+		(*devices)[i] = device;
 	}
-
-	PopulateDefaultParameters(GetData(device));
-
-	*devices = malloc(sizeof(OSc_Device *));
-	*deviceCount = 1;
-	(*devices)[0] = device;
-
+	
 	return OSc_Error_OK;
 }
 
@@ -231,7 +236,7 @@ OSc_Error GetEnabledAIPorts(OSc_Device *device) {
 // convert comma comma - delimited device list to a 2D string array
 // each row contains the name of one device
 static OSc_Error ParseDeviceNameList(char *names,
-	char deviceNames[NUM_SLOTS_IN_CHASSIS][OSc_MAX_STR_LEN + 1], size_t *deviceCount)
+	char (*deviceNames)[OSc_MAX_STR_LEN + 1], size_t *deviceCount)
 {
 	const char s[3] = ", ";
 	int count = 0;
@@ -1117,8 +1122,8 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 
 	// Wait until one frame is scanned
 	while (!GetData(device)->oneFrameScanDone) {
-		Sleep(50);
-		totalWaitTime += 50;
+		Sleep(10);
+		totalWaitTime += 10;
 		if (totalWaitTime > 2 * estFrameTime)
 		{
 			OSc_Log_Error(device, "Error: Acquisition timeout!");
@@ -1165,7 +1170,7 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		break;
 	}
 	
-	Sleep(100);
+	//Sleep(100);
 
 	return OSc_Error_OK;
 }
@@ -1345,6 +1350,7 @@ static OSc_Error ReconfigTiming(OSc_Device *device)
 	}
 	OSc_Log_Debug(device, "Configured sample clock timing for scan waveform");
 
+	// by default, acquire data for one scan line each time
 	nierr = DAQmxCfgSampClkTiming(GetData(device)->acqTaskHandle_, "", 1E6*GetData(device)->scanRate,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, GetData(device)->resolution * GetData(device)->binFactor); // reload
 	if (nierr != 0)
@@ -1355,6 +1361,20 @@ static OSc_Error ReconfigTiming(OSc_Device *device)
 		goto Error;
 	}
 	OSc_Log_Debug(device, "Configured sample clock timing for acquistion");
+
+	// manually increase acquisition buffer size to avoid input buffer overflow
+	nierr = DAQmxCfgInputBuffer(GetData(device)->acqTaskHandle_, GetData(device)->numLinesToBuffer *
+		GetData(device)->resolution * GetData(device)->binFactor * GetData(device)->numAIChannels);
+	if (nierr != 0)
+	{
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OSc_Log_Error(device, buf);
+		goto Error;
+	}
+	char msg[OSc_MAX_STR_LEN + 1];
+	snprintf(msg, OSc_MAX_STR_LEN, "Change acquisition buffer to size of %d scan lines", GetData(device)->numLinesToBuffer);
+	OSc_Log_Debug(device, msg);
 
 	// update counter timing-related parameters
 	double effectiveScanPortion = (double)GetData(device)->resolution / elementsPerLine;

@@ -58,6 +58,11 @@ static struct OSc_Setting_Impl SettingImpl_ScanRate = {
 static OSc_Error GetZoom(OSc_Setting *setting, double *value)
 {
 	*value = GetData(setting->device)->zoom;
+
+	GetData(setting->device)->magnification =
+		(double)GetData(setting->device)->resolution / (double)OSc_DEFAULT_RESOLUTION 
+		* GetData(setting->device)->zoom / OSc_DEFAULT_ZOOM;
+
 	return OSc_Error_OK;
 }
 
@@ -65,6 +70,12 @@ static OSc_Error SetZoom(OSc_Setting *setting, double value)
 {
 	GetData(setting->device)->zoom = value;
 	GetData(setting->device)->waveformSettingsChanged = true;
+
+	// reflect the change to magnification as well
+	GetData(setting->device)->magnification = 
+		(double)GetData(setting->device)->resolution / (double)OSc_DEFAULT_RESOLUTION 
+		* value / OSc_DEFAULT_ZOOM;
+
 	return OSc_Error_OK;
 }
 
@@ -107,12 +118,50 @@ static OSc_Error GetBinFactorRange(OSc_Setting *setting, int32_t *min, int32_t *
 	return OSc_Error_OK;
 }
 
-
 static struct OSc_Setting_Impl SettingImpl_BinFactor = {
 	.GetInt32 = GetBinFactor,
 	.SetInt32 = SetBinFactor,
 	.GetNumericConstraintType = OSc_Setting_NumericConstraintRange,
 	.GetInt32Range = GetBinFactorRange,
+};
+
+static OSc_Error GetAcqBufferSize(OSc_Setting *setting, int32_t *value)
+{
+	*value = GetData(setting->device)->numLinesToBuffer;
+	return OSc_Error_OK;
+}
+
+// OnAcqBufferSize
+static OSc_Error SetAcqBufferSize(OSc_Setting *setting, int32_t value)
+{
+	GetData(setting->device)->numLinesToBuffer = value;
+	GetData(setting->device)->timingSettingsChanged = true;
+	GetData(setting->device)->acqSettingsChanged = true;
+	return OSc_Error_OK;
+}
+
+static OSc_Error GetAcqBufferSizeValues(OSc_Setting *setting, int32_t **values, size_t *count)
+{
+	static int32_t v[] = {
+		2,
+		4,
+		8,
+		16,
+		32,
+		64,
+		128,
+		256,
+	};
+	*values = v;
+	*count = sizeof(v) / sizeof(int32_t);
+	return OSc_Error_OK;
+}
+
+static struct OSc_Setting_Impl SettingImpl_AcqBufferSize = {
+	.GetInt32 = GetAcqBufferSize,
+	.SetInt32 = SetAcqBufferSize,
+	.GetNumericConstraintType = OSc_Setting_NumericConstraintDiscreteValues,
+	.GetInt32DiscreteValues = GetAcqBufferSizeValues,
 };
 
 static OSc_Error GetInputVoltageRange(OSc_Setting *setting, double *value)
@@ -271,8 +320,8 @@ static OSc_Error GetOffsetRange(OSc_Setting *setting, double *min, double *max)
 	/*The galvoOffsetX and galvoOffsetY variables are expressed  in optical degrees
 	This is a rough correspondence - it likely needs to be calibrated to the actual
 	sensitivity of the galvos*/
-	*min = -10.0;
-	*max = +10.0;
+	*min = -5.0;
+	*max = +5.0;
 	return OSc_Error_OK;
 }
 
@@ -301,16 +350,20 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 		&SettingImpl_Zoom, NULL));
 
 	OSc_Setting *offsetX;
-	OSc_Return_If_Error(OSc_Setting_Create(&offsetX, device, "GalvoOffsetX", OSc_Value_Type_Float64,
+	OSc_Return_If_Error(OSc_Setting_Create(&offsetX, device, "GalvoOffsetX (degree)", OSc_Value_Type_Float64,
 		&SettingImpl_Offset, (void *)0));
 
 	OSc_Setting *offsetY;
-	OSc_Return_If_Error(OSc_Setting_Create(&offsetY, device, "GalvoOffsetY", OSc_Value_Type_Float64,
+	OSc_Return_If_Error(OSc_Setting_Create(&offsetY, device, "GalvoOffsetY (degree)", OSc_Value_Type_Float64,
 		&SettingImpl_Offset, (void *)1));
 
 	OSc_Setting *binFactor;
 	OSc_Return_If_Error(OSc_Setting_Create(&binFactor, device, "Bin Factor", OSc_Value_Type_Int32,
 		&SettingImpl_BinFactor, NULL));
+
+	OSc_Setting *numLinesToBuffer;
+	OSc_Return_If_Error(OSc_Setting_Create(&numLinesToBuffer, device, "Acq Buffer Size (lines)", OSc_Value_Type_Int32,
+		&SettingImpl_AcqBufferSize, NULL));
 
 	OSc_Setting *channels;
 	OSc_Return_If_Error(OSc_Setting_Create(&channels, device, "Channels", OSc_Value_Type_Enum,
@@ -325,7 +378,7 @@ OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
 		&SettingImpl_ScannerOnly, NULL));
 
 	OSc_Setting *ss[] = {
-		scanRate, zoom, offsetX, offsetY, binFactor,
+		scanRate, zoom, offsetX, offsetY, binFactor, numLinesToBuffer,
 		inputVoltageRange, channels, scannerOnly,
 	};
 	size_t nSettings = sizeof(ss) / sizeof(OSc_Setting *);
