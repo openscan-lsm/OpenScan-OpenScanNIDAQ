@@ -241,6 +241,8 @@ int sm_put(StrMap *map, const char *key, const char *value)
 	/* Copy the key and its value into the key-value pair */
 	strcpy(pair->key, key);
 	strcpy(pair->value, value);
+	// Modified:
+	//map->buckets[index] = bucket;
 	return 1;
 }
 

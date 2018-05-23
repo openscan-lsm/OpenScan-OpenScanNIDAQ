@@ -469,8 +469,13 @@ OSc_Error OpenDAQ(OSc_Device *device)
 	strcpy(GetData(device)->aoChanList_, strcat(GetData(device)->deviceName, "/ctr0"));
 
 	GetData(device)->acqTrigPort_ = malloc(sizeof(char) * 512);
-	strcpy(GetData(device)->acqTrigPort_,  strcat("/", strcat(GetData(device)->deviceName, "/PFI12")));
-
+	struct OScNIDAQPrivateData* debug = GetData(device);
+	char* noSlash = strcat(GetData(device)->deviceName, "/PFI12");
+	char* slash = "/";
+	char* buffer = malloc((strlen(noSlash) + strlen(slash)) * sizeof(char));
+	strcpy(buffer, slash);
+	strcat(buffer, noSlash);
+	strcpy(GetData(device)->acqTrigPort_,  buffer);
 	OSc_Log_Debug(device, "Initializing NI DAQ...");
 	OSc_Return_If_Error(InitDAQ(device));
 	OSc_Return_If_Error(SetTriggers(device));
