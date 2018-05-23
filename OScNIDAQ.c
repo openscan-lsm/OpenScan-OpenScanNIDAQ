@@ -52,9 +52,15 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	for (int i = 0; i < 256; i++) {
 		data->aiPorts_[i] = malloc(32 * sizeof(char));
 	}
-	//data->aiPorts_ = malloc(256 * 32 * sizeof(char));
 	data->enabledAIPorts_ = malloc(sizeof(char) * 2048);
-
+	
+	// Assume 3 chanel at maximum, each 16 chars at most
+	data->selectedDispChan_ = malloc(3 * sizeof(char*));
+	for (int i = 0; i < 3; i++) {
+		data->selectedDispChan_[i] = malloc(sizeof(char) * 16);
+	}
+	data->selectedDispChan_[0] = "Channel1";
+	data->channelCount = 1;
 	data->offsetXY[0] = data->offsetXY[1] = 0.0;
 	data->settingsChanged = true;
 	data->timingSettingsChanged = true;
@@ -305,6 +311,7 @@ OSc_Error GetAIPortsForDevice(char* devices, int* deviceCount,char** result) {
 
 OSc_Error GetVoltageRangeForDevice(OSc_Device* device, double* minVolts, double* maxVolts){
 	//const int MAX_RANGES = 64;
+	struct OScNIDAQPrivateData* debug = GetData(device);
 	#define MAX_RANGES 64
 	float64 ranges[2 * MAX_RANGES];
 	for (int i = 0; i < MAX_RANGES; ++i)
@@ -340,20 +347,28 @@ OSc_Error GetVoltageRangeForDevice(OSc_Device* device, double* minVolts, double*
 }
 
 OSc_Error GetEnabledAIPorts(OSc_Device *device) {
-	char portList[2048];
+	//char portList[2048];
+	char* portList;
+	struct OScNIDAQPrivateData* debug = GetData(device);
 	// Assume three channels at most
-	int channelNum = 3;
+	int channelNum = GetData(device)->channelCount;
 	for (int i = 0; i < channelNum; i++) {
-		// If string is not null string, do mapping 
-		if (GetData(device)->selectedDispChan_[i][0] != 0) {
-			char mappedStr[255]; // Assume string len is less than 255 char
-			sm_get(GetData(device)->channelMap_, GetData(device)->selectedDispChan_[i],  mappedStr, sizeof(mappedStr));
-			// Append comma
-			// port0, port1, port3...
-			if (i > 0) 
-				strcat(portList, ",");
-			strcat(portList, mappedStr);
+		char mappedStr[255]; // Assume string len is less than 255 char
+		sm_get(GetData(device)->channelMap_, GetData(device)->selectedDispChan_[i],  mappedStr, sizeof(mappedStr));
+		// Append comma
+		// port0, port1, port3...
+		if (i == 0) {
+			portList = malloc(strlen(mappedStr) * sizeof(char));
+			strcpy(portList, mappedStr);
 		}
+		else {
+			char* buffer = malloc((strlen(portList) + strlen(mappedStr) + 1) * sizeof(char));
+			strcpy(buffer, portList);
+			strcat(buffer, ",");
+			strcat(buffer, mappedStr);
+			portList = buffer;
+		}
+	
 	}
 	GetData(device)->enabledAIPorts_ = portList;
 	return OSc_Error_OK;
@@ -415,7 +430,7 @@ static OSc_Error ParseAIPortList(char *names,
 
 OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 {
-	//char** dispChannels = malloc(3 * 512 * sizeof(char));
+	struct OScNIDAQPrivateData* debug = GetData(device);
 	char dispChannels[3][512] = {
 		{"Channel1"},
 		{"Channel2"},
@@ -458,19 +473,26 @@ OSc_Error OpenDAQ(OSc_Device *device)
 	if (OSc_Check_Error(err, MapDispChanToAIPorts(device))) {
 		OSc_Log_Error(device, "Fail to init hash table");
 	}
-	// TODO: allow user to select these channels -- probably need a Hub structure
-	GetData(device)->aoChanList_ = malloc(sizeof(char) * 512);
-	strcpy(GetData(device)->aoChanList_, strcat(GetData(device)->deviceName, "/ao0:1"));
-
-	GetData(device)->doChanList_ = malloc(sizeof(char) * 512);
-	strcpy(GetData(device)->doChanList_, strcat(GetData(device)->deviceName, "/port0/line5:7"));
-
-	GetData(device)->coChanList_ = malloc(sizeof(char) * 512);
-	strcpy(GetData(device)->aoChanList_, strcat(GetData(device)->deviceName, "/ctr0"));
-
-	GetData(device)->acqTrigPort_ = malloc(sizeof(char) * 512);
 	struct OScNIDAQPrivateData* debug = GetData(device);
-	char* noSlash = strcat(GetData(device)->deviceName, "/PFI12");
+	// TODO: allow user to select these channels -- probably need a Hub structure
+
+	char* deviceName = malloc(strlen(GetData(device)->deviceName));
+
+	strcpy(deviceName, GetData(device)->deviceName);
+	GetData(device)->aoChanList_ = malloc(sizeof(char) * 512);
+	strcpy(GetData(device)->aoChanList_, strcat(deviceName, "/ao0:1"));
+
+	strcpy(deviceName, GetData(device)->deviceName);
+	GetData(device)->doChanList_ = malloc(sizeof(char) * 512);
+	strcpy(GetData(device)->doChanList_, strcat(deviceName, "/port0/line5:7"));
+
+	strcpy(deviceName, GetData(device)->deviceName);
+	GetData(device)->coChanList_ = malloc(sizeof(char) * 512);
+	strcpy(GetData(device)->aoChanList_, strcat(deviceName, "/ctr0"));
+
+	strcpy(deviceName, GetData(device)->deviceName);
+	GetData(device)->acqTrigPort_ = malloc(sizeof(char) * 512);
+	char* noSlash = strcat(deviceName, "/PFI12");
 	char* slash = "/";
 	char* buffer = malloc((strlen(noSlash) + strlen(slash)) * sizeof(char));
 	strcpy(buffer, slash);
@@ -713,10 +735,14 @@ Error:
 
 OSc_Error ReconfigAIVoltageChannels(OSc_Device* device)
 {
-	// TODO: Get device name
-	double* minVolts_ = -10;
-	double* maxVolts_ = 10;
-	OSc_Error err = GetVoltageRangeForDevice(GetData(device)->deviceName, minVolts_, maxVolts_);
+	double tmpMinVolt = -10;
+	double* minVolts_ = &tmpMinVolt;
+
+	double tmpMaxVolt = 10;
+	double* maxVolts_ = &tmpMaxVolt;
+	//OSc_Error err = GetVoltageRangeForDevice(GetData(device)->deviceName, minVolts_, maxVolts_);
+	OSc_Error err = GetVoltageRangeForDevice(device, minVolts_, maxVolts_);
+
 
 	// dynamically adjust ai ports according to which display channels are selected
 	GetEnabledAIPorts(device);
@@ -731,9 +757,15 @@ OSc_Error ReconfigAIVoltageChannels(OSc_Device* device)
 
 	// get number of physical AI channels for image acquisition
 	// difference from GetNumberOfChannels() which indicates number of channels to display
-	nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, GetData(device)->numAIChannels);
+	struct OScNIDAQPrivateData* debugData = GetData(device);
+
+	nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, &GetData(device)->numAIChannels);
+
 	if (nierr != 0)
 	{
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OSc_Log_Error(device, buf);
 		return nierr;
 	}
 

@@ -61,6 +61,7 @@ struct OScNIDAQPrivateData
 	uInt32 numAIChannels;
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks
 	double offsetXY[2];
+	uint32_t channelCount;
 	
 	//char* niDAQname_; // DAQ used for OpenScan
 	char** aiPorts_;  // std::vector<std::string> aiPorts_

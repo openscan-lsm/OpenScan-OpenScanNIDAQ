@@ -347,25 +347,31 @@ static OSc_Error GetSelectedDispChannels(OSc_Device *device)
 	{
 	case CHANNEL1:
 		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel1;
+		GetData(device)->channelCount = 1;
 		break;
 	case CHANNEL2:
 		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel2;
+		GetData(device)->channelCount = 1;
 		break;
 	case CHANNEL3:
 		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel3;
+		GetData(device)->channelCount = 1;
 		break;
 	case CHANNELS_1_AND_2:
 		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel1;
 		GetData(device)->selectedDispChan_[1] = PROPERTY_VALUE_Channel2;
+		GetData(device)->channelCount = 2;
 		break;
 	case CHANNELS_1_AND_3:
 		GetData(device)->selectedDispChan_[0] =  PROPERTY_VALUE_Channel1;
 		GetData(device)->selectedDispChan_[1] = PROPERTY_VALUE_Channel3;
+		GetData(device)->channelCount = 2;
 		break;
 	case CHANNELS1_2_3:
 		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel1;
 		GetData(device)->selectedDispChan_[1] = PROPERTY_VALUE_Channel2;
 		GetData(device)->selectedDispChan_[2] = PROPERTY_VALUE_Channel3;
+		GetData(device)->channelCount = 3;
 		break;
 	}
 
