@@ -301,7 +301,7 @@ OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 	};
 
 	int numDispChannels = 3;
-	int numAIPorts = 1;
+	size_t numAIPorts = 1;
 	GetAIPortsForDevice(GetData(device)->deviceName, &numAIPorts, GetData(device)->aiPorts_);
 	//int numAIPorts = (int)sizeof(GetData(device)->aiPorts_) / sizeof(char*);
 	// Count number of AI ports, assume AIports has 32 entries (TODO)
@@ -1157,10 +1157,10 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
 		break;
 	case CHANNEL2:
-		acq->frameCallback(acq, 0, GetData(device)->ch2Buffer, acq->data);
+		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
 		break;
 	case CHANNEL3:
-		acq->frameCallback(acq, 0, GetData(device)->ch3Buffer, acq->data);
+		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
 		break;
 	
 	case CHANNELS_1_AND_2:
@@ -1730,6 +1730,18 @@ OSc_Error ReconfigDAQ(OSc_Device * device)
 		GetData(device)->settingsChanged = true;
 		GetData(device)->isEveryNSamplesEventRegistered = true;
 	}
+
+	/*
+	// Re-create channel mapping when channel setting has changed
+	if (GetData(device)->channelSettingsChanged) {
+		OSc_Log_Debug(device, "Channel setting changed. Reconfiguring channel mapping...");
+		//OSc_Return_If_Error(MapDispChanToAIPorts(device));
+		OSc_Return_If_Error(ReconfigAIVoltageChannels(device));
+		GetData(device)->channelSettingsChanged = false;
+		GetData(device)->settingsChanged = true;
+
+	}
+	*/
 
 	// commit tasks whenever settings have changed
 	if (GetData(device)->settingsChanged)
