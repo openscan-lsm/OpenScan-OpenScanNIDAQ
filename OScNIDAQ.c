@@ -61,11 +61,11 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	}
 	data->selectedDispChan_[0] = "Channel1";
 	data->channelCount = 1;
-	data->offsetXY[0] = data->offsetXY[1] = 0.0;
 	data->settingsChanged = true;
 	data->timingSettingsChanged = true;
 	data->waveformSettingsChanged = true;
 	data->acqSettingsChanged = true;
+	data->channelSettingsChanged = true;
 	data->isEveryNSamplesEventRegistered = false;
 	data->oneFrameScanDone = false;
 
@@ -78,8 +78,13 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->numLinesToBuffer = 8;
 	data->inputVoltageRange = 10.0;
 	data->channels = CHANNEL1;
+	data->numAIChannels = 1;
 	data->numDOChannels = 1;
-
+	data->offsetXY[0] = 0.0;
+	data->offsetXY[1] = 0.0;
+	data->minVolts_ = -10.0;
+	data->maxVolts_ = 10.0;
+	
 	InitializeCriticalSection(&(data->acquisition.mutex));
 	data->acquisition.thread = NULL;
 	InitializeConditionVariable(&(data->acquisition.acquisitionFinishCondition));
@@ -138,7 +143,7 @@ OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 }
 
 
-OSc_Error GetAIPortsForDevice(char* devices, int* deviceCount,char** result) {
+OSc_Error GetAIPortsForDevice(char* devices, int* deviceCount, char** result) {
 	char ports[4096];
 	int32 nierr = DAQmxGetDevAIPhysicalChans(devices, ports, sizeof(ports));
 	if (nierr != 0)
@@ -263,7 +268,7 @@ static OSc_Error ParseDeviceNameList(char *names,
 // each row contains the name of one ai port
 static OSc_Error ParseAIPortList(char *names,
 	// assume there are maximum 256 port 
-	char deviceNames[256][32], size_t *deviceCount)
+	char deviceNames[MAX_NUM_PORTS][32], size_t *deviceCount)
 {
 	const char s[3] = ", ";
 	int count = 0;
@@ -296,9 +301,8 @@ OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 	};
 
 	int numDispChannels = 3;
-	size_t i = 0;
-	size_t* numAIPorts= &i;
-	GetAIPortsForDevice(GetData(device)->deviceName, numAIPorts, GetData(device)->aiPorts_);
+	int numAIPorts = 1;
+	GetAIPortsForDevice(GetData(device)->deviceName, &numAIPorts, GetData(device)->aiPorts_);
 	//int numAIPorts = (int)sizeof(GetData(device)->aiPorts_) / sizeof(char*);
 	// Count number of AI ports, assume AIports has 32 entries (TODO)
 	/*
@@ -501,8 +505,15 @@ OSc_Error InitDAQ(OSc_Device *device)
 	}
 
 	// initialize acquisition task
-	if (!GetData(device)->acqTaskHandle_)
+	if (!GetData(device)->acqTaskHandle_ || GetData(device)->channelSettingsChanged)
 	{
+		if (GetData(device)->acqTaskHandle_) // clear task first if reset is caused by channel settings
+		{
+			nierr = DAQmxStopTask(GetData(device)->acqTaskHandle_);
+			nierr = DAQmxClearTask(GetData(device)->acqTaskHandle_);
+			GetData(device)->acqTaskHandle_ = 0;
+		}
+
 		nierr = DAQmxCreateTask("", &GetData(device)->acqTaskHandle_);
 		if (nierr != 0)
 		{
@@ -540,6 +551,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 		OSc_Error err = ReconfigAIVoltageChannels(device);
 		if (err != OSc_Error_OK)
 		{
+			OSc_Log_Error(device, "Error creating AI voltage channels");
 			return err;
 		}
 	}
@@ -593,32 +605,29 @@ Error:
 
 OSc_Error ReconfigAIVoltageChannels(OSc_Device* device)
 {
-	double tmpMinVolt = -10;
-	double* minVolts_ = &tmpMinVolt;
-
-	double tmpMaxVolt = 10;
-	double* maxVolts_ = &tmpMaxVolt;
-	//OSc_Error err = GetVoltageRangeForDevice(GetData(device)->deviceName, minVolts_, maxVolts_);
-	OSc_Error err = GetVoltageRangeForDevice(device, minVolts_, maxVolts_);
-
+	OSc_Error err = GetVoltageRangeForDevice(device, &GetData(device)->minVolts_, &GetData(device)->maxVolts_);
+	char msg[OSc_MAX_STR_LEN + 1];
+	snprintf(msg, OSc_MAX_STR_LEN, "Min Voltage: %6.2f; Max voltage: %6.2f", GetData(device)->minVolts_, GetData(device)->maxVolts_);
+	OSc_Log_Debug(device, msg);
 
 	// dynamically adjust ai ports according to which display channels are selected
 	GetEnabledAIPorts(device);
+	snprintf(msg, OSc_MAX_STR_LEN, "Enabling AI ports %s", GetData(device)->enabledAIPorts_);
+	OSc_Log_Debug(device, msg);
 
 	int32 nierr = DAQmxCreateAIVoltageChan(GetData(device)->acqTaskHandle_, GetData(device)->enabledAIPorts_, "",
-		DAQmx_Val_Cfg_Default, *minVolts_, *maxVolts_, DAQmx_Val_Volts, NULL);
+		DAQmx_Val_Cfg_Default, GetData(device)->minVolts_, GetData(device)->maxVolts_, DAQmx_Val_Volts, NULL);
 	if (nierr != 0)
 	{
 		goto Error;
 	}
-	//LogMessage("Created AI voltage channels for image acquisition", true);
+	OSc_Log_Debug(device, "Created AI voltage channels for image acquisition");
 
 	// get number of physical AI channels for image acquisition
 	// difference from GetNumberOfChannels() which indicates number of channels to display
 	struct OScNIDAQPrivateData* debugData = GetData(device);
 
 	nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, &GetData(device)->numAIChannels);
-
 	if (nierr != 0)
 	{
 		char buf[1024];
@@ -626,6 +635,8 @@ OSc_Error ReconfigAIVoltageChannels(OSc_Device* device)
 		OSc_Log_Error(device, buf);
 		return nierr;
 	}
+	snprintf(msg, OSc_MAX_STR_LEN, "%d physical AI channels available.", GetData(device)->numAIChannels);
+	OSc_Log_Debug(device, msg);
 
 	return OSc_Error_OK;
 
@@ -1669,10 +1680,12 @@ OSc_Error ReconfigDAQ(OSc_Device * device)
 {
 	// if any of DAQ tasks are not initialized
 	if (!GetData(device)->scanWaveformTaskHandle_ || !GetData(device)->lineClockTaskHandle_ ||
-		!GetData(device)->acqTaskHandle_ || !GetData(device)->counterTaskHandle_)
+		!GetData(device)->acqTaskHandle_ || !GetData(device)->counterTaskHandle_ || GetData(device)->channelSettingsChanged)
 	{
 		OSc_Log_Debug(device, "Re-initializing NI DAQ...");
 		OSc_Return_If_Error(InitDAQ(device));
+		GetData(device)->channelSettingsChanged = false;
+
 		OSc_Return_If_Error(SetTriggers(device));
 		OSc_Log_Debug(device, "DAQ re-initialized.");
 

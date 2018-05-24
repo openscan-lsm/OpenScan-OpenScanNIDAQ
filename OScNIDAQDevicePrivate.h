@@ -49,6 +49,7 @@ struct OScNIDAQPrivateData
 	bool waveformSettingsChanged;
 	// True when resolution or binFactor have changed since last acq
 	bool acqSettingsChanged;
+	bool channelSettingsChanged;
 	bool isEveryNSamplesEventRegistered;
 	bool oneFrameScanDone;
 	// Flags for scanner and detector
@@ -66,6 +67,8 @@ struct OScNIDAQPrivateData
 	uInt32 numAIChannels;
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks
 	double offsetXY[2];
+	double minVolts_; // min possible for device
+	double maxVolts_; // max possible for device
 	uint32_t channelCount;
 	
 	//char* niDAQname_; // DAQ used for OpenScan

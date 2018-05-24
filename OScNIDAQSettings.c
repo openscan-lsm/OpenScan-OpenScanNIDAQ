@@ -210,6 +210,7 @@ static OSc_Error GetChannels(OSc_Setting *setting, uint32_t *value)
 static OSc_Error SetChannels(OSc_Setting *setting, uint32_t value)
 {
 	GetData(setting->device)->channels = value;
+	GetData(setting->device)->channelSettingsChanged = true;
 	return OSc_Error_OK;
 }
 
@@ -266,6 +267,8 @@ static OSc_Error GetChannelsValueForName(OSc_Setting *setting, uint32_t *value, 
 		*value = CHANNEL4;
 	else if (!strcmp(name, "Channel_1_and_2"))
 		*value = CHANNELS_1_AND_2;
+	else if (!strcmp(name, "Channel_1_and_3"))
+		*value = CHANNELS_1_AND_3;
 	else if (!strcmp(name, "Channel_1_2_3"))
 		*value = CHANNELS1_2_3;
 	else

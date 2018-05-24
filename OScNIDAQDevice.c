@@ -152,7 +152,7 @@ static OSc_Error NIDAQGetImageSize(OSc_Device *device, uint32_t *width, uint32_t
 static OSc_Error NIDAQGetNumberOfChannels(OSc_Device *device, uint32_t *nChannels)
 {
 	*nChannels = (GetData(device)->channels) == CHANNELS1_2_3 ? 3 :
-		(GetData(device)->channels) == CHANNELS_1_AND_2 ? 2 : 1;
+		((GetData(device)->channels) == CHANNELS_1_AND_2 || (GetData(device)->channels) == CHANNELS_1_AND_3) ? 2 : 1;
 	return OSc_Error_OK;
 }
 
