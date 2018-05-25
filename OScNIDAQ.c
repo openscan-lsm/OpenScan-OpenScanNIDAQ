@@ -1197,70 +1197,57 @@ static OSc_Error SplitChannels(OSc_Device *device)
 	uint32_t xLength = GetImageWidth(device);
 	uint32_t yLength = GetImageHeight(device);
 	size_t nPixels = xLength * yLength;
-	uint16_t* imgBuffer = malloc(sizeof(uint16_t) * nPixels);
-	//uint16_t imgBuffer[xLength][yLength];
+	uint16_t** imgBuffer;
+	//= malloc(sizeof(uint16_t) * nPixels);
+	imgBuffer = malloc(sizeof(uint16_t*) * (GetData(device)->numAIChannels));
+	for (int i = 0; i < GetData(device)->numAIChannels; i++) {
+		imgBuffer[i] = calloc(nPixels, sizeof(uint16_t));
+	}
 
 	OSc_Error err = OSc_Error_OK;
 	// convert big image buffer to separate channel buffers
 	for (uint32_t chan = 0; chan < GetData(device)->numAIChannels; chan++)
 		for (uint32_t currRow = 0; currRow < yLength; currRow++)
-			for (uint32_t currCol = 0; currCol < xLength; currCol++)
-				switch (chan) {
-				case 0:
-					imgBuffer[currCol + currRow * xLength] =
-						GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
-					break;
-				case 1:
-					imgBuffer[currCol + currRow * xLength] =
-						GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
-					break;
-
-				case 2:
-					imgBuffer[currCol + currRow * xLength] =
-						GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
-					break;
-
-				default:
-					OSc_Log_Error(device, "More than 3 channels available or something wrong");
-					err = OSc_Error_Unknown;
-					break;
-				}
+			for (uint32_t currCol = 0; currCol < xLength; currCol++) {
+				imgBuffer[chan][currCol + currRow * xLength] =
+					GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
+			}
 
 	switch (GetData(device)->channels)
 	{
 		case CHANNEL1:
 			for (size_t i = 0; i < nPixels; i++)
-				GetData(device)->ch1Buffer[i] = imgBuffer[0 * xLength + i];
+				GetData(device)->ch1Buffer[i] = imgBuffer[0][i];
 			break;
 		case CHANNEL2:
 			for (size_t i = 0; i < nPixels; i++)
-				GetData(device)->ch2Buffer[i] = imgBuffer[0 * xLength + i];
+				GetData(device)->ch2Buffer[i] = imgBuffer[0][i];
 			break;
 		case CHANNEL3:
 			for (size_t i = 0; i < nPixels; i++)
-				GetData(device)->ch3Buffer[i] = imgBuffer[0 * xLength + i];
+				GetData(device)->ch3Buffer[i] = imgBuffer[0][i];
 			break;
 
 		case CHANNELS_1_AND_2:
 			for (size_t i = 0; i < nPixels; i++) {
-				GetData(device)->ch1Buffer[i] = imgBuffer[0 * xLength + i];
-				GetData(device)->ch2Buffer[i] = imgBuffer[1 * xLength + i];
+				GetData(device)->ch1Buffer[i] = imgBuffer[0][i];
+				GetData(device)->ch2Buffer[i] = imgBuffer[1][i];
 			}
 			break;
 
 		case CHANNELS1_2_3:
 			for (size_t i = 0; i < nPixels; i++) {
-				GetData(device)->ch1Buffer[i] = imgBuffer[0 * xLength + i];
-				GetData(device)->ch2Buffer[i] = imgBuffer[1 * xLength + i];
-				GetData(device)->ch3Buffer[i] = imgBuffer[2 * xLength + i];
+				GetData(device)->ch1Buffer[i] = imgBuffer[0][i];
+				GetData(device)->ch2Buffer[i] = imgBuffer[1][i];
+				GetData(device)->ch3Buffer[i] = imgBuffer[2][i];
 			}
 			break;
 
 		default:
 			for (size_t i = 0; i < nPixels; i++) {
-				GetData(device)->ch1Buffer[i] = imgBuffer[0 * xLength + i];
-				GetData(device)->ch2Buffer[i] = imgBuffer[1 * xLength + i];
-				GetData(device)->ch3Buffer[i] = imgBuffer[2 * xLength + i];
+				GetData(device)->ch1Buffer[i] = imgBuffer[0][i];
+				GetData(device)->ch2Buffer[i] = imgBuffer[1][i];
+				GetData(device)->ch3Buffer[i] = imgBuffer[2][i];
 			}
 			break;
 	}
