@@ -6,7 +6,7 @@
 
 static const uint32_t X_UNDERSHOOT = 50;
 static const uint32_t X_RETRACE_LEN = 128;
-static const uint32_t Y_RETRACE_LEN = 16;
+static const uint32_t Y_RETRACE_LEN = 12;
 
 
 OSc_Error GenerateScaledWaveforms(uint32_t resolution, double zoom, uint16_t *xScaled, uint16_t *yScaled,

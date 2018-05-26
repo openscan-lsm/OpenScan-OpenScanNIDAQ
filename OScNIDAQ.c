@@ -1014,8 +1014,8 @@ static OSc_Error StopScan(OSc_Device *device)
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
 	uint32_t xLen = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
-	uint32_t yRetraceTime = (uint32_t)(5 + 1E-3 * (double)(xLen * Y_RETRACE_LEN * GetData(device)->binFactor / GetData(device)->scanRate));
-	uint32_t estFrameTime = (uint32_t)(5 + 1E-3 * (double)(xLen * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
+	uint32_t yRetraceTime = (uint32_t)(1E-3 * (double)(xLen * Y_RETRACE_LEN * GetData(device)->binFactor / GetData(device)->scanRate));
+	uint32_t estFrameTime = (uint32_t)(1E-3 * (double)(xLen * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
 	// TODO: casting
 	uint32_t waitScanToFinish = GetData(device)->scannerOnly ? estFrameTime : yRetraceTime;  // wait longer if no real acquisition;
 	char msg[OSc_MAX_STR_LEN + 1];
@@ -1133,14 +1133,17 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 
 	// Wait until one frame is scanned
 	while (!GetData(device)->oneFrameScanDone) {
-		Sleep(10);
-		totalWaitTime += 10;
+		Sleep(1);
+		totalWaitTime += 1;
 		if (totalWaitTime > 2 * estFrameTime)
 		{
 			OSc_Log_Error(device, "Error: Acquisition timeout!");
 			break;
 		}
 	}
+	char msg[OSc_MAX_STR_LEN + 1];
+	snprintf(msg, OSc_MAX_STR_LEN, "Total wait time is %d ", totalWaitTime);
+	OSc_Log_Debug(device, msg);
 
 	OSc_Return_If_Error(StopScan(device));
 
@@ -1190,6 +1193,7 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 // * works when DAQ acquires in GroupByChannel (non-interlaced) mode
 static OSc_Error SplitChannels(OSc_Device *device)
 {
+	bool testImprov = true;
 	// imageData_ if displayed as 2D image will have N channels on each row
 	// data is stored line by line with N channels in a row per line
 	uint32_t rawImageWidth = GetImageWidth(device) * GetData(device)->numAIChannels;
@@ -1197,24 +1201,76 @@ static OSc_Error SplitChannels(OSc_Device *device)
 	uint32_t xLength = GetImageWidth(device);
 	uint32_t yLength = GetImageHeight(device);
 	size_t nPixels = xLength * yLength;
-	uint16_t** imgBuffer;
-	//= malloc(sizeof(uint16_t) * nPixels);
-	imgBuffer = malloc(sizeof(uint16_t*) * (GetData(device)->numAIChannels));
-	for (int i = 0; i < GetData(device)->numAIChannels; i++) {
-		imgBuffer[i] = calloc(nPixels, sizeof(uint16_t));
+	uint16_t* ch1Ptr;
+	uint16_t* ch2Ptr;
+	uint16_t* ch3Ptr;
+	OSc_Error err = OSc_Error_OK;
+
+	if (testImprov) {
+		// Improvement: Use ptr to avoid hard copying
+		switch (GetData(device)->channels)
+		{
+		case CHANNEL1:
+			ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
+			memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
+			break;
+		case CHANNEL2:
+			ch2Ptr = &(GetData(device)->imageData[0 * xLength]);
+			memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
+			break;
+		case CHANNEL3:
+			ch3Ptr = &(GetData(device)->imageData[0 * xLength]);
+			memcpy(GetData(device)->ch3Buffer, ch3Ptr, nPixels * sizeof(uint16_t));
+			break;
+
+		case CHANNELS_1_AND_2:
+			ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
+			ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
+			memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
+			memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
+			break;
+
+		case CHANNELS1_2_3:
+			ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
+			ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
+			ch3Ptr = &(GetData(device)->imageData[2 * xLength]);
+			memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
+			memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
+			memcpy(GetData(device)->ch3Buffer, ch3Ptr, nPixels * sizeof(uint16_t));
+			break;
+
+		default:
+			ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
+			ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
+			ch3Ptr = &(GetData(device)->imageData[2 * xLength]);
+			memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
+			memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
+			memcpy(GetData(device)->ch3Buffer, ch3Ptr, nPixels * sizeof(uint16_t));
+			break;
+		}
+
 	}
 
-	OSc_Error err = OSc_Error_OK;
-	// convert big image buffer to separate channel buffers
-	for (uint32_t chan = 0; chan < GetData(device)->numAIChannels; chan++)
-		for (uint32_t currRow = 0; currRow < yLength; currRow++)
-			for (uint32_t currCol = 0; currCol < xLength; currCol++) {
-				imgBuffer[chan][currCol + currRow * xLength] =
-					GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
-			}
 
-	switch (GetData(device)->channels)
-	{
+
+	else {
+		uint16_t** imgBuffer;
+		imgBuffer = malloc(sizeof(uint16_t*) * (GetData(device)->numAIChannels));
+		for (int i = 0; i < GetData(device)->numAIChannels; i++) {
+			imgBuffer[i] = calloc(nPixels, sizeof(uint16_t));
+		}
+
+		// convert big image buffer to separate channel buffers
+		for (uint32_t chan = 0; chan < GetData(device)->numAIChannels; chan++)
+			for (uint32_t currRow = 0; currRow < yLength; currRow++)
+				for (uint32_t currCol = 0; currCol < xLength; currCol++) {
+					imgBuffer[chan][currCol + currRow * xLength] =
+						GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
+				}
+
+
+		switch (GetData(device)->channels)
+		{
 		case CHANNEL1:
 			for (size_t i = 0; i < nPixels; i++)
 				GetData(device)->ch1Buffer[i] = imgBuffer[0][i];
@@ -1250,8 +1306,9 @@ static OSc_Error SplitChannels(OSc_Device *device)
 				GetData(device)->ch3Buffer[i] = imgBuffer[2][i];
 			}
 			break;
+		}
+		free(imgBuffer);
 	}
-	free(imgBuffer);
 	OSc_Log_Debug(device, "Finished reading one image and splitting data to channel buffers");
 	return err;
 }
