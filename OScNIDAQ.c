@@ -1114,16 +1114,18 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 
 	GetData(device)->oneFrameScanDone = GetData(device)->scannerOnly;
 
-	// initialize channel buffers
-	for (size_t i = 0; i < nPixels; ++i)
-	{
-		GetData(device)->ch1Buffer[i] = 0;
-		GetData(device)->ch2Buffer[i] = 255;
-		GetData(device)->ch3Buffer[i] = 32767;
-	}
-	for (size_t i = 0; i < GetData(device)->numAIChannels * nPixels; ++i)
-	{
-		GetData(device)->imageData[i] = 16383;
+	if (GetData(device)->scannerOnly) {
+		// initialize channel buffers
+		for (size_t i = 0; i < nPixels; ++i)
+		{
+			GetData(device)->ch1Buffer[i] = 0;
+			GetData(device)->ch2Buffer[i] = 255;
+			GetData(device)->ch3Buffer[i] = 32767;
+		}
+		for (size_t i = 0; i < GetData(device)->numAIChannels * nPixels; ++i)
+		{
+			GetData(device)->imageData[i] = 16383;
+		}
 	}
 
 	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
