@@ -1173,6 +1173,11 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
 		break;
 
+	case CHANNELS_1_AND_3:
+		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
+		acq->frameCallback(acq, 1, GetData(device)->ch3Buffer, acq->data);
+		break;
+
 	case CHANNELS1_2_3:
 		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
 		acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
@@ -1185,8 +1190,6 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		acq->frameCallback(acq, 2, GetData(device)->ch3Buffer, acq->data);
 		break;
 	}
-	
-	//Sleep(100);
 
 	return OSc_Error_OK;
 }
@@ -1195,7 +1198,6 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 // * works when DAQ acquires in GroupByChannel (non-interlaced) mode
 static OSc_Error SplitChannels(OSc_Device *device)
 {
-	bool testImprov = true;
 	// imageData_ if displayed as 2D image will have N channels on each row
 	// data is stored line by line with N channels in a row per line
 	uint32_t rawImageWidth = GetImageWidth(device) * GetData(device)->numAIChannels;
@@ -1208,109 +1210,63 @@ static OSc_Error SplitChannels(OSc_Device *device)
 	uint16_t* ch3Ptr;
 	OSc_Error err = OSc_Error_OK;
 
-	if (testImprov) {
-		// Improvement: Use ptr to avoid hard copying
-		switch (GetData(device)->channels)
-		{
-		case CHANNEL1:
-			ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
-			memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
-			break;
-		case CHANNEL2:
-			ch2Ptr = &(GetData(device)->imageData[0 * xLength]);
-			memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
-			break;
-		case CHANNEL3:
-			ch3Ptr = &(GetData(device)->imageData[0 * xLength]);
-			memcpy(GetData(device)->ch3Buffer, ch3Ptr, nPixels * sizeof(uint16_t));
-			break;
+	// Improvement: Use ptr to avoid hard copying
+	switch (GetData(device)->channels)
+	{
+	case CHANNEL1:
+		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
+		memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
+		break;
+	case CHANNEL2:
+		ch2Ptr = &(GetData(device)->imageData[0 * xLength]);
+		memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
+		break;
+	case CHANNEL3:
+		ch3Ptr = &(GetData(device)->imageData[0 * xLength]);
+		memcpy(GetData(device)->ch3Buffer, ch3Ptr, nPixels * sizeof(uint16_t));
+		break;
 
-		case CHANNELS_1_AND_2:
-			ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
-			ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
-			memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
-			memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
-			break;
-
-		case CHANNELS1_2_3:
-			ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
-			ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
-			ch3Ptr = &(GetData(device)->imageData[2 * xLength]);
-			memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
-			memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
-			memcpy(GetData(device)->ch3Buffer, ch3Ptr, nPixels * sizeof(uint16_t));
-			break;
-
-		default:
-			ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
-			ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
-			ch3Ptr = &(GetData(device)->imageData[2 * xLength]);
-			memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
-			memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
-			memcpy(GetData(device)->ch3Buffer, ch3Ptr, nPixels * sizeof(uint16_t));
-			break;
+	case CHANNELS_1_AND_2:
+		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
+		ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
+		for (int i = 0; i < yLength; i++) {
+			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
+			memcpy(&(GetData(device)->ch2Buffer[i*xLength]), &ch2Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
 		}
+		break;
 
+	case CHANNELS_1_AND_3:
+		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
+		ch3Ptr = &(GetData(device)->imageData[1 * xLength]);
+		for (int i = 0; i < yLength; i++) {
+			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
+			memcpy(&(GetData(device)->ch3Buffer[i*xLength]), &ch3Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
+		}
+		break;
+
+	case CHANNELS1_2_3:
+		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
+		ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
+		ch3Ptr = &(GetData(device)->imageData[2 * xLength]);
+		for (int i = 0; i < yLength; i++) {
+			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
+			memcpy(&(GetData(device)->ch2Buffer[i*xLength]), &ch2Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
+			memcpy(&(GetData(device)->ch3Buffer[i*xLength]), &ch3Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
+		}
+		break;
+
+	default:
+		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
+		ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
+		ch3Ptr = &(GetData(device)->imageData[2 * xLength]);
+		for (int i = 0; i < yLength; i++) {
+			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
+			memcpy(&(GetData(device)->ch2Buffer[i*xLength]), &ch2Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
+			memcpy(&(GetData(device)->ch3Buffer[i*xLength]), &ch3Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
+		}
+		break;
 	}
 
-
-
-	else {
-		uint16_t** imgBuffer;
-		imgBuffer = malloc(sizeof(uint16_t*) * (GetData(device)->numAIChannels));
-		for (int i = 0; i < GetData(device)->numAIChannels; i++) {
-			imgBuffer[i] = calloc(nPixels, sizeof(uint16_t));
-		}
-
-		// convert big image buffer to separate channel buffers
-		for (uint32_t chan = 0; chan < GetData(device)->numAIChannels; chan++)
-			for (uint32_t currRow = 0; currRow < yLength; currRow++)
-				for (uint32_t currCol = 0; currCol < xLength; currCol++) {
-					imgBuffer[chan][currCol + currRow * xLength] =
-						GetData(device)->imageData[currCol + chan*xLength + currRow*rawImageWidth];
-				}
-
-
-		switch (GetData(device)->channels)
-		{
-		case CHANNEL1:
-			for (size_t i = 0; i < nPixels; i++)
-				GetData(device)->ch1Buffer[i] = imgBuffer[0][i];
-			break;
-		case CHANNEL2:
-			for (size_t i = 0; i < nPixels; i++)
-				GetData(device)->ch2Buffer[i] = imgBuffer[0][i];
-			break;
-		case CHANNEL3:
-			for (size_t i = 0; i < nPixels; i++)
-				GetData(device)->ch3Buffer[i] = imgBuffer[0][i];
-			break;
-
-		case CHANNELS_1_AND_2:
-			for (size_t i = 0; i < nPixels; i++) {
-				GetData(device)->ch1Buffer[i] = imgBuffer[0][i];
-				GetData(device)->ch2Buffer[i] = imgBuffer[1][i];
-			}
-			break;
-
-		case CHANNELS1_2_3:
-			for (size_t i = 0; i < nPixels; i++) {
-				GetData(device)->ch1Buffer[i] = imgBuffer[0][i];
-				GetData(device)->ch2Buffer[i] = imgBuffer[1][i];
-				GetData(device)->ch3Buffer[i] = imgBuffer[2][i];
-			}
-			break;
-
-		default:
-			for (size_t i = 0; i < nPixels; i++) {
-				GetData(device)->ch1Buffer[i] = imgBuffer[0][i];
-				GetData(device)->ch2Buffer[i] = imgBuffer[1][i];
-				GetData(device)->ch3Buffer[i] = imgBuffer[2][i];
-			}
-			break;
-		}
-		free(imgBuffer);
-	}
 	OSc_Log_Debug(device, "Finished reading one image and splitting data to channel buffers");
 	return err;
 }

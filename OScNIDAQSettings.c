@@ -241,6 +241,9 @@ static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, c
 	case CHANNELS_1_AND_2:
 		strcpy(name, "Channel_1_and_2");
 		break;
+	case CHANNELS_1_AND_3:
+		strcpy(name, "Channel_1_and_3");
+		break;
 	case CHANNELS1_2_3:
 		strcpy(name, "Channel_1_2_3");
 		break;
