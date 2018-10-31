@@ -30,6 +30,7 @@ enum
 
 #define OSc_DEFAULT_RESOLUTION 512
 #define OSc_DEFAULT_ZOOM 1.0
+#define OSc_Total_Channel_Num 3
 
 
 struct OScNIDAQPrivateData
