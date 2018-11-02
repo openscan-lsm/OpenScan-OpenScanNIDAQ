@@ -301,7 +301,7 @@ OSc_Error MapDispChanToAIPorts(OSc_Device* device)
 	};
 
 	int numDispChannels = 3;
-	size_t numAIPorts = 1;
+	int numAIPorts = 1;
 	GetAIPortsForDevice(GetData(device)->deviceName, &numAIPorts, GetData(device)->aiPorts_);
 	//int numAIPorts = (int)sizeof(GetData(device)->aiPorts_) / sizeof(char*);
 	// Count number of AI ports, assume AIports has 32 entries (TODO)
@@ -1319,39 +1319,39 @@ static OSc_Error ReadImage(OSc_Device *device, OSc_Acquisition *acq)
 		OSc_Return_If_Error(SplitChannels(device));
 	}
 
+	bool shouldContinue;
 	switch (GetData(device)->channels)
 	{
 	case CHANNEL1:
-		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
+		shouldContinue = OSc_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch1Buffer);
 		break;
 	case CHANNEL2:
-		acq->frameCallback(acq, 0, GetData(device)->ch2Buffer, acq->data);
+		shouldContinue = OSc_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch2Buffer);
 		break;
 	case CHANNEL3:
-		acq->frameCallback(acq, 0, GetData(device)->ch3Buffer, acq->data);
+		shouldContinue = OSc_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch3Buffer);
 		break;
 	
 	case CHANNELS_1_AND_2:
-		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
-		acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
+		shouldContinue = OSc_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch1Buffer) &&
+			OSc_Acquisition_CallFrameCallback(acq, 1, GetData(device)->ch2Buffer);
 		break;
 
 	case CHANNELS_1_AND_3:
-		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
-		acq->frameCallback(acq, 1, GetData(device)->ch3Buffer, acq->data);
+		shouldContinue = OSc_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch1Buffer) &&
+			OSc_Acquisition_CallFrameCallback(acq, 1, GetData(device)->ch3Buffer);
 		break;
 
 	case CHANNELS1_2_3:
-		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
-		acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
-		acq->frameCallback(acq, 2, GetData(device)->ch3Buffer, acq->data);
+	default: // TODO Should this really be the default?
+		shouldContinue = OSc_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch1Buffer) &&
+			OSc_Acquisition_CallFrameCallback(acq, 1, GetData(device)->ch2Buffer) &&
+			OSc_Acquisition_CallFrameCallback(acq, 2, GetData(device)->ch3Buffer);
 		break;
-	
-	default:
-		acq->frameCallback(acq, 0, GetData(device)->ch1Buffer, acq->data);
-		acq->frameCallback(acq, 1, GetData(device)->ch2Buffer, acq->data);
-		acq->frameCallback(acq, 2, GetData(device)->ch3Buffer, acq->data);
-		break;
+	}
+
+	if (!shouldContinue) {
+		// TODO We should halt acquisition
 	}
 
 	return OSc_Error_OK;
@@ -1392,7 +1392,7 @@ static OSc_Error SplitChannels(OSc_Device *device)
 	case CHANNELS_1_AND_2:
 		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
 		ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
-		for (int i = 0; i < yLength; i++) {
+		for (uint32_t i = 0; i < yLength; i++) {
 			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
 			memcpy(&(GetData(device)->ch2Buffer[i*xLength]), &ch2Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
 		}
@@ -1401,28 +1401,18 @@ static OSc_Error SplitChannels(OSc_Device *device)
 	case CHANNELS_1_AND_3:
 		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
 		ch3Ptr = &(GetData(device)->imageData[1 * xLength]);
-		for (int i = 0; i < yLength; i++) {
+		for (uint32_t i = 0; i < yLength; i++) {
 			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
 			memcpy(&(GetData(device)->ch3Buffer[i*xLength]), &ch3Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
 		}
 		break;
 
 	case CHANNELS1_2_3:
+	default: // TODO Should this be the default?
 		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
 		ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
 		ch3Ptr = &(GetData(device)->imageData[2 * xLength]);
-		for (int i = 0; i < yLength; i++) {
-			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-			memcpy(&(GetData(device)->ch2Buffer[i*xLength]), &ch2Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-			memcpy(&(GetData(device)->ch3Buffer[i*xLength]), &ch3Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-		}
-		break;
-
-	default:
-		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
-		ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
-		ch3Ptr = &(GetData(device)->imageData[2 * xLength]);
-		for (int i = 0; i < yLength; i++) {
+		for (uint32_t i = 0; i < yLength; i++) {
 			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
 			memcpy(&(GetData(device)->ch2Buffer[i*xLength]), &ch2Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
 			memcpy(&(GetData(device)->ch3Buffer[i*xLength]), &ch3Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
@@ -1461,13 +1451,10 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 	OSc_Device *device = (OSc_Device *)param;
 	OSc_Acquisition *acq = GetData(device)->acquisition.acquisition;
 
-	int totalFrames;
-	if (acq->numberOfFrames == INT32_MAX)
-		totalFrames = INT32_MAX;
-	else 
-		totalFrames = acq->numberOfFrames;
+	uint32_t totalFrames;
+	OSc_Return_If_Error(OSc_Acquisition_GetNumberOfFrames(acq, &totalFrames));
 
-	for (int frame = 0; frame < totalFrames; ++frame)
+	for (uint32_t frame = 0; frame < totalFrames; ++frame)
 	{
 		bool stopRequested;
 		EnterCriticalSection(&(GetData(device)->acquisition.mutex));

@@ -3,7 +3,6 @@
 
 #include "OScNIDAQDevice.h"
 #include "OScNIDAQDevicePrivate.h"
-#include "OpenScanLibPrivate.h"
 #include "OScNIDAQ.h"
 #include <NIDAQmx.h>
 
@@ -34,7 +33,6 @@ static OSc_Error NIDAQGetInstances(OSc_Device ***devices, size_t *count)
 static OSc_Error NIDAQReleaseInstance(OSc_Device *device)
 {
 	free(GetData(device));
-	device->implData = NULL;
 	return OSc_Error_OK;
 }
 

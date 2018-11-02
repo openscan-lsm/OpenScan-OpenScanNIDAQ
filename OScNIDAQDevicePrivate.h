@@ -2,7 +2,6 @@
 #include "strmap.h"
 #include "OScNIDAQDevice.h"
 
-#include "OpenScanLibPrivate.h"
 #include "OpenScanDeviceImpl.h"
 
 #include <NIDAQmx.h>
@@ -78,7 +77,7 @@ struct OScNIDAQPrivateData
 	char* doChanList_; 
 	char* coChanList_; 
 	char* acqTrigPort_;
-	char** selectedDispChan_; 
+	const char** selectedDispChan_; 
 	char* enabledAIPorts_;
 	StrMap* channelMap_;
 
@@ -117,7 +116,12 @@ struct OScNIDAQPrivateData
 
 static inline struct OScNIDAQPrivateData *GetData(OSc_Device *device)
 {
-	return (struct OScNIDAQPrivateData *)(device->implData);
+	return (struct OScNIDAQPrivateData *)OSc_Device_GetImplData(device);
+}
+
+static inline struct OScNIDAQPrivateData *GetSettingDeviceData(OSc_Setting *setting)
+{
+	return GetData(OSc_Setting_GetDevice(setting));
 }
 
 

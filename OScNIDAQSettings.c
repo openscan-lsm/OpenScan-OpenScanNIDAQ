@@ -1,5 +1,4 @@
 #include "OScNIDAQDevicePrivate.h"
-#include "OpenScanLibPrivate.h"
 
 #include <NIDAQmx.h>
 
@@ -14,15 +13,15 @@ const char* const PROPERTY_VALUE_Channel1and2and3 = "Channels1-3";
 
 static OSc_Error GetScanRate(OSc_Setting *setting, double *value)
 {
-	*value = GetData(setting->device)->scanRate;
+	*value = GetSettingDeviceData(setting)->scanRate;
 	return OSc_Error_OK;
 }
 
 
 static OSc_Error SetScanRate(OSc_Setting *setting, double value)
 {
-	GetData(setting->device)->scanRate = value;
-	GetData(setting->device)->timingSettingsChanged = true;
+	GetSettingDeviceData(setting)->scanRate = value;
+	GetSettingDeviceData(setting)->timingSettingsChanged = true;
 	return OSc_Error_OK;
 }
 
@@ -57,23 +56,23 @@ static struct OSc_Setting_Impl SettingImpl_ScanRate = {
 
 static OSc_Error GetZoom(OSc_Setting *setting, double *value)
 {
-	*value = GetData(setting->device)->zoom;
+	*value = GetSettingDeviceData(setting)->zoom;
 
-	GetData(setting->device)->magnification =
-		(double)GetData(setting->device)->resolution / (double)OSc_DEFAULT_RESOLUTION 
-		* GetData(setting->device)->zoom / OSc_DEFAULT_ZOOM;
+	GetSettingDeviceData(setting)->magnification =
+		(double)GetSettingDeviceData(setting)->resolution / (double)OSc_DEFAULT_RESOLUTION
+		* GetSettingDeviceData(setting)->zoom / OSc_DEFAULT_ZOOM;
 
 	return OSc_Error_OK;
 }
 
 static OSc_Error SetZoom(OSc_Setting *setting, double value)
 {
-	GetData(setting->device)->zoom = value;
-	GetData(setting->device)->waveformSettingsChanged = true;
+	GetSettingDeviceData(setting)->zoom = value;
+	GetSettingDeviceData(setting)->waveformSettingsChanged = true;
 
 	// reflect the change to magnification as well
-	GetData(setting->device)->magnification = 
-		(double)GetData(setting->device)->resolution / (double)OSc_DEFAULT_RESOLUTION 
+	GetSettingDeviceData(setting)->magnification =
+		(double)GetSettingDeviceData(setting)->resolution / (double)OSc_DEFAULT_RESOLUTION
 		* value / OSc_DEFAULT_ZOOM;
 
 	return OSc_Error_OK;
@@ -97,16 +96,16 @@ static struct OSc_Setting_Impl SettingImpl_Zoom = {
 
 static OSc_Error GetBinFactor(OSc_Setting *setting, int32_t *value)
 {
-	*value = GetData(setting->device)->binFactor;
+	*value = GetSettingDeviceData(setting)->binFactor;
 	return OSc_Error_OK;
 }
 
 // OnBinFactor
 static OSc_Error SetBinFactor(OSc_Setting *setting, int32_t value)
 {
-	GetData(setting->device)->binFactor = value;
-	GetData(setting->device)->timingSettingsChanged = true;
-	GetData(setting->device)->acqSettingsChanged = true;
+	GetSettingDeviceData(setting)->binFactor = value;
+	GetSettingDeviceData(setting)->timingSettingsChanged = true;
+	GetSettingDeviceData(setting)->acqSettingsChanged = true;
 	return OSc_Error_OK;
 }
 
@@ -127,16 +126,16 @@ static struct OSc_Setting_Impl SettingImpl_BinFactor = {
 
 static OSc_Error GetAcqBufferSize(OSc_Setting *setting, int32_t *value)
 {
-	*value = GetData(setting->device)->numLinesToBuffer;
+	*value = GetSettingDeviceData(setting)->numLinesToBuffer;
 	return OSc_Error_OK;
 }
 
 // OnAcqBufferSize
 static OSc_Error SetAcqBufferSize(OSc_Setting *setting, int32_t value)
 {
-	GetData(setting->device)->numLinesToBuffer = value;
-	GetData(setting->device)->timingSettingsChanged = true;
-	GetData(setting->device)->acqSettingsChanged = true;
+	GetSettingDeviceData(setting)->numLinesToBuffer = value;
+	GetSettingDeviceData(setting)->timingSettingsChanged = true;
+	GetSettingDeviceData(setting)->acqSettingsChanged = true;
 	return OSc_Error_OK;
 }
 
@@ -166,14 +165,14 @@ static struct OSc_Setting_Impl SettingImpl_AcqBufferSize = {
 
 static OSc_Error GetInputVoltageRange(OSc_Setting *setting, double *value)
 {
-	*value = GetData(setting->device)->inputVoltageRange;
+	*value = GetSettingDeviceData(setting)->inputVoltageRange;
 	return OSc_Error_OK;
 }
 
 
 static OSc_Error SetInputVoltageRange(OSc_Setting *setting, double value)
 {
-	GetData(setting->device)->inputVoltageRange = value;
+	GetSettingDeviceData(setting)->inputVoltageRange = value;
 	return OSc_Error_OK;
 }
 
@@ -202,15 +201,15 @@ static struct OSc_Setting_Impl SettingImpl_InputVoltageRange = {
 
 static OSc_Error GetChannels(OSc_Setting *setting, uint32_t *value)
 {
-	*value = GetData(setting->device)->channels;
+	*value = GetSettingDeviceData(setting)->channels;
 	return OSc_Error_OK;
 }
 
 
 static OSc_Error SetChannels(OSc_Setting *setting, uint32_t value)
 {
-	GetData(setting->device)->channels = value;
-	GetData(setting->device)->channelSettingsChanged = true;
+	GetSettingDeviceData(setting)->channels = value;
+	GetSettingDeviceData(setting)->channelSettingsChanged = true;
 	return OSc_Error_OK;
 }
 
@@ -252,8 +251,8 @@ static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, c
 		return OSc_Error_Unknown;
 	}
 	OSc_Error err;
-	if (OSc_Check_Error(err, GetSelectedDispChannels(setting->device))) {
-		OSc_Log_Error(setting->device, "Fail to get selected disp channels");
+	if (OSc_Check_Error(err, GetSelectedDispChannels(OSc_Setting_GetDevice(setting)))) {
+		OSc_Log_Error(OSc_Setting_GetDevice(setting), "Fail to get selected disp channels");
 	}
 	return OSc_Error_OK;
 }
@@ -290,13 +289,13 @@ static struct OSc_Setting_Impl SettingImpl_Channels = {
 
 static OSc_Error GetScannerOnly(OSc_Setting *setting, bool *value)
 {
-	*value = GetData(setting->device)->scannerOnly;
+	*value = GetSettingDeviceData(setting)->scannerOnly;
 	return OSc_Error_OK;
 }
 
 static OSc_Error SetScannerOnly(OSc_Setting *setting, bool value)
 {
-	GetData(setting->device)->scannerOnly = value;
+	GetSettingDeviceData(setting)->scannerOnly = value;
 	return OSc_Error_OK;
 }
 
@@ -307,16 +306,16 @@ static struct OSc_Setting_Impl SettingImpl_ScannerOnly = {
 
 static OSc_Error GetOffset(OSc_Setting *setting, double *value)
 {
-	*value = GetData(setting->device)->offsetXY[(intptr_t)(setting->implData)];
+	*value = GetSettingDeviceData(setting)->offsetXY[(intptr_t)(OSc_Setting_GetImplData(setting))];
 	return OSc_Error_OK;
 }
 
 
 static OSc_Error SetOffset(OSc_Setting *setting, double value)
 {
-	GetData(setting->device)->offsetXY[(intptr_t)(setting->implData)] = value;
-	GetData(setting->device)->waveformSettingsChanged = true;
-	GetData(setting->device)->settingsChanged = true;
+	GetSettingDeviceData(setting)->offsetXY[(intptr_t)(OSc_Setting_GetImplData(setting))] = value;
+	GetSettingDeviceData(setting)->waveformSettingsChanged = true;
+	GetSettingDeviceData(setting)->settingsChanged = true;
 	return OSc_Error_OK;
 }
 
