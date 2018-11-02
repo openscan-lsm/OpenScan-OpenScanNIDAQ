@@ -1896,12 +1896,21 @@ static OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEven
 		for (uint32_t i = 0; i < totalSamplesPerLine; i += GetData(device)->binFactor)
 		{
 			// pixel averaging
-			GetData(device)->avgLineData[i / GetData(device)->binFactor] = GetData(device)->rawLineData[i] / GetData(device)->binFactor;
+			GetData(device)->avgLineData[i / GetData(device)->binFactor] =
+				GetData(device)->rawLineData[i] / GetData(device)->binFactor;
+
 			for (unsigned j = 1; j < (unsigned)GetData(device)->binFactor; j++)
-				GetData(device)->avgLineData[i / GetData(device)->binFactor] += (GetData(device)->rawLineData[i + j] / GetData(device)->binFactor);
+			{
+				GetData(device)->avgLineData[i / GetData(device)->binFactor] +=
+					(GetData(device)->rawLineData[i + j] / GetData(device)->binFactor);
+			}
+
 			// convert processed line and append to output image frame
-			GetData(device)->imageData[i / GetData(device)->binFactor + GetData(device)->totalRead / GetData(device)->binFactor] =
-				(int16)abs(GetData(device)->avgLineData[i / GetData(device)->binFactor] / GetData(device)->inputVoltageRange * 32768);
+			double avgSample = GetData(device)->avgLineData[i / GetData(device)->binFactor] /
+				GetData(device)->inputVoltageRange * 32767.0;
+			GetData(device)->imageData[i / GetData(device)->binFactor +
+				GetData(device)->totalRead / GetData(device)->binFactor] =
+				avgSample < 0 ? 0 : (uint16_t)avgSample;
 		}
 
 		GetData(device)->totalRead += (GetData(device)->numAIChannels * readPerChan); // update total elements acquired
