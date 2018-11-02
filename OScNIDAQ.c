@@ -95,6 +95,35 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->acquisition.acquisition = NULL;
 }
 
+// convert comma comma - delimited device list to a 2D string array
+// each row contains the name of one ai port
+static OSc_Error ParseAIPortList(char *names,
+	// assume there are maximum 256 port 
+	char deviceNames[MAX_NUM_PORTS][32], int *deviceCount)
+{
+	const char s[3] = ", ";
+	int count = 0;
+
+	// token is a static pointer to the input string
+	// input string will be modified between iterations
+	for (char *token = strtok(names, s); token != NULL; token = strtok(NULL, s))
+	{
+		if (count < 256)
+		{
+			strcpy(deviceNames[count], token);
+			count++;
+		}
+		else
+			return OSc_Error_Unknown;  //TODO
+	}
+
+	*deviceCount = (size_t)count;
+
+	return OSc_Error_OK;
+}
+
+
+
 // automatically detect deviceName using DAQmxGetSysDevNames()
 OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount)
 {
@@ -251,33 +280,6 @@ static OSc_Error ParseDeviceNameList(char *names,
 	for (char *token = strtok(names, s); token != NULL; token = strtok(NULL, s))
 	{
 		if (count < NUM_SLOTS_IN_CHASSIS)
-		{
-			strcpy(deviceNames[count], token);
-			count++;
-		}
-		else
-			return OSc_Error_Unknown;  //TODO
-	}
-
-	*deviceCount = (size_t)count;
-
-	return OSc_Error_OK;
-}
-
-// convert comma comma - delimited device list to a 2D string array
-// each row contains the name of one ai port
-static OSc_Error ParseAIPortList(char *names,
-	// assume there are maximum 256 port 
-	char deviceNames[MAX_NUM_PORTS][32], size_t *deviceCount)
-{
-	const char s[3] = ", ";
-	int count = 0;
-
-	// token is a static pointer to the input string
-	// input string will be modified between iterations
-	for (char *token = strtok(names, s); token != NULL; token = strtok(NULL, s))
-	{
-		if (count < 256)
 		{
 			strcpy(deviceNames[count], token);
 			count++;
