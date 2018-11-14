@@ -6,25 +6,25 @@
 #define MAX_NUM_PORTS 256
 
 
-OSc_Error NIDAQEnumerateInstances(OSc_Device ***devices, size_t *deviceCount);
-OSc_Error ParseDeviceNameList(char *names,
-	char(*deviceNames)[OSc_MAX_STR_LEN + 1], size_t *deviceCount);
-OSc_Error OpenDAQ(OSc_Device *device);
-OSc_Error CloseDAQ(OSc_Device *device);
-OSc_Error InitDAQ(OSc_Device *device);
-OSc_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char terminalName[], char triggerName[]);
-OSc_Error WriteWaveforms(OSc_Device *device);
-OSc_Error SetTriggers(OSc_Device *device);
-OSc_Error ReconfigTiming(OSc_Device *device);
-OSc_Error UnregisterLineAcqEvent(OSc_Device *device);
-OSc_Error RegisterLineAcqEvent(OSc_Device *device);
-OSc_Error CommitTasks(OSc_Device *device);
-OSc_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData);
-OSc_Error SplitChannels(OSc_Device *device);
-OSc_Error ReconfigDAQ(OSc_Device *device);
-OSc_Error ReconfigAIVoltageChannels(OSc_Device* device);
+OScDev_Error NIDAQEnumerateInstances(OScDev_Device ***devices, size_t *deviceCount);
+OScDev_Error ParseDeviceNameList(char *names,
+	char(*deviceNames)[OScDev_MAX_STR_LEN + 1], size_t *deviceCount);
+OScDev_Error OpenDAQ(OScDev_Device *device);
+OScDev_Error CloseDAQ(OScDev_Device *device);
+OScDev_Error InitDAQ(OScDev_Device *device);
+OScDev_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char terminalName[], char triggerName[]);
+OScDev_Error WriteWaveforms(OScDev_Device *device);
+OScDev_Error SetTriggers(OScDev_Device *device);
+OScDev_Error ReconfigTiming(OScDev_Device *device);
+OScDev_Error UnregisterLineAcqEvent(OScDev_Device *device);
+OScDev_Error RegisterLineAcqEvent(OScDev_Device *device);
+OScDev_Error CommitTasks(OScDev_Device *device);
+OScDev_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData);
+OScDev_Error SplitChannels(OScDev_Device *device);
+OScDev_Error ReconfigDAQ(OScDev_Device *device);
+OScDev_Error ReconfigAIVoltageChannels(OScDev_Device* device);
 // TODO: naming conflicts with OScNIFPGA
-OSc_Error RunAcquisitionLoop(OSc_Device *device, OSc_Acquisition *acq);
-OSc_Error StopAcquisitionAndWait(OSc_Device *device, OSc_Acquisition *acq);
-OSc_Error IsAcquisitionRunning(OSc_Device *device, bool *isRunning);
-OSc_Error WaitForAcquisitionToFinish(OSc_Device *device);
+OScDev_Error RunAcquisitionLoop(OScDev_Device *device, OScDev_Acquisition *acq);
+OScDev_Error StopAcquisitionAndWait(OScDev_Device *device, OScDev_Acquisition *acq);
+OScDev_Error IsAcquisitionRunning(OScDev_Device *device, bool *isRunning);
+OScDev_Error WaitForAcquisitionToFinish(OScDev_Device *device);

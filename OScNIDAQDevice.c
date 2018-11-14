@@ -11,104 +11,107 @@
 #include <Windows.h>
 
 
-static OSc_Device **g_devices;
+static OScDev_Device **g_devices;
 static size_t g_deviceCount;
 
-static OSc_Error NIDAQGetModelName(const char **name)
+static OScDev_Error NIDAQGetModelName(const char **name)
 {
 	*name = "OpenScan-NIDAQ";
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static OSc_Error NIDAQGetInstances(OSc_Device ***devices, size_t *count)
+static OScDev_Error NIDAQGetInstances(OScDev_Device ***devices, size_t *count)
 {
-	if (!g_devices)
-		OSc_Return_If_Error(NIDAQEnumerateInstances(&g_devices, &g_deviceCount));
+	OScDev_Error err;
+	if (!g_devices && OScDev_CHECK(err, NIDAQEnumerateInstances(&g_devices, &g_deviceCount)))
+		return err;
 	*devices = g_devices;
 	*count = g_deviceCount;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static OSc_Error NIDAQReleaseInstance(OSc_Device *device)
+static OScDev_Error NIDAQReleaseInstance(OScDev_Device *device)
 {
 	free(GetData(device));
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static OSc_Error NIDAQGetName(OSc_Device *device, char *name)
+static OScDev_Error NIDAQGetName(OScDev_Device *device, char *name)
 {
-	strncpy(name, GetData(device)->deviceName, OSc_MAX_STR_LEN);
-	return OSc_Error_OK;
+	strncpy(name, GetData(device)->deviceName, OScDev_MAX_STR_LEN);
+	return OScDev_OK;
 }
 
 
 
-static OSc_Error NIDAQOpen(OSc_Device *device)
+static OScDev_Error NIDAQOpen(OScDev_Device *device)
 {
 	int32 nierr = DAQmxResetDevice(GetData(device)->deviceName); // TODO wrong function
 	if (nierr)
 	{
-		char msg[OSc_MAX_STR_LEN + 1] = "Cannot reset NI DAQ card ";
+		char msg[OScDev_MAX_STR_LEN + 1] = "Cannot reset NI DAQ card ";
 		strcat(msg, GetData(device)->deviceName);
-		OSc_Log_Error(device, msg);
-		return OSc_Error_Unknown; // TODO Detailed info
+		OScDev_Log_Error(device, msg);
+		return OScDev_Error_Unknown; // TODO Detailed info
 	}
-	OSc_Return_If_Error(OpenDAQ(device));
-	return OSc_Error_OK;
+
+	return OpenDAQ(device);
 }
 
 
-static OSc_Error NIDAQClose(OSc_Device *device)
+static OScDev_Error NIDAQClose(OScDev_Device *device)
 {
 	StopAcquisitionAndWait(device, GetData(device)->acquisition.acquisition);
-	OSc_Error err = CloseDAQ(device);
+	OScDev_Error err = CloseDAQ(device);
 	return err;
 }
 
 
-static OSc_Error NIDAQHasScanner(OSc_Device *device, bool *hasScanner)
+static OScDev_Error NIDAQHasScanner(OScDev_Device *device, bool *hasScanner)
 {
 	*hasScanner = true;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static OSc_Error NIDAQHasDetector(OSc_Device *device, bool *hasDetector)
+static OScDev_Error NIDAQHasDetector(OScDev_Device *device, bool *hasDetector)
 {
 	*hasDetector = true;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static OSc_Error NIDAQGetSettings(OSc_Device *device, OSc_Setting ***settings, size_t *count)
+static OScDev_Error NIDAQGetSettings(OScDev_Device *device, OScDev_Setting ***settings, size_t *count)
 {
-	OSc_Return_If_Error(NIDAQ_PrepareSettings(device));
+	OScDev_Error err;
+	if OScDev_CHECK(err, NIDAQ_PrepareSettings(device))
+		return err;
 	*settings = GetData(device)->settings;
 	*count = GetData(device)->settingCount;
-	return OSc_Error_OK;
+	return OScDev_OK;
 
 }
 
-static OSc_Error NIDAQGetAllowedResolutions(OSc_Device *device, size_t **widths, size_t **heights, size_t *count)
+static OScDev_Error NIDAQGetAllowedResolutions(OScDev_Device *device, size_t **widths, size_t **heights, size_t *count)
 {
 	static size_t resolutions[] = { 256, 512, 1024, 2048 };
 	*widths = *heights = resolutions;
 	*count = sizeof(resolutions) / sizeof(size_t);
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static OSc_Error NIDAQGetResolution(OSc_Device *device, size_t *width, size_t *height)
+static OScDev_Error NIDAQGetResolution(OScDev_Device *device, size_t *width, size_t *height)
 {
 	*width = *height = GetData(device)->resolution;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static OSc_Error NIDAQSetResolution(OSc_Device *device, size_t width, size_t height)
+static OScDev_Error NIDAQSetResolution(OScDev_Device *device, size_t width, size_t height)
 {
 	if (width == GetData(device)->resolution)
-		return OSc_Error_OK;
+		return OScDev_OK;
 	GetData(device)->resolution = (uint32_t)width;
 	GetData(device)->timingSettingsChanged = true;
 	GetData(device)->waveformSettingsChanged = true;
@@ -118,51 +121,51 @@ static OSc_Error NIDAQSetResolution(OSc_Device *device, size_t width, size_t hei
 	GetData(device)->magnification =
 		(double)width / OSc_DEFAULT_RESOLUTION * GetData(device)->zoom / OSc_DEFAULT_ZOOM;
 
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static OSc_Error NIDAQGetMagnification(OSc_Device *device, double *magnification)
+static OScDev_Error NIDAQGetMagnification(OScDev_Device *device, double *magnification)
 {
 	*magnification = GetData(device)->magnification;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 // probably incorrect and no use as it doesn't reflect the change of resolution or zoom
-static OSc_Error NIDAQSetMagnification(OSc_Device *device)
+static OScDev_Error NIDAQSetMagnification(OScDev_Device *device)
 {
 	size_t resolution = GetData(device)->resolution;
 	double zoom = GetData(device)->zoom;
 	GetData(device)->magnification = 
 		(double)(resolution / OSc_DEFAULT_RESOLUTION) * (zoom / OSc_DEFAULT_ZOOM);
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static OSc_Error NIDAQGetImageSize(OSc_Device *device, uint32_t *width, uint32_t *height)
+static OScDev_Error NIDAQGetImageSize(OScDev_Device *device, uint32_t *width, uint32_t *height)
 {
 	*width = GetData(device)->resolution;
 	*height = GetData(device)->resolution;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 // Same as OpenScanDAQ::GetNumberOfChannels()
-static OSc_Error NIDAQGetNumberOfChannels(OSc_Device *device, uint32_t *nChannels)
+static OScDev_Error NIDAQGetNumberOfChannels(OScDev_Device *device, uint32_t *nChannels)
 {
 	*nChannels = (GetData(device)->channels) == CHANNELS1_2_3 ? 3 :
 		((GetData(device)->channels) == CHANNELS_1_AND_2 || (GetData(device)->channels) == CHANNELS_1_AND_3) ? 2 : 1;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static OSc_Error NIDAQGetBytesPerSample(OSc_Device *device, uint32_t *bytesPerSample)
+static OScDev_Error NIDAQGetBytesPerSample(OScDev_Device *device, uint32_t *bytesPerSample)
 {
 	*bytesPerSample = 2;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
 // equal to SequenceThread::Start()
-static OSc_Error ArmImpl(OSc_Device *device, OSc_Acquisition *acq)
+static OScDev_Error ArmImpl(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
@@ -171,9 +174,9 @@ static OSc_Error ArmImpl(OSc_Device *device, OSc_Acquisition *acq)
 		{
 			LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
 			if (GetData(device)->acquisition.started)
-				return OSc_Error_Acquisition_Running;
+				return OScDev_Error_Acquisition_Running;
 			else
-				return OSc_Error_OK;
+				return OScDev_OK;
 		}
 		GetData(device)->acquisition.stopRequested = false;
 		GetData(device)->acquisition.running = true;
@@ -182,7 +185,9 @@ static OSc_Error ArmImpl(OSc_Device *device, OSc_Acquisition *acq)
 	}
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
 
-	OSc_Return_If_Error(ReconfigDAQ(device));
+	OScDev_Error err;
+	if (OScDev_CHECK(err, ReconfigDAQ(device)))
+		return err;
 
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
@@ -190,16 +195,16 @@ static OSc_Error ArmImpl(OSc_Device *device, OSc_Acquisition *acq)
 	}
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
 
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static OSc_Error NIDAQArmScanner(OSc_Device *device, OSc_Acquisition *acq)
+static OScDev_Error NIDAQArmScanner(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	return ArmImpl(device, acq);
 }
 
 
-static OSc_Error NIDAQStartScanner(OSc_Device *device, OSc_Acquisition *acq)
+static OScDev_Error NIDAQStartScanner(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
@@ -207,12 +212,12 @@ static OSc_Error NIDAQStartScanner(OSc_Device *device, OSc_Acquisition *acq)
 			!GetData(device)->acquisition.armed)
 		{
 			LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-			return OSc_Error_Not_Armed;
+			return OScDev_Error_Not_Armed;
 		}
 		if (GetData(device)->acquisition.started)
 		{
 			LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-			return OSc_Error_Acquisition_Running;
+			return OScDev_Error_Acquisition_Running;
 		}
 
 		GetData(device)->acquisition.started = true;
@@ -222,30 +227,30 @@ static OSc_Error NIDAQStartScanner(OSc_Device *device, OSc_Acquisition *acq)
 	return RunAcquisitionLoop(device, acq);
 }
 
-static OSc_Error NIDAQStopScanner(OSc_Device *device, OSc_Acquisition *acq)
+static OScDev_Error NIDAQStopScanner(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	return StopAcquisitionAndWait(device, acq);
 }
 
 
-static OSc_Error NIDAQArmDetector(OSc_Device *device, OSc_Acquisition *acq)
+static OScDev_Error NIDAQArmDetector(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	return ArmImpl(device, acq);
 }
 
-static OSc_Error NIDAQStartDetector(OSc_Device *device, OSc_Acquisition *acq)
+static OScDev_Error NIDAQStartDetector(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	// We don't yet support running detector as trigger source
-	return OSc_Error_Unsupported_Operation;
+	return OScDev_Error_Unsupported_Operation;
 }
 
 
-static OSc_Error NIDAQStopDetector(OSc_Device *device, OSc_Acquisition *acq)
+static OScDev_Error NIDAQStopDetector(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	return StopAcquisitionAndWait(device, acq);
 }
 
-static OSc_Error NIDAQIsRunning(OSc_Device *device, bool *isRunning)
+static OScDev_Error NIDAQIsRunning(OScDev_Device *device, bool *isRunning)
 {
 	return IsAcquisitionRunning(device, isRunning);
 }
@@ -271,9 +276,9 @@ static void ParseDeviceNameList(const char *names,
 			sep = end;
 
 		size_t len = sep - prevSep;
-		if (len == 0 || len > OSc_MAX_STR_LEN)
+		if (len == 0 || len > OScDev_MAX_STR_LEN)
 			continue;
-		char name[OSc_MAX_STR_LEN + 1];
+		char name[OScDev_MAX_STR_LEN + 1];
 		strncpy(name, prevSep, len);
 
 		callback(name);
@@ -291,58 +296,58 @@ static void CreateDevice(const char* name)
 {
 	if (!g_devices)
 	{
-		g_devices = malloc(sizeof(OSc_Device *));
+		g_devices = malloc(sizeof(OScDev_Device *));
 	}
 	else
 	{
-		g_devices = realloc(g_devices, g_deviceCount * sizeof(OSc_Device *));
+		g_devices = realloc(g_devices, g_deviceCount * sizeof(OScDev_Device *));
 	}
 
 	struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
 
-	OSc_Device *device;
-	OSc_Error err;
+	OScDev_Device *device;
+	OScDev_Error err;
 	if (OSc_Check_Error(err, OSc_Device_Create(&device, &OpenScan_NIDAQ_Device_Impl, data)))
 	{
-		char msg[OSc_MAX_STR_LEN + 1] = "Failed to create device ";
+		char msg[OScDev_MAX_STR_LEN + 1] = "Failed to create device ";
 		strcat(msg, name);
 		OSc_Log_Error(device, msg);
 		return;
 	}
 
-	strncpy(GetData(device)->deviceName, name, OSc_MAX_STR_LEN);
+	strncpy(GetData(device)->deviceName, name, OScDev_MAX_STR_LEN);
 
 	g_devices[g_deviceCount++] = device;
 }
 */
 
-static OSc_Error NIDAQWait(OSc_Device *device)
+static OScDev_Error NIDAQWait(OScDev_Device *device)
 {
 	return WaitForAcquisitionToFinish(device);
 }
 
 /*
 // imcomplete and no use
-static OSc_Error EnumerateInstances(OSc_Device ***devices, size_t *count)
+static OScDev_Error EnumerateInstances(OScDev_Device ***devices, size_t *count)
 {
 if (g_devices)
-return OSc_Error_OK;
+return OScDev_OK;
 
 char deviceNames[4096];
 int32 nierr = DAQmxGetSysDevNames(deviceNames, sizeof(deviceNames));
 if (nierr)
 {
 OSc_Log_Error(NULL, "Failed to enumerate NI DAQ devices");
-return OSc_Error_Unknown;
+return OScDev_Error_Unknown;
 }
 
 ParseDeviceNameList(deviceNames, CreateDevice);
 
-return OSc_Error_OK;
+return OScDev_OK;
 }
 */
 
-struct OSc_Device_Impl OpenScan_NIDAQ_Device_Impl = {
+struct OScDev_DeviceImpl OpenScan_NIDAQ_Device_Impl = {
 	.GetModelName = NIDAQGetModelName,
 	.GetInstances = NIDAQGetInstances,
 	.ReleaseInstance = NIDAQReleaseInstance,
@@ -371,12 +376,18 @@ struct OSc_Device_Impl OpenScan_NIDAQ_Device_Impl = {
 };
 
 
-OSc_Error OSc_ENTRY_POINT_FUNC(struct OSc_Device_Impl **impls, size_t *implCount)
+static OScDev_Error GetDeviceImpls(struct OScDev_DeviceImpl **impls, size_t *implCount)
 {
 	if (*implCount < 1)
-		return OSc_Error_OK;
+		return OScDev_OK;
 
 	impls[0] = &OpenScan_NIDAQ_Device_Impl;
 	*implCount = 1;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
+
+
+OScDev_MODULE_IMPL = {
+	.displayName = "OpenScan NI-DAQ",
+	.GetDeviceImpls = GetDeviceImpls,
+};
