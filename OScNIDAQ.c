@@ -424,7 +424,7 @@ OSc_Error InitDAQ(OSc_Device *device)
 			OSc_Log_Error(device, buf);
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
-		OSc_Log_Debug(device, "Created line clock task");
+		OSc_Log_Debug(device, "Created line/frame clock task");
 		
 		// wire p0.5 to /PXI1Slot2/PFI7 to trigger acquisition line by line
 		// has to use port0 since it supports buffered opertation
@@ -520,33 +520,6 @@ OSc_Error InitDAQ(OSc_Device *device)
 			return OSc_Error_Unknown_Enum_Value_Name;
 		}
 		OSc_Log_Debug(device, "Created acquisition task");
-		/*
-		char aiTerminals[OSc_MAX_STR_LEN + 1];
-		strcat(strcpy(aiTerminals, GetData(device)->deviceName), "/ai0:2");
-		nierr = DAQmxCreateAIVoltageChan(GetData(device)->acqTaskHandle_, aiTerminals, "",
-			DAQmx_Val_Cfg_Default, -10.0, 10.0, DAQmx_Val_Volts, NULL);
-		if (nierr != 0)
-		{
-			char buf[1024];
-			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-			OSc_Log_Error(device, buf);
-			goto Error;
-		}
-		OSc_Log_Debug(device, "Created AI voltage channels for image acquisition");
-		// get number of physical AI channels for image acquisition
-		// difference from GetNumberOfChannels() which indicates number of channels to display
-		nierr = DAQmxGetReadNumChans(GetData(device)->acqTaskHandle_, &GetData(device)->numAIChannels);
-		if (nierr != 0)
-		{
-			char buf[1024];
-			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-			OSc_Log_Error(device, buf);
-			return OSc_Error_Unknown_Enum_Value_Name;
-		}
-		char msg[OSc_MAX_STR_LEN + 1];
-		snprintf(msg, OSc_MAX_STR_LEN, "%d physical AI channels available.", GetData(device)->numAIChannels);
-		OSc_Log_Debug(device, msg);
-		*/
 
 		OSc_Error err = ReconfigAIVoltageChannels(device);
 		if (err != OSc_Error_OK)
@@ -698,12 +671,45 @@ static OSc_Error SetTriggers(OSc_Device *device)
 	}
 	OSc_Log_Debug(device, "Configured digital edge start trigger for counter (line clock)");
 
+	// acquisition is triggered line by line by counter generated line clock
+	// directly use counter output terminal ctr0 (PFI12) as start trigger for acquisition 
+	// without any physical external wiring or internal routing
 	char acqTriggerSource[OSc_MAX_STR_LEN + 1] = "/";
 	strcat(strcat(acqTriggerSource, GetData(device)->deviceName), "/PFI12");
 	/*char msg[OSc_MAX_STR_LEN + 1];
 	snprintf(msg, OSc_MAX_STR_LEN, "length of trigger souce %s is %d: ", acqTriggerSource, (int)strlen(acqTriggerSource) );
 	OSc_Log_Debug(device, msg);*/
 
+	// Alternative: virtually connect counter (line clock) output terminal and acquisition triggerIn terminal without physical wiring
+	// DAQmxConnectTerms() only works for terminals with valid names (port0 doesn't work; PFI lines are ok)
+	// non-buffered operation
+	//nierr = DAQmxConnectTerms("/PXI1Slot2/Ctr0InternalOutput", "/PXI1Slot2/PFI8", DAQmx_Val_DoNotInvertPolarity);
+	//nierr = DAQmxCfgDigEdgeStartTrig(acqTaskHandle_, "/PXI1Slot2/PFI8", DAQmx_Val_Rising);
+
+	// Configure acquisition trigger (line clock)
+	// line clock generation is triggered by AO StartTrigger internally
+	// and thus sync'ed to scan waveform generation
+	nierr = DAQmxCfgDigEdgeStartTrig(GetData(device)->lineClockTaskHandle_, aoStartTrigName, DAQmx_Val_Rising);
+	if (nierr != 0)
+	{
+		OSc_Log_Error(device, "Error: cannot config line/frame clock trigger: ");
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OSc_Log_Error(device, buf);
+		goto Error;
+	}
+	OSc_Log_Debug(device, "Configured digital edge start trigger for line/frame clock");
+	nierr = DAQmxSetStartTrigRetriggerable(GetData(device)->lineClockTaskHandle_, 1);
+	if (nierr != 0)
+	{
+		OSc_Log_Error(device, "Error: cannot set line/frame clock retriggable: ");
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OSc_Log_Error(device, buf);
+		goto Error;
+	}
+
+	// configure acq trigger
 	nierr = DAQmxCfgDigEdgeStartTrig(GetData(device)->acqTaskHandle_, acqTriggerSource, DAQmx_Val_Rising);
 	if (nierr != 0)
 	{
@@ -864,6 +870,24 @@ static OSc_Error WriteWaveforms(OSc_Device *device)
 		lineClockPatterns[i + elementsPerFramePerChan] = lineClockFLIM[i];
 		lineClockPatterns[i + 2 * elementsPerFramePerChan] = frameClockFLIM[i];
 	}
+
+	nierr = DAQmxWriteDigitalLines(GetData(device)->lineClockTaskHandle_, elementsPerFramePerChan,
+		FALSE, 10.0, DAQmx_Val_GroupByChannel, lineClockPatterns, &numWritten, NULL);
+	if (nierr != 0)
+	{
+		OSc_Log_Error(device, "Write line/frame clock error: ");
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OSc_Log_Error(device, buf);
+		goto Error;
+	}
+	if (numWritten != elementsPerFramePerChan)
+	{
+		OSc_Log_Error(device, "Failed to write complete line/frame clocks");
+		goto Error;
+	}
+	OSc_Log_Debug(device, "Line and frame clock patterns written to DAQ memory");
+
 	free(xyWaveformFrame);
 	free(lineClockPattern);
 	free(lineClockFLIM);
@@ -926,6 +950,16 @@ static OSc_Error StartScan(OSc_Device *device)
 		OSc_Log_Debug(device, "Dummy acquisition... scanner only.");
 	}
 
+	nierr = DAQmxStartTask(GetData(device)->lineClockTaskHandle_);
+	if (nierr != 0)
+	{
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OSc_Log_Error(device, buf);
+		goto Error;
+	}
+	OSc_Log_Debug(device, "Armed line/frame clock generation");
+
 	nierr = DAQmxStartTask(GetData(device)->counterTaskHandle_);
 	if (nierr != 0)
 	{
@@ -953,6 +987,13 @@ Error:
 		DAQmxStopTask(GetData(device)->scanWaveformTaskHandle_);
 		DAQmxClearTask(GetData(device)->scanWaveformTaskHandle_);
 		GetData(device)->scanWaveformTaskHandle_ = 0;
+	}
+
+	if (GetData(device)->lineClockTaskHandle_)
+	{
+		DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
+		DAQmxClearTask(GetData(device)->lineClockTaskHandle_);
+		GetData(device)->lineClockTaskHandle_ = 0;
 	}
 
 	if (GetData(device)->counterTaskHandle_)
@@ -1023,6 +1064,19 @@ static OSc_Error StopScan(OSc_Device *device)
 	OSc_Log_Debug(device, msg);
 	Sleep(waitScanToFinish);
 
+	nierr = DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
+	if (nierr != 0)
+	{
+		char buf[1024], msg[OSc_MAX_STR_LEN + 1];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		snprintf(msg, OSc_MAX_STR_LEN, "Error stopping line/frame clock task: %d", (int)nierr);
+		OSc_Log_Error(device, msg);
+		OSc_Log_Error(device, buf);
+		goto Error;
+	}
+	OSc_Log_Debug(device, "Stopped line/frame clock task");
+
+
 	nierr = DAQmxStopTask(GetData(device)->counterTaskHandle_);
 	if (nierr != 0)
 	{
@@ -1054,6 +1108,12 @@ Error:
 	{
 		DAQmxClearTask(GetData(device)->scanWaveformTaskHandle_);
 		GetData(device)->scanWaveformTaskHandle_ = 0;
+	}
+
+	if (GetData(device)->lineClockTaskHandle_)
+	{
+		DAQmxClearTask(GetData(device)->lineClockTaskHandle_);
+		GetData(device)->lineClockTaskHandle_ = 0;
 	}
 
 	if (GetData(device)->counterTaskHandle_)
@@ -1405,6 +1465,18 @@ static OSc_Error ReconfigTiming(OSc_Device *device)
 	}
 	OSc_Log_Debug(device, "Configured sample clock timing for scan waveform");
 
+	nierr = DAQmxCfgSampClkTiming(GetData(device)->lineClockTaskHandle_, "", 1E6*GetData(device)->scanRate / GetData(device)->binFactor,
+		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, elementsPerFramePerChan); // reload
+	if (nierr != 0)
+	{
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OSc_Log_Error(device, buf);
+		goto Error;
+	}
+	OSc_Log_Debug(device, "Configured sample clock timing for line and frame clocks for FLIM");
+
+
 	// by default, acquire data for one scan line each time
 	nierr = DAQmxCfgSampClkTiming(GetData(device)->acqTaskHandle_, "", 1E6*GetData(device)->scanRate,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, GetData(device)->resolution * GetData(device)->binFactor); // reload
@@ -1506,6 +1578,16 @@ static OSc_Error CommitTasks(OSc_Device *device)
 		OSc_Log_Error(device, buf);
 		goto Error;
 	}
+
+	nierr = DAQmxTaskControl(GetData(device)->lineClockTaskHandle_, DAQmx_Val_Task_Commit);
+	if (nierr != 0)
+	{
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OSc_Log_Error(device, buf);
+		goto Error;
+	}
+
 
 	nierr = DAQmxTaskControl(GetData(device)->counterTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
