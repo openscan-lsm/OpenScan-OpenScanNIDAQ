@@ -41,7 +41,8 @@ struct OScNIDAQPrivateData
 	OSc_Setting **settings;
 	size_t settingCount;
 
-	TaskHandle  scanWaveformTaskHandle_, lineClockTaskHandle_, acqTaskHandle_, counterTaskHandle_;
+	TaskHandle  scanWaveformTaskHandle_, lineClockTaskHandle_, acqTaskHandle_, 
+		counterTaskHandle_, pixelClockTaskHandle_;
 	bool settingsChanged;	
 	// True when resolution, scanRate,or binFactor have changed since last acquisition
 	bool timingSettingsChanged;
