@@ -443,7 +443,6 @@ static OScDev_Error GetSelectedDispChannels(OScDev_Device *device)
 {
 	// clear selectedDispChan
 	GetData(device)->selectedDispChan_ = calloc(OSc_Total_Channel_Num * (OScDev_MAX_STR_LEN + 1), sizeof(char));
-	//memset(GetData(device)->selectedDispChan_, 0, sizeof(char) * 3 * (OScDev_MAX_STR_LEN + 1));
 
 	switch (GetData(device)->channels)
 	{

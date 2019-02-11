@@ -8,14 +8,6 @@
 
 #include <Windows.h>
 
-/*
-const char* const PROPERTY_VALUE_Channel1 = "Channel1";
-const char* const PROPERTY_VALUE_Channel2 = "Channel2";
-const char* const PROPERTY_VALUE_Channel3 = "Channel3";
-const char* const PROPERTY_VALUE_Channel1and2 = "Channel1and2";
-const char* const PROPERTY_VALUE_Channel1and3 = "Channel1and3";
-const char* const PROPERTY_VALUE_Channel1and2and3 = "Channels1-3";
-*/
 
 enum
 {

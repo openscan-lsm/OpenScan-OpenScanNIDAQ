@@ -256,96 +256,11 @@ static OScDev_Error NIDAQIsRunning(OScDev_Device *device, bool *isRunning)
 }
 
 
-/*
-// bug: not working - only returns 1st device padded with null bytes
-static void ParseDeviceNameList(const char *names,
-	void(*callback)(const char *name))
-{
-	// The value of the Device Names property is a list, separated by ", "
-	const char *sep = NULL;
-	const char *prevSep = names;
-	const char *end = names + strlen(names);
-	for (;;)
-	{
-		// Skip any spaces after comma
-		while (*prevSep == ' ')
-			++prevSep;
-
-		sep = strchr(prevSep, ',');
-		if (!sep)
-			sep = end;
-
-		size_t len = sep - prevSep;
-		if (len == 0 || len > OScDev_MAX_STR_LEN)
-			continue;
-		char name[OScDev_MAX_STR_LEN + 1];
-		strncpy(name, prevSep, len);
-
-		callback(name);
-
-		if (sep == end)
-			return;
-		prevSep = sep;
-	}
-}
-*/
-
-/*
-// no use
-static void CreateDevice(const char* name)
-{
-	if (!g_devices)
-	{
-		g_devices = malloc(sizeof(OScDev_Device *));
-	}
-	else
-	{
-		g_devices = realloc(g_devices, g_deviceCount * sizeof(OScDev_Device *));
-	}
-
-	struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
-
-	OScDev_Device *device;
-	OScDev_Error err;
-	if (OSc_Check_Error(err, OSc_Device_Create(&device, &OpenScan_NIDAQ_Device_Impl, data)))
-	{
-		char msg[OScDev_MAX_STR_LEN + 1] = "Failed to create device ";
-		strcat(msg, name);
-		OSc_Log_Error(device, msg);
-		return;
-	}
-
-	strncpy(GetData(device)->deviceName, name, OScDev_MAX_STR_LEN);
-
-	g_devices[g_deviceCount++] = device;
-}
-*/
-
 static OScDev_Error NIDAQWait(OScDev_Device *device)
 {
 	return WaitForAcquisitionToFinish(device);
 }
 
-/*
-// imcomplete and no use
-static OScDev_Error EnumerateInstances(OScDev_Device ***devices, size_t *count)
-{
-if (g_devices)
-return OScDev_OK;
-
-char deviceNames[4096];
-int32 nierr = DAQmxGetSysDevNames(deviceNames, sizeof(deviceNames));
-if (nierr)
-{
-OSc_Log_Error(NULL, "Failed to enumerate NI DAQ devices");
-return OScDev_Error_Unknown;
-}
-
-ParseDeviceNameList(deviceNames, CreateDevice);
-
-return OScDev_OK;
-}
-*/
 
 struct OScDev_DeviceImpl OpenScan_NIDAQ_Device_Impl = {
 	.GetModelName = NIDAQGetModelName,

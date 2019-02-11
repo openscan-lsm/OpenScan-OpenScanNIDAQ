@@ -45,7 +45,6 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 {
 	data->detectorOnly = false;
 	data->scannerOnly = false;
-	//data->selectedDispChan_ = malloc(OSc_Total_Channel_Num * (OScDev_MAX_STR_LEN + 1) * sizeof(char));
 	data->channelMap_ = sm_new(32);
 	//Assume portList[256][32];
 	data->aiPorts_ = malloc(256 * (sizeof(char)*32));
@@ -196,12 +195,10 @@ OScDev_Error GetAIPortsForDevice(char* devices, int* deviceCount, char** result)
 				break;
 		}
 	}
-	//result = &portList[0][0];
 	return OScDev_OK;
 }
 
 OScDev_Error GetVoltageRangeForDevice(OScDev_Device* device, double* minVolts, double* maxVolts){
-	//const int MAX_RANGES = 64;
 	struct OScNIDAQPrivateData* debug = GetData(device);
 	#define MAX_RANGES 64
 	float64 ranges[2 * MAX_RANGES];
@@ -215,7 +212,7 @@ OScDev_Error GetVoltageRangeForDevice(OScDev_Device* device, double* minVolts, d
 		sizeof(ranges) / sizeof(float64));
 	if (nierr != 0)
 	{
-		//LogMessage("Error getting analog voltage ranges");
+		OScDev_Log_Error(device, "Error getting analog voltage ranges");
 	}
 
 	// Find the common min and max.
@@ -238,7 +235,6 @@ OScDev_Error GetVoltageRangeForDevice(OScDev_Device* device, double* minVolts, d
 }
 
 OScDev_Error GetEnabledAIPorts(OScDev_Device *device) {
-	//char portList[2048];
 	char* portList;
 	struct OScNIDAQPrivateData* debug = GetData(device);
 	// Assume three channels at most
@@ -298,34 +294,22 @@ OScDev_Error MapDispChanToAIPorts(OScDev_Device* device)
 	char dispChannels[3][512] = {
 		{"Channel1"},
 		{"Channel2"},
-		{"Channel3" }
+		{"Channel3"}
 	};
 
 	int numDispChannels = 3;
 	int numAIPorts = 1;
 	GetAIPortsForDevice(GetData(device)->deviceName, &numAIPorts, GetData(device)->aiPorts_);
-	//int numAIPorts = (int)sizeof(GetData(device)->aiPorts_) / sizeof(char*);
-	// Count number of AI ports, assume AIports has 32 entries (TODO)
-	/*
-	int numAIPorts = 0;
-	for (int i = 0; i < 32; i++) {
-		if (GetData(device)->aiPorts_[i][0] != '0')
-			numAIPorts++;
-	}
-	*/
 
 	int numChannels = (numDispChannels > numAIPorts) ? numAIPorts : numDispChannels;
 	struct OScNIDAQPrivateData* dData = GetData(device);
 	for (int i = 0; i < numChannels; ++i)
 	{
 		sm_put(GetData(device)->channelMap_, dispChannels[i], GetData(device)->aiPorts_[i]);
-		//GetData(device)->channelMap_[dispChannels.at(i)] = aiPorts_.at(i);
-		// e.g., channelMap["Channel1"] = "PXI1Slot2/ai0";
 	}
 
 	return OScDev_OK;
 }
-
 
 
 // same to Initialize() in old OpenScan format
@@ -440,8 +424,6 @@ OScDev_Error InitDAQ(OScDev_Device *device)
 		// has to use port0 since it supports buffered opertation
 		// p0.6 to generate line clock for FLIM
 		// p0.7 to generate frame clock for FLIM
-		//nierr = DAQmxCreateDOChan(lineClockTaskHandle_, "PXI1Slot2/port0/line5:6",
-		//	"", DAQmx_Val_ChanForAllLines );
 
 		char doTerminals[OScDev_MAX_STR_LEN + 1];
 		strcat(strcpy(doTerminals, GetData(device)->deviceName), "/port0/line5:7");
@@ -735,9 +717,6 @@ static OScDev_Error SetTriggers(OScDev_Device *device)
 	// without any physical external wiring or internal routing
 	char acqTriggerSource[OScDev_MAX_STR_LEN + 1] = "/";
 	strcat(strcat(acqTriggerSource, GetData(device)->deviceName), "/PFI12");
-	/*char msg[OScDev_MAX_STR_LEN + 1];
-	snprintf(msg, OScDev_MAX_STR_LEN, "length of trigger souce %s is %d: ", acqTriggerSource, (int)strlen(acqTriggerSource) );
-	OScDev_Log_Debug(device, msg);*/
 
 	// Alternative: virtually connect counter (line clock) output terminal and acquisition triggerIn terminal without physical wiring
 	// DAQmxConnectTerms() only works for terminals with valid names (port0 doesn't work; PFI lines are ok)
@@ -851,7 +830,6 @@ Error:
 	if (nierr != 0)
 	{
 		OScDev_Log_Error(device, "Failed setting triggers; task cleared");
-		//err = TranslateNIError(nierr);
 	}
 	else
 	{
@@ -996,7 +974,6 @@ Error:
 	if (nierr != 0)
 	{
 		OScDev_Log_Error(device, "Failed writing waveforms; task cleared");
-		//err = TranslateNIError(nierr);
 	}
 	else
 	{
@@ -1004,7 +981,6 @@ Error:
 	}
 
 	return err;
-
 }
 
 
@@ -1111,7 +1087,6 @@ Error:
 	if (nierr != 0)
 	{
 		OScDev_Log_Error(device, "Failed starting tasks; task cleared");
-		//err = TranslateNIError(nierr);
 	}
 	else
 	{
@@ -1247,7 +1222,6 @@ Error:
 	if (nierr != 0)
 	{
 		OScDev_Log_Error(device, "Failed stopping tasks; task cleared");
-		//err = TranslateNIError(nierr);
 	}
 	else
 	{
@@ -1255,7 +1229,6 @@ Error:
 	}
 	
 	return err;
-
 }
 
 static unsigned GetImageWidth(OScDev_Device *device) {
@@ -1269,8 +1242,6 @@ static unsigned GetImageHeight(OScDev_Device *device) {
 // DAQ version; acquire from multiple channels
 static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 {
-	//struct OScNIDAQPrivateData* debugData = GetData(device);
-	//uint32_t resolution_ = GetData(device)->resolution;
 	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t scanLines = GetData(device)->resolution;
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
@@ -1532,8 +1503,6 @@ OScDev_Error StopAcquisitionAndWait(OScDev_Device *device, OScDev_Acquisition *a
 }
 
 
-
-// Iscapturing in old openscanDAQ
 OScDev_Error IsAcquisitionRunning(OScDev_Device *device, bool *isRunning)
 {
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
@@ -1682,7 +1651,6 @@ Error:
 	if (nierr != 0)
 	{
 		OScDev_Log_Error(device, "Error configuring timing; task cleared");
-		//err = TranslateNIError(nierr);
 		err = OScDev_Error_Unknown;
 	}
 	else
