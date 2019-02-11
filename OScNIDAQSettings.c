@@ -1,5 +1,4 @@
 #include "OScNIDAQDevicePrivate.h"
-#include "OpenScanLibPrivate.h"
 
 #include <NIDAQmx.h>
 
@@ -12,22 +11,45 @@ const char* const PROPERTY_VALUE_Channel1and2 = "Channel1and2";
 const char* const PROPERTY_VALUE_Channel1and3 = "Channel1and3";
 const char* const PROPERTY_VALUE_Channel1and2and3 = "Channels1-3";
 
-static OSc_Error GetScanRate(OSc_Setting *setting, double *value)
+
+// For most settings, we set the setting's implData to the device.
+// This function can then be used to retrieve the device implData.
+static inline struct OScNIDAQPrivateData *GetSettingDeviceData(OScDev_Setting *setting)
 {
-	*value = GetData(setting->device)->scanRate;
-	return OSc_Error_OK;
+	return (struct OScNIDAQPrivateData *)OScDev_Device_GetImplData((OScDev_Device *)OScDev_Setting_GetImplData(setting));
 }
 
 
-static OSc_Error SetScanRate(OSc_Setting *setting, double value)
+OScDev_Error GetNumericConstraintTypeImpl_DiscreteValues(OScDev_Setting *setting, enum OScDev_ValueConstraint *constraintType)
 {
-	GetData(setting->device)->scanRate = value;
-	GetData(setting->device)->timingSettingsChanged = true;
-	return OSc_Error_OK;
+	*constraintType = OScDev_ValueConstraint_DiscreteValues;
+	return OScDev_OK;
 }
 
 
-static OSc_Error GetScanRateValues(OSc_Setting *setting, double **values, size_t *count)
+OScDev_Error GetNumericConstraintTypeImpl_Range(OScDev_Setting *setting, enum OScDev_ValueConstraint *constraintType)
+{
+	*constraintType = OScDev_ValueConstraint_Range;
+	return OScDev_OK;
+}
+
+
+static OScDev_Error GetScanRate(OScDev_Setting *setting, double *value)
+{
+	*value = GetSettingDeviceData(setting)->scanRate;
+	return OScDev_OK;
+}
+
+
+static OScDev_Error SetScanRate(OScDev_Setting *setting, double value)
+{
+	GetSettingDeviceData(setting)->scanRate = value;
+	GetSettingDeviceData(setting)->timingSettingsChanged = true;
+	return OScDev_OK;
+}
+
+
+static OScDev_Error GetScanRateValues(OScDev_Setting *setting, double **values, size_t *count)
 {
 	static double v[] = {
 		0.0500,
@@ -43,104 +65,104 @@ static OSc_Error GetScanRateValues(OSc_Setting *setting, double **values, size_t
 	};
 	*values = v;
 	*count = sizeof(v) / sizeof(double);
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static struct OSc_Setting_Impl SettingImpl_ScanRate = {
+static struct OScDev_SettingImpl SettingImpl_ScanRate = {
 	.GetFloat64 = GetScanRate,
 	.SetFloat64 = SetScanRate,
-	.GetNumericConstraintType = OSc_Setting_NumericConstraintDiscreteValues,
+	.GetNumericConstraintType = GetNumericConstraintTypeImpl_DiscreteValues,
 	.GetFloat64DiscreteValues = GetScanRateValues,
 };
 
 
-static OSc_Error GetZoom(OSc_Setting *setting, double *value)
+static OScDev_Error GetZoom(OScDev_Setting *setting, double *value)
 {
-	*value = GetData(setting->device)->zoom;
+	*value = GetSettingDeviceData(setting)->zoom;
 
-	GetData(setting->device)->magnification =
-		(double)GetData(setting->device)->resolution / (double)OSc_DEFAULT_RESOLUTION 
-		* GetData(setting->device)->zoom / OSc_DEFAULT_ZOOM;
+	GetSettingDeviceData(setting)->magnification =
+		(double)GetSettingDeviceData(setting)->resolution / (double)OSc_DEFAULT_RESOLUTION
+		* GetSettingDeviceData(setting)->zoom / OSc_DEFAULT_ZOOM;
 
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static OSc_Error SetZoom(OSc_Setting *setting, double value)
+static OScDev_Error SetZoom(OScDev_Setting *setting, double value)
 {
-	GetData(setting->device)->zoom = value;
-	GetData(setting->device)->waveformSettingsChanged = true;
+	GetSettingDeviceData(setting)->zoom = value;
+	GetSettingDeviceData(setting)->waveformSettingsChanged = true;
 
 	// reflect the change to magnification as well
-	GetData(setting->device)->magnification = 
-		(double)GetData(setting->device)->resolution / (double)OSc_DEFAULT_RESOLUTION 
+	GetSettingDeviceData(setting)->magnification =
+		(double)GetSettingDeviceData(setting)->resolution / (double)OSc_DEFAULT_RESOLUTION
 		* value / OSc_DEFAULT_ZOOM;
 
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static OSc_Error GetZoomRange(OSc_Setting *setting, double *min, double *max)
+static OScDev_Error GetZoomRange(OScDev_Setting *setting, double *min, double *max)
 {
 	*min = 0.2;
 	*max = 20.0;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static struct OSc_Setting_Impl SettingImpl_Zoom = {
+static struct OScDev_SettingImpl SettingImpl_Zoom = {
 	.GetFloat64 = GetZoom,
 	.SetFloat64 = SetZoom,
-	.GetNumericConstraintType = OSc_Setting_NumericConstraintRange,
+	.GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
 	.GetFloat64Range = GetZoomRange,
 };
 
-static OSc_Error GetBinFactor(OSc_Setting *setting, int32_t *value)
+static OScDev_Error GetBinFactor(OScDev_Setting *setting, int32_t *value)
 {
-	*value = GetData(setting->device)->binFactor;
-	return OSc_Error_OK;
+	*value = GetSettingDeviceData(setting)->binFactor;
+	return OScDev_OK;
 }
 
 // OnBinFactor
-static OSc_Error SetBinFactor(OSc_Setting *setting, int32_t value)
+static OScDev_Error SetBinFactor(OScDev_Setting *setting, int32_t value)
 {
-	GetData(setting->device)->binFactor = value;
-	GetData(setting->device)->timingSettingsChanged = true;
-	GetData(setting->device)->acqSettingsChanged = true;
-	return OSc_Error_OK;
+	GetSettingDeviceData(setting)->binFactor = value;
+	GetSettingDeviceData(setting)->timingSettingsChanged = true;
+	GetSettingDeviceData(setting)->acqSettingsChanged = true;
+	return OScDev_OK;
 }
 
 
-static OSc_Error GetBinFactorRange(OSc_Setting *setting, int32_t *min, int32_t *max)
+static OScDev_Error GetBinFactorRange(OScDev_Setting *setting, int32_t *min, int32_t *max)
 {
 	*min = 1;
 	*max = 25;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static struct OSc_Setting_Impl SettingImpl_BinFactor = {
+static struct OScDev_SettingImpl SettingImpl_BinFactor = {
 	.GetInt32 = GetBinFactor,
 	.SetInt32 = SetBinFactor,
-	.GetNumericConstraintType = OSc_Setting_NumericConstraintRange,
+	.GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
 	.GetInt32Range = GetBinFactorRange,
 };
 
-static OSc_Error GetAcqBufferSize(OSc_Setting *setting, int32_t *value)
+static OScDev_Error GetAcqBufferSize(OScDev_Setting *setting, int32_t *value)
 {
-	*value = GetData(setting->device)->numLinesToBuffer;
-	return OSc_Error_OK;
+	*value = GetSettingDeviceData(setting)->numLinesToBuffer;
+	return OScDev_OK;
 }
 
 // OnAcqBufferSize
-static OSc_Error SetAcqBufferSize(OSc_Setting *setting, int32_t value)
+static OScDev_Error SetAcqBufferSize(OScDev_Setting *setting, int32_t value)
 {
-	GetData(setting->device)->numLinesToBuffer = value;
-	GetData(setting->device)->timingSettingsChanged = true;
-	GetData(setting->device)->acqSettingsChanged = true;
-	return OSc_Error_OK;
+	GetSettingDeviceData(setting)->numLinesToBuffer = value;
+	GetSettingDeviceData(setting)->timingSettingsChanged = true;
+	GetSettingDeviceData(setting)->acqSettingsChanged = true;
+	return OScDev_OK;
 }
 
-static OSc_Error GetAcqBufferSizeValues(OSc_Setting *setting, int32_t **values, size_t *count)
+static OScDev_Error GetAcqBufferSizeValues(OScDev_Setting *setting, int32_t **values, size_t *count)
 {
 	static int32_t v[] = {
 		2,
@@ -154,31 +176,31 @@ static OSc_Error GetAcqBufferSizeValues(OSc_Setting *setting, int32_t **values, 
 	};
 	*values = v;
 	*count = sizeof(v) / sizeof(int32_t);
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static struct OSc_Setting_Impl SettingImpl_AcqBufferSize = {
+static struct OScDev_SettingImpl SettingImpl_AcqBufferSize = {
 	.GetInt32 = GetAcqBufferSize,
 	.SetInt32 = SetAcqBufferSize,
-	.GetNumericConstraintType = OSc_Setting_NumericConstraintDiscreteValues,
+	.GetNumericConstraintType = GetNumericConstraintTypeImpl_DiscreteValues,
 	.GetInt32DiscreteValues = GetAcqBufferSizeValues,
 };
 
-static OSc_Error GetInputVoltageRange(OSc_Setting *setting, double *value)
+static OScDev_Error GetInputVoltageRange(OScDev_Setting *setting, double *value)
 {
-	*value = GetData(setting->device)->inputVoltageRange;
-	return OSc_Error_OK;
+	*value = GetSettingDeviceData(setting)->inputVoltageRange;
+	return OScDev_OK;
 }
 
 
-static OSc_Error SetInputVoltageRange(OSc_Setting *setting, double value)
+static OScDev_Error SetInputVoltageRange(OScDev_Setting *setting, double value)
 {
-	GetData(setting->device)->inputVoltageRange = value;
-	return OSc_Error_OK;
+	GetSettingDeviceData(setting)->inputVoltageRange = value;
+	return OScDev_OK;
 }
 
 
-static OSc_Error GetInputVoltageRangeValues(OSc_Setting *setting, double **values, size_t *count)
+static OScDev_Error GetInputVoltageRangeValues(OScDev_Setting *setting, double **values, size_t *count)
 {
 	static double v[] = {
 		1.0000,
@@ -188,41 +210,41 @@ static OSc_Error GetInputVoltageRangeValues(OSc_Setting *setting, double **value
 	};
 	*values = v;
 	*count = sizeof(v) / sizeof(double);
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static struct OSc_Setting_Impl SettingImpl_InputVoltageRange = {
+static struct OScDev_SettingImpl SettingImpl_InputVoltageRange = {
 	.GetFloat64 = GetInputVoltageRange,
 	.SetFloat64 = SetInputVoltageRange,
-	.GetNumericConstraintType = OSc_Setting_NumericConstraintDiscreteValues,
+	.GetNumericConstraintType = GetNumericConstraintTypeImpl_DiscreteValues,
 	.GetFloat64DiscreteValues = GetInputVoltageRangeValues,
 };
 
 
-static OSc_Error GetChannels(OSc_Setting *setting, uint32_t *value)
+static OScDev_Error GetChannels(OScDev_Setting *setting, uint32_t *value)
 {
-	*value = GetData(setting->device)->channels;
-	return OSc_Error_OK;
+	*value = GetSettingDeviceData(setting)->channels;
+	return OScDev_OK;
 }
 
 
-static OSc_Error SetChannels(OSc_Setting *setting, uint32_t value)
+static OScDev_Error SetChannels(OScDev_Setting *setting, uint32_t value)
 {
-	GetData(setting->device)->channels = value;
-	GetData(setting->device)->channelSettingsChanged = true;
-	return OSc_Error_OK;
+	GetSettingDeviceData(setting)->channels = value;
+	GetSettingDeviceData(setting)->channelSettingsChanged = true;
+	return OScDev_OK;
 }
 
 
-static OSc_Error GetChannelsNumValues(OSc_Setting *setting, uint32_t *count)
+static OScDev_Error GetChannelsNumValues(OScDev_Setting *setting, uint32_t *count)
 {
 	*count = CHANNELS_NUM_VALUES;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, char *name)
+static OScDev_Error GetChannelsNameForValue(OScDev_Setting *setting, uint32_t value, char *name)
 {
 	switch (value)
 	{
@@ -235,8 +257,6 @@ static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, c
 	case CHANNEL3:
 		strcpy(name, "Channel3");
 		break;
-	case CHANNEL4:
-		strcpy(name, "Channel4");
 		break;
 	case CHANNELS_1_AND_2:
 		strcpy(name, "Channel_1_and_2");
@@ -249,16 +269,18 @@ static OSc_Error GetChannelsNameForValue(OSc_Setting *setting, uint32_t value, c
 		break;
 	default:
 		strcpy(name, "");
-		return OSc_Error_Unknown;
+		return OScDev_Error_Unknown;
 	}
-	OSc_Error err;
-	if (OSc_Check_Error(err, GetSelectedDispChannels(setting->device))) {
-		OSc_Log_Error(setting->device, "Fail to get selected disp channels");
+
+	OScDev_Device *device = (OScDev_Device *)OScDev_Setting_GetImplData(setting);
+	OScDev_Error err;
+	if (OScDev_CHECK(err, GetSelectedDispChannels(device))) {
+		OScDev_Log_Error(device, "Fail to get selected disp channels");
 	}
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static OSc_Error GetChannelsValueForName(OSc_Setting *setting, uint32_t *value, const char *name)
+static OScDev_Error GetChannelsValueForName(OScDev_Setting *setting, uint32_t *value, const char *name)
 {
 	if (!strcmp(name, "Channel1"))
 		*value = CHANNEL1;
@@ -266,8 +288,6 @@ static OSc_Error GetChannelsValueForName(OSc_Setting *setting, uint32_t *value, 
 		*value = CHANNEL2;
 	else if (!strcmp(name, "Channel3"))
 		*value = CHANNEL3;
-	else if (!strcmp(name, "Channel4"))
-		*value = CHANNEL4;
 	else if (!strcmp(name, "Channel_1_and_2"))
 		*value = CHANNELS_1_AND_2;
 	else if (!strcmp(name, "Channel_1_and_3"))
@@ -275,12 +295,12 @@ static OSc_Error GetChannelsValueForName(OSc_Setting *setting, uint32_t *value, 
 	else if (!strcmp(name, "Channel_1_2_3"))
 		*value = CHANNELS1_2_3;
 	else
-		return OSc_Error_Unknown;
-	return OSc_Error_OK;
+		return OScDev_Error_Unknown;
+	return OScDev_OK;
 }
 
 
-static struct OSc_Setting_Impl SettingImpl_Channels = {
+static struct OScDev_SettingImpl SettingImpl_Channels = {
 	.GetEnum = GetChannels,
 	.SetEnum = SetChannels,
 	.GetEnumNumValues = GetChannelsNumValues,
@@ -288,119 +308,142 @@ static struct OSc_Setting_Impl SettingImpl_Channels = {
 	.GetEnumValueForName = GetChannelsValueForName,
 };
 
-static OSc_Error GetScannerOnly(OSc_Setting *setting, bool *value)
+static OScDev_Error GetScannerOnly(OScDev_Setting *setting, bool *value)
 {
-	*value = GetData(setting->device)->scannerOnly;
-	return OSc_Error_OK;
+	*value = GetSettingDeviceData(setting)->scannerOnly;
+	return OScDev_OK;
 }
 
-static OSc_Error SetScannerOnly(OSc_Setting *setting, bool value)
+static OScDev_Error SetScannerOnly(OScDev_Setting *setting, bool value)
 {
-	GetData(setting->device)->scannerOnly = value;
-	return OSc_Error_OK;
+	GetSettingDeviceData(setting)->scannerOnly = value;
+	return OScDev_OK;
 }
 
-static struct OSc_Setting_Impl SettingImpl_ScannerOnly = {
+static struct OScDev_SettingImpl SettingImpl_ScannerOnly = {
 	.GetBool = GetScannerOnly,
 	.SetBool = SetScannerOnly,
 };
 
-static OSc_Error GetOffset(OSc_Setting *setting, double *value)
+
+struct OffsetSettingData
 {
-	*value = GetData(setting->device)->offsetXY[(intptr_t)(setting->implData)];
-	return OSc_Error_OK;
+	OScDev_Device *device;
+	int axis; // 0 = x, 1 = y
+};
+
+
+static OScDev_Error GetOffset(OScDev_Setting *setting, double *value)
+{
+	struct OffsetSettingData *data = (struct OffsetSettingData *)OScDev_Setting_GetImplData(setting);
+	*value = GetData(data->device)->offsetXY[data->axis];
+	return OScDev_OK;
 }
 
 
-static OSc_Error SetOffset(OSc_Setting *setting, double value)
+static OScDev_Error SetOffset(OScDev_Setting *setting, double value)
 {
-	GetData(setting->device)->offsetXY[(intptr_t)(setting->implData)] = value;
-	GetData(setting->device)->waveformSettingsChanged = true;
-	GetData(setting->device)->settingsChanged = true;
-	return OSc_Error_OK;
+	struct OffsetSettingData *data = (struct OffsetSettingData *)OScDev_Setting_GetImplData(setting);
+	GetData(data->device)->offsetXY[data->axis] = value;
+	GetData(data->device)->waveformSettingsChanged = true;
+	GetData(data->device)->settingsChanged = true;
+	return OScDev_OK;
 }
 
 
-static OSc_Error GetOffsetRange(OSc_Setting *setting, double *min, double *max)
+static OScDev_Error GetOffsetRange(OScDev_Setting *setting, double *min, double *max)
 {
 	/*The galvoOffsetX and galvoOffsetY variables are expressed  in optical degrees
 	This is a rough correspondence - it likely needs to be calibrated to the actual
 	sensitivity of the galvos*/
 	*min = -5.0;
 	*max = +5.0;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
 
-static struct OSc_Setting_Impl SettingImpl_Offset = {
+static struct OScDev_SettingImpl SettingImpl_Offset = {
 	.GetFloat64 = GetOffset,
 	.SetFloat64 = SetOffset,
-	.GetNumericConstraintType = OSc_Setting_NumericConstraintRange,
+	.GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
 	.GetFloat64Range = GetOffsetRange,
 };
 
 
-
-
-OSc_Error NIDAQ_PrepareSettings(OSc_Device *device)
+OScDev_Error NIDAQ_PrepareSettings(OScDev_Device *device)
 {
 	if (GetData(device)->settings)
-		return OSc_Error_OK;
+		return OScDev_OK;
 
-	OSc_Setting *scanRate;
-	OSc_Return_If_Error(OSc_Setting_Create(&scanRate, device, "ScanRate", OSc_Value_Type_Float64,
-		&SettingImpl_ScanRate, NULL));
+	OScDev_Error err;
 
-	OSc_Setting *zoom;
-	OSc_Return_If_Error(OSc_Setting_Create(&zoom, device, "Zoom", OSc_Value_Type_Float64,
-		&SettingImpl_Zoom, NULL));
+	OScDev_Setting *scanRate;
+	if (OScDev_CHECK(err, OScDev_Setting_Create(&scanRate, "ScanRate", OScDev_ValueType_Float64,
+		&SettingImpl_ScanRate, device)))
+		return err;
 
-	OSc_Setting *offsetX;
-	OSc_Return_If_Error(OSc_Setting_Create(&offsetX, device, "GalvoOffsetX (degree)", OSc_Value_Type_Float64,
-		&SettingImpl_Offset, (void *)0));
+	OScDev_Setting *zoom;
+	if (OScDev_CHECK(err, OScDev_Setting_Create(&zoom, "Zoom", OScDev_ValueType_Float64,
+		&SettingImpl_Zoom, device)))
+		return err;
 
-	OSc_Setting *offsetY;
-	OSc_Return_If_Error(OSc_Setting_Create(&offsetY, device, "GalvoOffsetY (degree)", OSc_Value_Type_Float64,
-		&SettingImpl_Offset, (void *)1));
+	OScDev_Setting *offsets[2];
+	for (int i = 0; i < 2; ++i)
+	{
+		// TODO We currently never free the OffsetSettingData allocated here.
+		// Call free() once OpenScanDeviceLib supports a method to release setting data.
+		struct OffsetSettingData *data = malloc(sizeof(struct OffsetSettingData));
+		data->device = device;
+		data->axis = i;
+		const char *name = i == 0 ? "GalvoOffsetX (degree)" : "GalvoOffsetY (degree)";
+		if (OScDev_CHECK(err, OScDev_Setting_Create(&offsets[i], name, OScDev_ValueType_Float64,
+			&SettingImpl_Offset, data)))
+			return err;
+	}
 
-	OSc_Setting *binFactor;
-	OSc_Return_If_Error(OSc_Setting_Create(&binFactor, device, "Bin Factor", OSc_Value_Type_Int32,
-		&SettingImpl_BinFactor, NULL));
+	OScDev_Setting *binFactor;
+	if (OScDev_CHECK(err, OScDev_Setting_Create(&binFactor, "Bin Factor", OScDev_ValueType_Int32,
+		&SettingImpl_BinFactor, device)))
+		return err;
 
-	OSc_Setting *numLinesToBuffer;
-	OSc_Return_If_Error(OSc_Setting_Create(&numLinesToBuffer, device, "Acq Buffer Size (lines)", OSc_Value_Type_Int32,
-		&SettingImpl_AcqBufferSize, NULL));
+	OScDev_Setting *numLinesToBuffer;
+	if (OScDev_CHECK(err, OScDev_Setting_Create(&numLinesToBuffer, "Acq Buffer Size (lines)", OScDev_ValueType_Int32,
+		&SettingImpl_AcqBufferSize, device)))
+		return err;
 
-	OSc_Setting *channels;
-	OSc_Return_If_Error(OSc_Setting_Create(&channels, device, "Channels", OSc_Value_Type_Enum,
-		&SettingImpl_Channels, NULL));
+	OScDev_Setting *channels;
+	if (OScDev_CHECK(err, OScDev_Setting_Create(&channels, "Channels", OScDev_ValueType_Enum,
+		&SettingImpl_Channels, device)))
+		return err;
 
-	OSc_Setting *inputVoltageRange;
-	OSc_Return_If_Error(OSc_Setting_Create(&inputVoltageRange, device, "Input Voltage Range", OSc_Value_Type_Float64,
-		&SettingImpl_InputVoltageRange, NULL));
+	OScDev_Setting *inputVoltageRange;
+	if (OScDev_CHECK(err, OScDev_Setting_Create(&inputVoltageRange, "Input Voltage Range", OScDev_ValueType_Float64,
+		&SettingImpl_InputVoltageRange, device)))
+		return err;
 
-	OSc_Setting *scannerOnly;
-	OSc_Return_If_Error(OSc_Setting_Create(&scannerOnly, device, "ScannerOnly", OSc_Value_Type_Bool,
-		&SettingImpl_ScannerOnly, NULL));
+	OScDev_Setting *scannerOnly;
+	if (OScDev_CHECK(err, OScDev_Setting_Create(&scannerOnly, "ScannerOnly", OScDev_ValueType_Bool,
+		&SettingImpl_ScannerOnly, device)))
+		return err;
 
-	OSc_Setting *ss[] = {
-		scanRate, zoom, offsetX, offsetY, binFactor, numLinesToBuffer,
+	OScDev_Setting *ss[] = {
+		scanRate, zoom, offsets[0], offsets[1], binFactor, numLinesToBuffer,
 		inputVoltageRange, channels, scannerOnly,
 	};
-	size_t nSettings = sizeof(ss) / sizeof(OSc_Setting *);
-	OSc_Setting **settings = malloc(sizeof(ss));
+	size_t nSettings = sizeof(ss) / sizeof(OScDev_Setting *);
+	OScDev_Setting **settings = malloc(sizeof(ss));
 	memcpy(settings, ss, sizeof(ss));
 
 	GetData(device)->settings = settings;
 	GetData(device)->settingCount = nSettings;
-	return OSc_Error_OK;
+	return OScDev_OK;
 }
 
-static OSc_Error GetSelectedDispChannels(OSc_Device *device)
+static OScDev_Error GetSelectedDispChannels(OScDev_Device *device)
 {
 	// clear selectedDispChan
-	GetData(device)->selectedDispChan_ = calloc(OSc_Total_Channel_Num * (OSc_MAX_STR_LEN + 1), sizeof(char));
-	//memset(GetData(device)->selectedDispChan_, 0, sizeof(char) * 3 * (OSc_MAX_STR_LEN + 1));
+	GetData(device)->selectedDispChan_ = calloc(OSc_Total_Channel_Num * (OScDev_MAX_STR_LEN + 1), sizeof(char));
+	//memset(GetData(device)->selectedDispChan_, 0, sizeof(char) * 3 * (OScDev_MAX_STR_LEN + 1));
 
 	switch (GetData(device)->channels)
 	{
@@ -434,5 +477,5 @@ static OSc_Error GetSelectedDispChannels(OSc_Device *device)
 		break;
 	}
 
-	return OSc_Error_OK;
+	return OScDev_OK;
 }

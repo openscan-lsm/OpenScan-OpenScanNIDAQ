@@ -2,8 +2,7 @@
 #include "strmap.h"
 #include "OScNIDAQDevice.h"
 
-#include "OpenScanLibPrivate.h"
-#include "OpenScanDeviceImpl.h"
+#include "OpenScanDeviceLib.h"
 
 #include <NIDAQmx.h>
 
@@ -35,10 +34,10 @@ enum
 
 struct OScNIDAQPrivateData
 {
-	char rioResourceName[OSc_MAX_STR_LEN + 1];
-	char deviceName[OSc_MAX_STR_LEN + 1];
+	char rioResourceName[OScDev_MAX_STR_LEN + 1];
+	char deviceName[OScDev_MAX_STR_LEN + 1];
 
-	OSc_Setting **settings;
+	OScDev_Setting **settings;
 	size_t settingCount;
 
 	TaskHandle  scanWaveformTaskHandle_, lineClockTaskHandle_, acqTaskHandle_, 
@@ -78,7 +77,7 @@ struct OScNIDAQPrivateData
 	char* doChanList_; 
 	char* coChanList_; 
 	char* acqTrigPort_;
-	char** selectedDispChan_; 
+	const char** selectedDispChan_; 
 	char* enabledAIPorts_;
 	StrMap* channelMap_;
 
@@ -87,7 +86,6 @@ struct OScNIDAQPrivateData
 		CHANNEL1,
 		CHANNEL2,
 		CHANNEL3,
-		CHANNEL4,
 		CHANNELS_1_AND_2,
 		CHANNELS_1_AND_3,
 		CHANNELS1_2_3,
@@ -110,16 +108,16 @@ struct OScNIDAQPrivateData
 		bool armed; // Valid when running == true
 		bool started; // Valid when running == true
 		bool stopRequested; // Valid when running == true
-		OSc_Acquisition *acquisition;
+		OScDev_Acquisition *acquisition;
 	} acquisition;
 };
 
 
-static inline struct OScNIDAQPrivateData *GetData(OSc_Device *device)
+static inline struct OScNIDAQPrivateData *GetData(OScDev_Device *device)
 {
-	return (struct OScNIDAQPrivateData *)(device->implData);
+	return (struct OScNIDAQPrivateData *)OScDev_Device_GetImplData(device);
 }
 
 
-OSc_Error NIDAQ_PrepareSettings(OSc_Device *device);
-OSc_Error GetSelectedDispChannels(OSc_Device *device);
+OScDev_Error NIDAQ_PrepareSettings(OScDev_Device *device);
+OScDev_Error GetSelectedDispChannels(OScDev_Device *device);
