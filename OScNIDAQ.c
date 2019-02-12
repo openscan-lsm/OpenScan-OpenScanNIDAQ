@@ -736,6 +736,16 @@ static OScDev_Error SetTriggers(OScDev_Device *device)
 		goto Error;
 	}
 	OScDev_Log_Debug(device, "Configured digital edge start trigger for counter (pixel clock)");
+	nierr = DAQmxSetStartTrigRetriggerable(GetData(device)->pixelClockTaskHandle_, 1);
+	if (nierr != 0)
+	{
+		OScDev_Log_Error(device, "Error: cannot set pixel clock retriggable: ");
+		char buf[1024];
+		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+		OScDev_Log_Error(device, buf);
+		goto Error;
+	}
+
 
 	// Configure acquisition trigger (line clock)
 	// line clock generation is triggered by AO StartTrigger internally
@@ -1602,8 +1612,8 @@ static OScDev_Error ReconfigTiming(OScDev_Device *device)
 
 	// update timing settings for pixel clock
 	double pixelClockFreq = (double)(1E6 * GetData(device)->scanRate / GetData(device)->binFactor);
-	nierr = DAQmxSetChanAttribute(GetData(device)->counterTaskHandle_, "", DAQmx_CO_Pulse_Freq, pixelClockFreq);
-	nierr = DAQmxCfgImplicitTiming(GetData(device)->counterTaskHandle_, DAQmx_Val_FiniteSamps, GetData(device)->resolution);
+	nierr = DAQmxSetChanAttribute(GetData(device)->pixelClockTaskHandle_, "", DAQmx_CO_Pulse_Freq, pixelClockFreq);
+	nierr = DAQmxCfgImplicitTiming(GetData(device)->pixelClockTaskHandle_, DAQmx_Val_FiniteSamps, GetData(device)->resolution);
 	if (nierr != 0)
 	{
 		goto Error;
