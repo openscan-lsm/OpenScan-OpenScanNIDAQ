@@ -23,7 +23,7 @@ OScDev_Error ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventTyp
 OScDev_Error SplitChannels(OScDev_Device *device);
 OScDev_Error ReconfigDAQ(OScDev_Device *device);
 OScDev_Error ReconfigAIVoltageChannels(OScDev_Device* device);
-OScDev_Error RunAcquisitionLoop(OScDev_Device *device, OScDev_Acquisition *acq);
-OScDev_Error StopAcquisitionAndWait(OScDev_Device *device, OScDev_Acquisition *acq);
+OScDev_Error RunAcquisitionLoop(OScDev_Device *device);
+OScDev_Error StopAcquisitionAndWait(OScDev_Device *device);
 OScDev_Error IsAcquisitionRunning(OScDev_Device *device, bool *isRunning);
 OScDev_Error WaitForAcquisitionToFinish(OScDev_Device *device);

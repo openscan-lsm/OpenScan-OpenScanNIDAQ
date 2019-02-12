@@ -63,9 +63,16 @@ static OScDev_Error NIDAQOpen(OScDev_Device *device)
 
 static OScDev_Error NIDAQClose(OScDev_Device *device)
 {
-	StopAcquisitionAndWait(device, GetData(device)->acquisition.acquisition);
+	StopAcquisitionAndWait(device);
 	OScDev_Error err = CloseDAQ(device);
 	return err;
+}
+
+
+static OScDev_Error NIDAQHasClock(OScDev_Device *device, bool *hasClock)
+{
+	*hasClock = true;
+	return OScDev_OK;
 }
 
 
@@ -81,6 +88,7 @@ static OScDev_Error NIDAQHasDetector(OScDev_Device *device, bool *hasDetector)
 	*hasDetector = true;
 	return OScDev_OK;
 }
+
 
 static OScDev_Error NIDAQGetSettings(OScDev_Device *device, OScDev_Setting ***settings, size_t *count)
 {
@@ -165,8 +173,25 @@ static OScDev_Error NIDAQGetBytesPerSample(OScDev_Device *device, uint32_t *byte
 
 
 // equal to SequenceThread::Start()
-static OScDev_Error ArmImpl(OScDev_Device *device, OScDev_Acquisition *acq)
+static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 {
+	bool useClock, useScanner, useDetector;
+	OScDev_Acquisition_IsClockRequested(acq, &useClock);
+	OScDev_Acquisition_IsScannerRequested(acq, &useScanner);
+	OScDev_Acquisition_IsDetectorRequested(acq, &useDetector);
+	if (!useClock)
+		return OScDev_Error_Unsupported_Operation;
+
+	enum OScDev_TriggerSource clockStartTriggerSource;
+	OScDev_Acquisition_GetClockStartTriggerSource(acq, &clockStartTriggerSource);
+	if (clockStartTriggerSource != OScDev_TriggerSource_Software)
+		return OScDev_Error_Unsupported_Operation;
+
+	enum OScDev_ClockSource clockSource;
+	OScDev_Acquisition_GetClockSource(acq, &clockSource);
+	if (clockSource != OScDev_ClockSource_Internal)
+		return OScDev_Error_Unsupported_Operation;
+
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
 		if (GetData(device)->acquisition.running &&
@@ -178,6 +203,9 @@ static OScDev_Error ArmImpl(OScDev_Device *device, OScDev_Acquisition *acq)
 			else
 				return OScDev_OK;
 		}
+
+		GetData(device)->acquisition.acquisition = acq;
+
 		GetData(device)->acquisition.stopRequested = false;
 		GetData(device)->acquisition.running = true;
 		GetData(device)->acquisition.armed = false;
@@ -198,14 +226,10 @@ static OScDev_Error ArmImpl(OScDev_Device *device, OScDev_Acquisition *acq)
 	return OScDev_OK;
 }
 
-static OScDev_Error NIDAQArmScanner(OScDev_Device *device, OScDev_Acquisition *acq)
-{
-	return ArmImpl(device, acq);
-}
 
-
-static OScDev_Error NIDAQStartScanner(OScDev_Device *device, OScDev_Acquisition *acq)
+static OScDev_Error NIDAQStart(OScDev_Device *device)
 {
+	// start scanner
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
 		if (!GetData(device)->acquisition.running ||
@@ -224,31 +248,18 @@ static OScDev_Error NIDAQStartScanner(OScDev_Device *device, OScDev_Acquisition 
 	}
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
 
-	return RunAcquisitionLoop(device, acq);
-}
-
-static OScDev_Error NIDAQStopScanner(OScDev_Device *device, OScDev_Acquisition *acq)
-{
-	return StopAcquisitionAndWait(device, acq);
-}
-
-
-static OScDev_Error NIDAQArmDetector(OScDev_Device *device, OScDev_Acquisition *acq)
-{
-	return ArmImpl(device, acq);
-}
-
-static OScDev_Error NIDAQStartDetector(OScDev_Device *device, OScDev_Acquisition *acq)
-{
 	// We don't yet support running detector as trigger source
-	return OScDev_Error_Unsupported_Operation;
+
+	return RunAcquisitionLoop(device);
+
 }
 
 
-static OScDev_Error NIDAQStopDetector(OScDev_Device *device, OScDev_Acquisition *acq)
+static OScDev_Error NIDAQStop(OScDev_Device *device)
 {
-	return StopAcquisitionAndWait(device, acq);
+	return StopAcquisitionAndWait(device);
 }
+
 
 static OScDev_Error NIDAQIsRunning(OScDev_Device *device, bool *isRunning)
 {
@@ -269,6 +280,7 @@ struct OScDev_DeviceImpl OpenScan_NIDAQ_Device_Impl = {
 	.GetName = NIDAQGetName,
 	.Open = NIDAQOpen,
 	.Close = NIDAQClose,
+	.HasClock = NIDAQHasClock,
 	.HasScanner = NIDAQHasScanner,
 	.HasDetector = NIDAQHasDetector,
 	.GetSettings = NIDAQGetSettings,
@@ -280,12 +292,9 @@ struct OScDev_DeviceImpl OpenScan_NIDAQ_Device_Impl = {
 	.GetImageSize = NIDAQGetImageSize,
 	.GetNumberOfChannels = NIDAQGetNumberOfChannels,
 	.GetBytesPerSample = NIDAQGetBytesPerSample,
-	.ArmScanner = NIDAQArmScanner,
-	.StartScanner = NIDAQStartScanner,
-	.StopScanner = NIDAQStopScanner,
-	.ArmDetector = NIDAQArmDetector,
-	.StartDetector = NIDAQStartDetector,
-	.StopDetector = NIDAQStopDetector,
+	.Arm = NIDAQArm,
+	.Start = NIDAQStart,
+	.Stop = NIDAQStop,
 	.IsRunning = NIDAQIsRunning,
 	.Wait = NIDAQWait,
 };
