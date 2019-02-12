@@ -420,10 +420,10 @@ OScDev_Error InitDAQ(OScDev_Device *device)
 		}
 		OScDev_Log_Debug(device, "Created line/frame clock task");
 		
-		// wire p0.5 to /PXI1Slot2/PFI7 to trigger acquisition line by line
-		// has to use port0 since it supports buffered opertation
-		// p0.6 to generate line clock for FLIM
-		// p0.7 to generate frame clock for FLIM
+		// P0.5 = line clock
+		// P0.6 = inverted line clock (for FLIM)
+		// P0.7 = frame clock
+		// This needs to be port0 to support buffered output
 
 		char doTerminals[OScDev_MAX_STR_LEN + 1];
 		strcat(strcpy(doTerminals, GetData(device)->deviceName), "/port0/line5:7");
@@ -1931,7 +1931,7 @@ OScDev_Error ReconfigDAQ(OScDev_Device * device)
 	// if any of DAQ tasks are not initialized
 	if (!GetData(device)->scanWaveformTaskHandle_ || !GetData(device)->lineClockTaskHandle_ ||
 		!GetData(device)->acqTaskHandle_ || !GetData(device)->counterTaskHandle_ || 
-		GetData(device)->pixelClockTaskHandle_ || GetData(device)->channelSettingsChanged)
+		!GetData(device)->pixelClockTaskHandle_ || GetData(device)->channelSettingsChanged)
 	{
 		OScDev_Log_Debug(device, "Re-initializing NI DAQ...");
 		if (OScDev_CHECK(err, InitDAQ(device)))
