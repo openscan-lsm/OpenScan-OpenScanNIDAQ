@@ -496,46 +496,6 @@ OScDev_Error InitDAQ(OScDev_Device *device)
 
 	}
 
-	// init counter
-	if (!GetData(device)->pixelClockTaskHandle_)
-	{
-		nierr = DAQmxCreateTask("", &GetData(device)->pixelClockTaskHandle_);
-		if (nierr != 0)
-		{
-			char buf[1024];
-			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-			OScDev_Log_Error(device, buf);
-			return OScDev_Error_Unknown_Enum_Value_Name;
-		}
-		OScDev_Log_Debug(device, "Created counter task for pixel clock.");
-
-		// Create CO Channel for line lock.
-		uint32_t numSamplesPerScanline = GetData(device)->resolution;
-		double pixelClockFreq = (double)((1E6*GetData(device)->scanRate) / GetData(device)->binFactor);
-		double pixelClockDutyCycle = 0.5; // 50% duty cycle for pixel clock by default
-		char counterTerminals[OScDev_MAX_STR_LEN + 1];
-		strcat(strcpy(counterTerminals, GetData(device)->deviceName), "/ctr1");
-		nierr = DAQmxCreateCOPulseChanFreq(GetData(device)->pixelClockTaskHandle_, counterTerminals,
-			"", DAQmx_Val_Hz, DAQmx_Val_Low, 0, pixelClockFreq, pixelClockDutyCycle); // CTR1 OUT = PFI13
-		if (nierr != 0)
-		{
-			goto Error;
-		}
-
-		// define how many pulses in a scan line
-		nierr = DAQmxCfgImplicitTiming(GetData(device)->pixelClockTaskHandle_, DAQmx_Val_FiniteSamps, numSamplesPerScanline);
-		if (nierr != 0)
-		{
-			char buf[1024];
-			DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-			OScDev_Log_Error(device, buf);
-			goto Error;
-		}
-		OScDev_Log_Debug(device, "Configured counter timing for pixel clock");
-
-	}
-
-
 	// initialize acquisition task
 	if (!GetData(device)->acqTaskHandle_ || GetData(device)->channelSettingsChanged)
 	{
@@ -576,13 +536,6 @@ Error:
 		DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
 		DAQmxClearTask(GetData(device)->lineClockTaskHandle_);
 		GetData(device)->lineClockTaskHandle_ = 0;
-	}
-
-	if (GetData(device)->pixelClockTaskHandle_)
-	{
-		DAQmxStopTask(GetData(device)->pixelClockTaskHandle_);
-		DAQmxClearTask(GetData(device)->pixelClockTaskHandle_);
-		GetData(device)->pixelClockTaskHandle_ = 0;
 	}
 
 	if (GetData(device)->counterTaskHandle_)
@@ -724,29 +677,6 @@ static OScDev_Error SetTriggers(OScDev_Device *device)
 	//nierr = DAQmxConnectTerms("/PXI1Slot2/Ctr0InternalOutput", "/PXI1Slot2/PFI8", DAQmx_Val_DoNotInvertPolarity);
 	//nierr = DAQmxCfgDigEdgeStartTrig(acqTaskHandle_, "/PXI1Slot2/PFI8", DAQmx_Val_Rising);
 
-	// pixel clock is triggered by counter/line clock at each scan line
-	// directly use counter/line clock output terminal ctr0 (PFI12) as start trigger for pixel clock
-	nierr = DAQmxCfgDigEdgeStartTrig(GetData(device)->pixelClockTaskHandle_, acqTriggerSource, DAQmx_Val_Rising);
-	if (nierr != 0)
-	{
-		OScDev_Log_Error(device, "Error: cannot config trigger for pixel clock: ");
-		char buf[1024];
-		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-		OScDev_Log_Error(device, buf);
-		goto Error;
-	}
-	OScDev_Log_Debug(device, "Configured digital edge start trigger for counter (pixel clock)");
-	nierr = DAQmxSetStartTrigRetriggerable(GetData(device)->pixelClockTaskHandle_, 1);
-	if (nierr != 0)
-	{
-		OScDev_Log_Error(device, "Error: cannot set pixel clock retriggable: ");
-		char buf[1024];
-		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-		OScDev_Log_Error(device, buf);
-		goto Error;
-	}
-
-
 	// Configure acquisition trigger (line clock)
 	// line clock generation is triggered by AO StartTrigger internally
 	// and thus sync'ed to scan waveform generation
@@ -820,13 +750,6 @@ Error:
 		DAQmxStopTask(GetData(device)->counterTaskHandle_);
 		DAQmxClearTask(GetData(device)->counterTaskHandle_);
 		GetData(device)->counterTaskHandle_ = 0;
-	}
-
-	if (GetData(device)->pixelClockTaskHandle_)
-	{
-		DAQmxStopTask(GetData(device)->pixelClockTaskHandle_);
-		DAQmxClearTask(GetData(device)->pixelClockTaskHandle_);
-		GetData(device)->pixelClockTaskHandle_ = 0;
 	}
 
 	if (GetData(device)->acqTaskHandle_)
@@ -1016,16 +939,6 @@ static OScDev_Error StartScan(OScDev_Device *device)
 		OScDev_Log_Debug(device, "Dummy acquisition... scanner only.");
 	}
 
-	nierr = DAQmxStartTask(GetData(device)->pixelClockTaskHandle_);
-	if (nierr != 0)
-	{
-		char buf[1024];
-		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-		OScDev_Log_Error(device, buf);
-		goto Error;
-	}
-	OScDev_Log_Debug(device, "Armed counter (pixel clock) generation");
-
 	nierr = DAQmxStartTask(GetData(device)->lineClockTaskHandle_);
 	if (nierr != 0)
 	{
@@ -1070,13 +983,6 @@ Error:
 		DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
 		DAQmxClearTask(GetData(device)->lineClockTaskHandle_);
 		GetData(device)->lineClockTaskHandle_ = 0;
-	}
-
-	if (GetData(device)->pixelClockTaskHandle_)
-	{
-		DAQmxStopTask(GetData(device)->pixelClockTaskHandle_);
-		DAQmxClearTask(GetData(device)->pixelClockTaskHandle_);
-		GetData(device)->pixelClockTaskHandle_ = 0;
 	}
 
 	if (GetData(device)->counterTaskHandle_)
@@ -1146,18 +1052,6 @@ static OScDev_Error StopScan(OScDev_Device *device)
 	OScDev_Log_Debug(device, msg);
 	Sleep(waitScanToFinish);
 
-	nierr = DAQmxStopTask(GetData(device)->pixelClockTaskHandle_);
-	if (nierr != 0)
-	{
-		char buf[1024], msg[OScDev_MAX_STR_LEN + 1];
-		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-		snprintf(msg, OScDev_MAX_STR_LEN, "Error stopping pixel clock task: %d", (int)nierr);
-		OScDev_Log_Error(device, msg);
-		OScDev_Log_Error(device, buf);
-		goto Error;
-	}
-	OScDev_Log_Debug(device, "Stopped pixel clock task");
-
 	nierr = DAQmxStopTask(GetData(device)->lineClockTaskHandle_);
 	if (nierr != 0)
 	{
@@ -1214,12 +1108,6 @@ Error:
 	{
 		DAQmxClearTask(GetData(device)->counterTaskHandle_);
 		GetData(device)->counterTaskHandle_ = 0;
-	}
-
-	if (GetData(device)->pixelClockTaskHandle_)
-	{
-		DAQmxClearTask(GetData(device)->pixelClockTaskHandle_);
-		GetData(device)->pixelClockTaskHandle_ = 0;
 	}
 
 	if (GetData(device)->acqTaskHandle_)
@@ -1610,16 +1498,6 @@ static OScDev_Error ReconfigTiming(OScDev_Device *device)
 	}
 	OScDev_Log_Debug(device, "Configured timing for counter generated line clock");
 
-	// update timing settings for pixel clock
-	double pixelClockFreq = (double)(1E6 * GetData(device)->scanRate / GetData(device)->binFactor);
-	nierr = DAQmxSetChanAttribute(GetData(device)->pixelClockTaskHandle_, "", DAQmx_CO_Pulse_Freq, pixelClockFreq);
-	nierr = DAQmxCfgImplicitTiming(GetData(device)->pixelClockTaskHandle_, DAQmx_Val_FiniteSamps, GetData(device)->resolution);
-	if (nierr != 0)
-	{
-		goto Error;
-	}
-	OScDev_Log_Debug(device, "Configured timing for counter generated pixel clock");
-
 	return OScDev_OK;
 
 Error:
@@ -1642,13 +1520,6 @@ Error:
 		DAQmxStopTask(GetData(device)->counterTaskHandle_);
 		DAQmxClearTask(GetData(device)->counterTaskHandle_);
 		GetData(device)->counterTaskHandle_ = 0;
-	}
-
-	if (GetData(device)->pixelClockTaskHandle_)
-	{
-		DAQmxStopTask(GetData(device)->pixelClockTaskHandle_);
-		DAQmxClearTask(GetData(device)->pixelClockTaskHandle_);
-		GetData(device)->pixelClockTaskHandle_ = 0;
 	}
 
 	if (GetData(device)->acqTaskHandle_)
@@ -1704,15 +1575,6 @@ static OScDev_Error CommitTasks(OScDev_Device *device)
 		goto Error;
 	}
 
-	nierr = DAQmxTaskControl(GetData(device)->pixelClockTaskHandle_, DAQmx_Val_Task_Commit);
-	if (nierr != 0)
-	{
-		char buf[1024];
-		DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-		OScDev_Log_Error(device, buf);
-		goto Error;
-	}
-
 	nierr = DAQmxTaskControl(GetData(device)->scanWaveformTaskHandle_, DAQmx_Val_Task_Commit);
 	if (nierr != 0)
 	{
@@ -1747,12 +1609,6 @@ Error:
 		GetData(device)->counterTaskHandle_ = 0;
 	}
 
-	if (GetData(device)->pixelClockTaskHandle_)
-	{
-		DAQmxStopTask(GetData(device)->pixelClockTaskHandle_);
-		DAQmxClearTask(GetData(device)->pixelClockTaskHandle_);
-		GetData(device)->pixelClockTaskHandle_ = 0;
-	}
 
 	if (GetData(device)->acqTaskHandle_)
 	{
@@ -1941,7 +1797,7 @@ OScDev_Error ReconfigDAQ(OScDev_Device * device)
 	// if any of DAQ tasks are not initialized
 	if (!GetData(device)->scanWaveformTaskHandle_ || !GetData(device)->lineClockTaskHandle_ ||
 		!GetData(device)->acqTaskHandle_ || !GetData(device)->counterTaskHandle_ || 
-		!GetData(device)->pixelClockTaskHandle_ || GetData(device)->channelSettingsChanged)
+		GetData(device)->channelSettingsChanged)
 	{
 		OScDev_Log_Debug(device, "Re-initializing NI DAQ...");
 		if (OScDev_CHECK(err, InitDAQ(device)))
