@@ -14,7 +14,6 @@ OScDev_Error CloseDAQ(OScDev_Device *device);
 OScDev_Error InitDAQ(OScDev_Device *device);
 OScDev_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char terminalName[], char triggerName[]);
 OScDev_Error WriteWaveforms(OScDev_Device *device);
-OScDev_Error SetTriggers(OScDev_Device *device);
 OScDev_Error ReconfigTiming(OScDev_Device *device);
 OScDev_Error UnregisterLineAcqEvent(OScDev_Device *device);
 OScDev_Error RegisterLineAcqEvent(OScDev_Device *device);

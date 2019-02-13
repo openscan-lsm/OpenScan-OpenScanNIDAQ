@@ -179,7 +179,9 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 	OScDev_Acquisition_IsClockRequested(acq, &useClock);
 	OScDev_Acquisition_IsScannerRequested(acq, &useScanner);
 	OScDev_Acquisition_IsDetectorRequested(acq, &useDetector);
-	if (!useClock)
+
+	// assume scanner is always enabled
+	if (!useClock || !useScanner)
 		return OScDev_Error_Unsupported_Operation;
 
 	enum OScDev_TriggerSource clockStartTriggerSource;
@@ -191,6 +193,18 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 	OScDev_Acquisition_GetClockSource(acq, &clockSource);
 	if (clockSource != OScDev_ClockSource_Internal)
 		return OScDev_Error_Unsupported_Operation;
+	// what if we use external line clock to trigger acquisition?
+
+	if (useDetector)
+	{
+		// arm scanner, detector, and clock
+		GetData(device)->scannerOnly = false;
+	}
+	else
+	{
+		// arm scanner and clock
+		GetData(device)->scannerOnly = true;
+	}
 
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
