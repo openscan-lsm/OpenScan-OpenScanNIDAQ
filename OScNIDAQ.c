@@ -521,9 +521,6 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 	if (nierr)
 		LogNiError(device, nierr, "waiting for scanner task to finish");
 
-	if (OScDev_CHECK(err, StopScan(device)))
-		return err;
-
 	// Wait for data
 	if (!GetData(device)->scannerOnly)
 	{
@@ -540,6 +537,9 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 		snprintf(msg, OScDev_MAX_STR_LEN, "Total wait time is %d ", totalWaitTimeMs);
 		OScDev_Log_Debug(device, msg);
 	}
+
+	if (OScDev_CHECK(err, StopScan(device)))
+		return err;
 
 	// SplitChannels
 	// skik if set to scanner only mode
