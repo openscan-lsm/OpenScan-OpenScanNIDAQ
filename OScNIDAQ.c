@@ -482,7 +482,7 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 
 	GetData(device)->imageData = realloc(GetData(device)->imageData,
 		sizeof(uint16_t) * GetData(device)->numAIChannels * nPixels);
-	GetData(device)->rawLineData = realloc(GetData(device)->rawLineData, 
+	GetData(device)->rawLineData = realloc(GetData(device)->rawLineData,
 		sizeof(float64) * GetData(device)->numAIChannels * GetData(device)->resolution * GetData(device)->binFactor);
 	GetData(device)->avgLineData = realloc(GetData(device)->avgLineData,
 		sizeof(float64) * GetData(device)->numAIChannels * GetData(device)->resolution);
@@ -491,7 +491,7 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 	GetData(device)->ch2Buffer = realloc(GetData(device)->ch2Buffer, sizeof(uint16_t) * nPixels);
 	GetData(device)->ch3Buffer = realloc(GetData(device)->ch3Buffer, sizeof(uint16_t) * nPixels);
 
-	GetData(device)->oneFrameScanDone = GetData(device)->scannerOnly;
+	GetData(device)->oneFrameScanDone = false;
 
 	if (GetData(device)->scannerOnly) {
 		// initialize channel buffers
@@ -508,29 +508,38 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 	}
 
 	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
-	uint32_t estFrameTime = (uint32_t)(1E-3 * (double)(elementsPerLine * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
-	uint32_t totalWaitTime = 0;  // mSec
+	uint32_t estFrameTimeMs = (uint32_t)(1E-3 * (double)(elementsPerLine * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
+	uint32_t totalWaitTimeMs = 0;
 
 	OScDev_Error err;
 	if (OScDev_CHECK(err, StartScan(device)))
 		return err;
 
-	// Wait until one frame is scanned
-	while (!GetData(device)->oneFrameScanDone) {
-		Sleep(1);
-		totalWaitTime += 1;
-		if (totalWaitTime > 2 * estFrameTime)
-		{
-			OScDev_Log_Error(device, "Error: Acquisition timeout!");
-			break;
-		}
-	}
-	char msg[OScDev_MAX_STR_LEN + 1];
-	snprintf(msg, OScDev_MAX_STR_LEN, "Total wait time is %d ", totalWaitTime);
-	OScDev_Log_Debug(device, msg);
+	// Wait for scan to complete
+	int32 nierr = DAQmxWaitUntilTaskDone(GetData(device)->scannerConfig.aoTask,
+		2 * estFrameTimeMs * 1e-3);
+	if (nierr)
+		LogNiError(device, nierr, "waiting for scanner task to finish");
 
 	if (OScDev_CHECK(err, StopScan(device)))
 		return err;
+
+	// Wait for data
+	if (!GetData(device)->scannerOnly)
+	{
+		while (!GetData(device)->oneFrameScanDone) {
+			Sleep(1);
+			totalWaitTimeMs += 1;
+			if (totalWaitTimeMs > 2 * estFrameTimeMs)
+			{
+				OScDev_Log_Error(device, "Error: Acquisition timeout!");
+				break;
+			}
+		}
+		char msg[OScDev_MAX_STR_LEN + 1];
+		snprintf(msg, OScDev_MAX_STR_LEN, "Total wait time is %d ", totalWaitTimeMs);
+		OScDev_Log_Debug(device, msg);
+	}
 
 	// SplitChannels
 	// skik if set to scanner only mode
