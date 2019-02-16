@@ -431,13 +431,16 @@ static OScDev_Error WaitScanToFinish(OScDev_Device *device)
 // need to stop detector first, then clock and scanner
 static OScDev_Error StopScan(OScDev_Device *device)
 {
-	OScDev_Error err;
+	OScDev_Error err, lastErr = 0;
+
+	// Stopping a task may return an error if it failed, so make sure to stop
+	// all tasks even if we get errors.
+
 	if (!GetData(device)->scannerOnly) {
-		if (OScDev_CHECK(err, StopDetector(device, &GetData(device)->detectorConfig)))
-			return err;
+		err = StopDetector(device, &GetData(device)->detectorConfig);
+		if (err)
+			lastErr = err;
 	}
-	else 
-		OScDev_Log_Debug(device, "Acquisition task skipped");
 
 	// When scanRate is low, it takes longer to finish generating scan waveform.
 	// Since acquisition only takes a portion of the total scan time,
@@ -449,13 +452,15 @@ static OScDev_Error StopScan(OScDev_Device *device)
 	if (OScDev_CHECK(err, WaitScanToFinish(device)))
 		return err;
 
-	if (OScDev_CHECK(err, StopClock(device, &GetData(device)->clockConfig)))
-		return err;
+	err = StopClock(device, &GetData(device)->clockConfig);
+	if (err)
+		lastErr = err;
 
-	if (OScDev_CHECK(err, StopScanner(device, &GetData(device)->scannerConfig)))
-		return err;
+	err = StopScanner(device, &GetData(device)->scannerConfig);
+	if (err)
+		lastErr = err;
 
-	return OScDev_OK;
+	return lastErr;
 }
 
 
