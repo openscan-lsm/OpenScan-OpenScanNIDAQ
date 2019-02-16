@@ -58,8 +58,8 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	memset(&data->detectorConfig, 0, sizeof(struct DetectorConfig));
 
 	data->oneFrameScanDone = false;
+	data->framePixelsFilled = 0;
 
-	data->totalRead = 0;
 	data->scanRate = 1.25;  // MHz
 	data->resolution = 512;
 	data->zoom = 1.0;
@@ -480,32 +480,8 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
 	size_t nPixels = GetImageWidth(device) * GetImageHeight(device);
 
-	GetData(device)->imageData = realloc(GetData(device)->imageData,
-		sizeof(uint16_t) * GetData(device)->numAIChannels * nPixels);
-	GetData(device)->rawLineData = realloc(GetData(device)->rawLineData,
-		sizeof(float64) * GetData(device)->numAIChannels * GetData(device)->resolution * GetData(device)->binFactor);
-	GetData(device)->avgLineData = realloc(GetData(device)->avgLineData,
-		sizeof(float64) * GetData(device)->numAIChannels * GetData(device)->resolution);
-
-	GetData(device)->ch1Buffer = realloc(GetData(device)->ch1Buffer, sizeof(uint16_t) * nPixels);
-	GetData(device)->ch2Buffer = realloc(GetData(device)->ch2Buffer, sizeof(uint16_t) * nPixels);
-	GetData(device)->ch3Buffer = realloc(GetData(device)->ch3Buffer, sizeof(uint16_t) * nPixels);
-
 	GetData(device)->oneFrameScanDone = false;
-
-	if (GetData(device)->scannerOnly) {
-		// initialize channel buffers
-		for (size_t i = 0; i < nPixels; ++i)
-		{
-			GetData(device)->ch1Buffer[i] = 0;
-			GetData(device)->ch2Buffer[i] = 255;
-			GetData(device)->ch3Buffer[i] = 32767;
-		}
-		for (size_t i = 0; i < GetData(device)->numAIChannels * nPixels; ++i)
-		{
-			GetData(device)->imageData[i] = 16383;
-		}
-	}
+	GetData(device)->framePixelsFilled = 0;
 
 	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
 	uint32_t estFrameTimeMs = (uint32_t)(1E-3 * (double)(elementsPerLine * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
@@ -545,116 +521,22 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 	// skik if set to scanner only mode
 	if (!GetData(device)->scannerOnly)
 	{
-		if (OScDev_CHECK(err, SplitChannels(device)))
-			return err;
-
 		bool shouldContinue;
-		switch (GetData(device)->channels)
+		for (uint32_t ch = 0; ch < GetData(device)->numAIChannels; ++ch)
 		{
-		case CHANNEL1:
-			shouldContinue = OScDev_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch1Buffer);
-			break;
-		case CHANNEL2:
-			shouldContinue = OScDev_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch2Buffer);
-			break;
-		case CHANNEL3:
-			shouldContinue = OScDev_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch3Buffer);
-			break;
-
-		case CHANNELS_1_AND_2:
-			shouldContinue = OScDev_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch1Buffer) &&
-				OScDev_Acquisition_CallFrameCallback(acq, 1, GetData(device)->ch2Buffer);
-			break;
-
-		case CHANNELS_1_AND_3:
-			shouldContinue = OScDev_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch1Buffer) &&
-				OScDev_Acquisition_CallFrameCallback(acq, 1, GetData(device)->ch3Buffer);
-			break;
-
-		case CHANNELS1_2_3:
-		default: // TODO Should this really be the default?
-			shouldContinue = OScDev_Acquisition_CallFrameCallback(acq, 0, GetData(device)->ch1Buffer) &&
-				OScDev_Acquisition_CallFrameCallback(acq, 1, GetData(device)->ch2Buffer) &&
-				OScDev_Acquisition_CallFrameCallback(acq, 2, GetData(device)->ch3Buffer);
-			break;
-		}
-
-		if (!shouldContinue) {
-			// TODO We should halt acquisition
+			shouldContinue = OScDev_Acquisition_CallFrameCallback(acq,
+				ch, GetData(device)->frameBuffers[ch]);
+			if (!shouldContinue)
+			{
+				// TODO Stop acquisition
+			}
 		}
 	}
 
 	return OScDev_OK;
 }
 
-// split all-channel image buffer to separate channel buffers
-// * works when DAQ acquires in GroupByChannel (non-interlaced) mode
-static OScDev_Error SplitChannels(OScDev_Device *device)
-{
-	// imageData_ if displayed as 2D image will have N channels on each row
-	// data is stored line by line with N channels in a row per line
-	uint32_t rawImageWidth = GetImageWidth(device) * GetData(device)->numAIChannels;
-	uint32_t rawImageHeight = GetImageHeight(device);
-	uint32_t xLength = GetImageWidth(device);
-	uint32_t yLength = GetImageHeight(device);
-	size_t nPixels = xLength * yLength;
-	uint16_t* ch1Ptr;
-	uint16_t* ch2Ptr;
-	uint16_t* ch3Ptr;
-	OScDev_Error err = OScDev_OK;
 
-	// Improvement: Use ptr to avoid hard copying
-	switch (GetData(device)->channels)
-	{
-	case CHANNEL1:
-		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
-		memcpy(GetData(device)->ch1Buffer, ch1Ptr, nPixels * sizeof(uint16_t));
-		break;
-	case CHANNEL2:
-		ch2Ptr = &(GetData(device)->imageData[0 * xLength]);
-		memcpy(GetData(device)->ch2Buffer, ch2Ptr, nPixels * sizeof(uint16_t));
-		break;
-	case CHANNEL3:
-		ch3Ptr = &(GetData(device)->imageData[0 * xLength]);
-		memcpy(GetData(device)->ch3Buffer, ch3Ptr, nPixels * sizeof(uint16_t));
-		break;
-
-	case CHANNELS_1_AND_2:
-		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
-		ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
-		for (uint32_t i = 0; i < yLength; i++) {
-			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-			memcpy(&(GetData(device)->ch2Buffer[i*xLength]), &ch2Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-		}
-		break;
-
-	case CHANNELS_1_AND_3:
-		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
-		ch3Ptr = &(GetData(device)->imageData[1 * xLength]);
-		for (uint32_t i = 0; i < yLength; i++) {
-			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-			memcpy(&(GetData(device)->ch3Buffer[i*xLength]), &ch3Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-		}
-		break;
-
-	case CHANNELS1_2_3:
-	default: // TODO Should this be the default?
-		ch1Ptr = &(GetData(device)->imageData[0 * xLength]);
-		ch2Ptr = &(GetData(device)->imageData[1 * xLength]);
-		ch3Ptr = &(GetData(device)->imageData[2 * xLength]);
-		for (uint32_t i = 0; i < yLength; i++) {
-			memcpy(&(GetData(device)->ch1Buffer[i*xLength]), &ch1Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-			memcpy(&(GetData(device)->ch2Buffer[i*xLength]), &ch2Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-			memcpy(&(GetData(device)->ch3Buffer[i*xLength]), &ch3Ptr[i*rawImageWidth], xLength * sizeof(uint16_t));
-		}
-		break;
-	}
-
-	OScDev_Log_Debug(device, "Finished reading one image and splitting data to channel buffers");
-	return err;
-}
-
-// equal to SequenceThread::AcquireFrame()
 static OScDev_Error AcquireFrame(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	OScDev_Error err;

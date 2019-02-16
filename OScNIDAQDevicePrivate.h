@@ -67,10 +67,9 @@ struct OScNIDAQPrivateData
 	double zoom;
 	uint32_t resolution;
 	double magnification;  // =(resolution/512) * (zoom/1)
-	int32_t binFactor;
-	int32_t numLinesToBuffer;
+	uint32_t binFactor;
+	uint32_t numLinesToBuffer;
 	double inputVoltageRange;
-	int32_t totalRead;
 	uInt32 numAIChannels;
 	uInt32 numDOChannels; // reserved for multiple line and frame clocks
 	double offsetXY[2];
@@ -98,12 +97,18 @@ struct OScNIDAQPrivateData
 		CHANNELS_NUM_VALUES
 	} channels;
 
-	uint16_t* ch1Buffer;
-	uint16_t* ch2Buffer;
-	uint16_t* ch3Buffer;
-	float64* rawLineData;
-	float64* avgLineData;
-	uint16_t* imageData; // whole-frame image of all channels
+	// Read, but unprocessed, raw samples; channels interleaved
+	// Leftover data from the previous read, if any, is at the start of the
+	// buffer and consists of rawDataSize samples.
+	float64 *rawDataBuffer;
+	size_t rawDataSize; // Current data size
+	size_t rawDataCapacity; // Buffer size
+
+	// Per-channel frame buffers that we fill in and pass to OpenScanLib
+	// Index is order among currently enabled channels.
+	// Buffers for unused channels may not be allocated.
+	uint16_t *frameBuffers[OSc_Total_Channel_Num];
+	size_t framePixelsFilled;
 
 	struct
 	{

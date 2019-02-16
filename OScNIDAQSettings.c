@@ -168,9 +168,6 @@ static OScDev_Error SetAcqBufferSize(OScDev_Setting *setting, int32_t value)
 {
 	GetSettingDeviceData(setting)->numLinesToBuffer = value;
 
-	GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
-	GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
-	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureTiming = true;
 	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureCallback = true;
 
 	return OScDev_OK;
