@@ -44,7 +44,11 @@ static OScDev_Error GetScanRate(OScDev_Setting *setting, double *value)
 static OScDev_Error SetScanRate(OScDev_Setting *setting, double value)
 {
 	GetSettingDeviceData(setting)->scanRate = value;
-	GetSettingDeviceData(setting)->timingSettingsChanged = true;
+
+	GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
+	GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureTiming = true;
+
 	return OScDev_OK;
 }
 
@@ -91,7 +95,9 @@ static OScDev_Error GetZoom(OScDev_Setting *setting, double *value)
 static OScDev_Error SetZoom(OScDev_Setting *setting, double value)
 {
 	GetSettingDeviceData(setting)->zoom = value;
-	GetSettingDeviceData(setting)->waveformSettingsChanged = true;
+
+	GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
+	GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
 
 	// reflect the change to magnification as well
 	GetSettingDeviceData(setting)->magnification =
@@ -127,8 +133,12 @@ static OScDev_Error GetBinFactor(OScDev_Setting *setting, int32_t *value)
 static OScDev_Error SetBinFactor(OScDev_Setting *setting, int32_t value)
 {
 	GetSettingDeviceData(setting)->binFactor = value;
-	GetSettingDeviceData(setting)->timingSettingsChanged = true;
-	GetSettingDeviceData(setting)->acqSettingsChanged = true;
+
+	GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
+	GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureTiming = true;
+	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureCallback = true;
+
 	return OScDev_OK;
 }
 
@@ -157,8 +167,12 @@ static OScDev_Error GetAcqBufferSize(OScDev_Setting *setting, int32_t *value)
 static OScDev_Error SetAcqBufferSize(OScDev_Setting *setting, int32_t value)
 {
 	GetSettingDeviceData(setting)->numLinesToBuffer = value;
-	GetSettingDeviceData(setting)->timingSettingsChanged = true;
-	GetSettingDeviceData(setting)->acqSettingsChanged = true;
+
+	GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
+	GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureTiming = true;
+	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureCallback = true;
+
 	return OScDev_OK;
 }
 
@@ -232,7 +246,12 @@ static OScDev_Error GetChannels(OScDev_Setting *setting, uint32_t *value)
 static OScDev_Error SetChannels(OScDev_Setting *setting, uint32_t value)
 {
 	GetSettingDeviceData(setting)->channels = value;
-	GetSettingDeviceData(setting)->channelSettingsChanged = true;
+
+	// Force recreation of detector task next time
+	OScDev_Device *device = (OScDev_Device *)OScDev_Setting_GetImplData(setting);
+	OScDev_Error err = ShutdownDetector(device,
+		&GetSettingDeviceData(setting)->detectorConfig);
+
 	return OScDev_OK;
 }
 
@@ -345,8 +364,10 @@ static OScDev_Error SetOffset(OScDev_Setting *setting, double value)
 {
 	struct OffsetSettingData *data = (struct OffsetSettingData *)OScDev_Setting_GetImplData(setting);
 	GetData(data->device)->offsetXY[data->axis] = value;
-	GetData(data->device)->waveformSettingsChanged = true;
-	GetData(data->device)->settingsChanged = true;
+
+	GetData(data->device)->clockConfig.mustRewriteOutput = true;
+	GetData(data->device)->scannerConfig.mustRewriteOutput = true;
+
 	return OScDev_OK;
 }
 

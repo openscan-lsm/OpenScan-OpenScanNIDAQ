@@ -169,9 +169,12 @@
     <ClInclude Include="Waveform.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Clock.c" />
+    <ClCompile Include="Detector.c" />
     <ClCompile Include="OScNIDAQ.c" />
     <ClCompile Include="OScNIDAQDevice.c" />
     <ClCompile Include="OScNIDAQSettings.c" />
+    <ClCompile Include="Scanner.c" />
     <ClCompile Include="strmap.c" />
     <ClCompile Include="Waveform.c" />
   </ItemGroup>

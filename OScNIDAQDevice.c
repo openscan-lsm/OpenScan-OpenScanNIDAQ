@@ -121,9 +121,13 @@ static OScDev_Error NIDAQSetResolution(OScDev_Device *device, size_t width, size
 	if (width == GetData(device)->resolution)
 		return OScDev_OK;
 	GetData(device)->resolution = (uint32_t)width;
-	GetData(device)->timingSettingsChanged = true;
-	GetData(device)->waveformSettingsChanged = true;
-	GetData(device)->acqSettingsChanged = true;
+
+	GetData(device)->clockConfig.mustReconfigureTiming = true;
+	GetData(device)->scannerConfig.mustReconfigureTiming = true;
+	GetData(device)->detectorConfig.mustReconfigureTiming = true;
+	GetData(device)->clockConfig.mustRewriteOutput = true;
+	GetData(device)->scannerConfig.mustRewriteOutput = true;
+	GetData(device)->detectorConfig.mustReconfigureCallback = true;
 
 	// reflect the change to magnification as well
 	GetData(device)->magnification =

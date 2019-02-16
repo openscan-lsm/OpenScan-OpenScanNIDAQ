@@ -24,25 +24,45 @@ enum
 #define OSc_Total_Channel_Num 3
 
 
+struct ClockConfig
+{
+	TaskHandle doTask;
+	TaskHandle lineCtrTask;
+	bool mustReconfigureTiming;
+	bool mustReconfigureTriggers;
+	bool mustRewriteOutput;
+};
+
+
+struct ScannerConfig
+{
+	TaskHandle aoTask;
+	bool mustReconfigureTiming;
+	bool mustRewriteOutput;
+};
+
+
+struct DetectorConfig
+{
+	TaskHandle aiTask;
+	bool mustReconfigureTiming;
+	bool mustReconfigureTrigger;
+	bool mustReconfigureCallback;
+};
+
+
 struct OScNIDAQPrivateData
 {
-	char rioResourceName[OScDev_MAX_STR_LEN + 1];
+	// The DAQmx name for the DAQ card
 	char deviceName[OScDev_MAX_STR_LEN + 1];
 
 	OScDev_Setting **settings;
 	size_t settingCount;
 
-	TaskHandle  scanWaveformTaskHandle_, lineClockTaskHandle_, acqTaskHandle_, 
-		counterTaskHandle_, pixelClockTaskHandle_;
-	bool settingsChanged;	
-	// True when resolution, scanRate,or binFactor have changed since last acquisition
-	bool timingSettingsChanged;
-	// True when resolution or zoom have changed since last acq
-	bool waveformSettingsChanged;
-	// True when resolution or binFactor have changed since last acq
-	bool acqSettingsChanged;
-	bool channelSettingsChanged;
-	bool isEveryNSamplesEventRegistered;
+	struct ClockConfig clockConfig;
+	struct ScannerConfig scannerConfig;
+	struct DetectorConfig detectorConfig;
+
 	bool oneFrameScanDone;
 	// Flags for scanner and detector
 	bool detectorOnly;
@@ -113,3 +133,22 @@ static inline struct OScNIDAQPrivateData *GetData(OScDev_Device *device)
 
 OScDev_Error NIDAQ_PrepareSettings(OScDev_Device *device);
 OScDev_Error GetSelectedDispChannels(OScDev_Device *device);
+
+
+int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config);
+int32 ShutdownClock(OScDev_Device *device, struct ClockConfig *config);
+int32 StartClock(OScDev_Device *device, struct ClockConfig *config);
+int32 StopClock(OScDev_Device *device, struct ClockConfig *config);
+int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config);
+int32 ShutdownScanner(OScDev_Device *device, struct ScannerConfig *config);
+int32 StartScanner(OScDev_Device *device, struct ScannerConfig *config);
+int32 StopScanner(OScDev_Device *device, struct ScannerConfig *config);
+int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config);
+int32 ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config);
+int32 StartDetector(OScDev_Device *device, struct DetectorConfig *config);
+int32 StopDetector(OScDev_Device *device, struct DetectorConfig *config);
+
+
+
+// Must be called immediately after failed DAQmx function
+void LogNiError(OScDev_Device *device, int32 nierr, const char *when);

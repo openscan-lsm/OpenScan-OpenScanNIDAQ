@@ -47,5 +47,14 @@
     <ClCompile Include="Waveform.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Scanner.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Detector.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Clock.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
