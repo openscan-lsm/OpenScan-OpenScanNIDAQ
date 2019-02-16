@@ -11,6 +11,7 @@ static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig 
 static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config);
 
 
+// Initialize, configure, and arm the scanner, whatever its current state
 int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config)
 {
 	bool mustCommit = false;
@@ -79,6 +80,7 @@ error:
 }
 
 
+// Remove all DAQmx configuration for the scanner
 int32 ShutdownScanner(OScDev_Device *device, struct ScannerConfig *config)
 {
 	if (config->aoTask)

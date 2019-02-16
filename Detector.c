@@ -15,6 +15,7 @@ static int32 ReadLineCallback(TaskHandle taskHandle, int32 everyNsamplesEventTyp
 	uInt32 nSamples, void* callbackData);
 
 
+// Initialize, configure, and arm the detector, whatever its current state
 int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config)
 {
 	bool mustCommit = false;
@@ -79,6 +80,9 @@ error:
 }
 
 
+// Remove all DAQmx configuration for the detector
+// This can be called to force task recreation the next time the detector is
+// armed
 int32 ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config)
 {
 	if (config->aiTask)
@@ -128,7 +132,8 @@ static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *
 	float64 ranges[2 * 64];
 	memset(ranges, 0, sizeof(ranges));
 
-	// BUG: This should be AIVoltageRngs, but keeping old behavior for now
+	// TODO How does this relate to the setting "Input Voltage Range"?
+	// BUG: This should be AIVoltageRngs, but keeping existing behavior for now
 	int32 nierr = DAQmxGetDevAOVoltageRngs(GetData(device)->deviceName, ranges,
 		sizeof(ranges) / sizeof(float64));
 	if (nierr)

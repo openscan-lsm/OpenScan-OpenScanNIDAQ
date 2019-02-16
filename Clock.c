@@ -11,6 +11,7 @@ static int32 ConfigureClockTriggers(OScDev_Device *device, struct ClockConfig *c
 static int32 WriteClockOutput(OScDev_Device *device, struct ClockConfig *config);
 
 
+// Initialize, configure, and arm the clock, whatever its current state
 int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config)
 {
 	bool mustCommit = false;
@@ -84,6 +85,7 @@ error:
 }
 
 
+// Remove all DAQmx configuration for the clock
 int32 ShutdownClock(OScDev_Device *device, struct ClockConfig *config)
 {
 	int32 nierr1 = 0, nierr2 = 0;

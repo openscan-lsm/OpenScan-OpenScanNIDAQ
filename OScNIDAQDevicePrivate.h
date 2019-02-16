@@ -24,6 +24,8 @@ enum
 #define OSc_Total_Channel_Num 3
 
 
+// DAQmx tasks and flags to track invalidated configurations for clock
+// See Clock.c
 struct ClockConfig
 {
 	TaskHandle doTask;
@@ -34,6 +36,8 @@ struct ClockConfig
 };
 
 
+// DAQmx task and flags to track invalidated configurations for scanner
+// See Scanner.c
 struct ScannerConfig
 {
 	TaskHandle aoTask;
@@ -42,6 +46,8 @@ struct ScannerConfig
 };
 
 
+// DAQmx task and flags to track invalidated configurations for detector
+// See Detector.c
 struct DetectorConfig
 {
 	TaskHandle aiTask;
