@@ -8,17 +8,6 @@
 
 #include <Windows.h>
 
-
-enum
-{
-	DAQ_STATE_IDLE,
-	DAQ_STATE_INIT,
-	DAQ_STATE_WRITE,
-	DAQ_STATE_SCAN,
-	DAQ_STATE_DONE,
-	DAQ_STATE_STOP,
-};
-
 #define OSc_DEFAULT_RESOLUTION 512
 #define OSc_DEFAULT_ZOOM 1.0
 #define OSc_Total_Channel_Num 3
@@ -89,8 +78,7 @@ struct OScNIDAQPrivateData
 	double maxVolts_; // max possible for device
 	uint32_t channelCount;
 	
-	//char* niDAQname_; // DAQ used for OpenScan
-	char** aiPorts_;  // std::vector<std::string> aiPorts_
+	char** aiPorts_;
 	char* aoChanList_; 
 	char* doChanList_; 
 	char* coChanList_; 
