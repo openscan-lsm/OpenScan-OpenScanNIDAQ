@@ -121,9 +121,13 @@ static OScDev_Error NIDAQSetResolution(OScDev_Device *device, size_t width, size
 	if (width == GetData(device)->resolution)
 		return OScDev_OK;
 	GetData(device)->resolution = (uint32_t)width;
-	GetData(device)->timingSettingsChanged = true;
-	GetData(device)->waveformSettingsChanged = true;
-	GetData(device)->acqSettingsChanged = true;
+
+	GetData(device)->clockConfig.mustReconfigureTiming = true;
+	GetData(device)->scannerConfig.mustReconfigureTiming = true;
+	GetData(device)->detectorConfig.mustReconfigureTiming = true;
+	GetData(device)->clockConfig.mustRewriteOutput = true;
+	GetData(device)->scannerConfig.mustRewriteOutput = true;
+	GetData(device)->detectorConfig.mustReconfigureCallback = true;
 
 	// reflect the change to magnification as well
 	GetData(device)->magnification =
@@ -179,7 +183,9 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 	OScDev_Acquisition_IsClockRequested(acq, &useClock);
 	OScDev_Acquisition_IsScannerRequested(acq, &useScanner);
 	OScDev_Acquisition_IsDetectorRequested(acq, &useDetector);
-	if (!useClock)
+
+	// assume scanner is always enabled
+	if (!useClock || !useScanner)
 		return OScDev_Error_Unsupported_Operation;
 
 	enum OScDev_TriggerSource clockStartTriggerSource;
@@ -191,6 +197,18 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 	OScDev_Acquisition_GetClockSource(acq, &clockSource);
 	if (clockSource != OScDev_ClockSource_Internal)
 		return OScDev_Error_Unsupported_Operation;
+	// what if we use external line clock to trigger acquisition?
+
+	if (useDetector)
+	{
+		// arm scanner, detector, and clock
+		GetData(device)->scannerOnly = false;
+	}
+	else
+	{
+		// arm scanner and clock
+		GetData(device)->scannerOnly = true;
+	}
 
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{

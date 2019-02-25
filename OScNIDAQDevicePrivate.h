@@ -8,41 +8,56 @@
 
 #include <Windows.h>
 
-
-enum
-{
-	DAQ_STATE_IDLE,
-	DAQ_STATE_INIT,
-	DAQ_STATE_WRITE,
-	DAQ_STATE_SCAN,
-	DAQ_STATE_DONE,
-	DAQ_STATE_STOP,
-};
-
 #define OSc_DEFAULT_RESOLUTION 512
 #define OSc_DEFAULT_ZOOM 1.0
 #define OSc_Total_Channel_Num 3
 
 
+// DAQmx tasks and flags to track invalidated configurations for clock
+// See Clock.c
+struct ClockConfig
+{
+	TaskHandle doTask;
+	TaskHandle lineCtrTask;
+	bool mustReconfigureTiming;
+	bool mustReconfigureTriggers;
+	bool mustRewriteOutput;
+};
+
+
+// DAQmx task and flags to track invalidated configurations for scanner
+// See Scanner.c
+struct ScannerConfig
+{
+	TaskHandle aoTask;
+	bool mustReconfigureTiming;
+	bool mustRewriteOutput;
+};
+
+
+// DAQmx task and flags to track invalidated configurations for detector
+// See Detector.c
+struct DetectorConfig
+{
+	TaskHandle aiTask;
+	bool mustReconfigureTiming;
+	bool mustReconfigureTrigger;
+	bool mustReconfigureCallback;
+};
+
+
 struct OScNIDAQPrivateData
 {
-	char rioResourceName[OScDev_MAX_STR_LEN + 1];
+	// The DAQmx name for the DAQ card
 	char deviceName[OScDev_MAX_STR_LEN + 1];
 
 	OScDev_Setting **settings;
 	size_t settingCount;
 
-	TaskHandle  scanWaveformTaskHandle_, lineClockTaskHandle_, acqTaskHandle_, 
-		counterTaskHandle_, pixelClockTaskHandle_;
-	bool settingsChanged;	
-	// True when resolution, scanRate,or binFactor have changed since last acquisition
-	bool timingSettingsChanged;
-	// True when resolution or zoom have changed since last acq
-	bool waveformSettingsChanged;
-	// True when resolution or binFactor have changed since last acq
-	bool acqSettingsChanged;
-	bool channelSettingsChanged;
-	bool isEveryNSamplesEventRegistered;
+	struct ClockConfig clockConfig;
+	struct ScannerConfig scannerConfig;
+	struct DetectorConfig detectorConfig;
+
 	bool oneFrameScanDone;
 	// Flags for scanner and detector
 	bool detectorOnly;
@@ -63,8 +78,7 @@ struct OScNIDAQPrivateData
 	double maxVolts_; // max possible for device
 	uint32_t channelCount;
 	
-	//char* niDAQname_; // DAQ used for OpenScan
-	char** aiPorts_;  // std::vector<std::string> aiPorts_
+	char** aiPorts_;
 	char* aoChanList_; 
 	char* doChanList_; 
 	char* coChanList_; 
@@ -113,3 +127,22 @@ static inline struct OScNIDAQPrivateData *GetData(OScDev_Device *device)
 
 OScDev_Error NIDAQ_PrepareSettings(OScDev_Device *device);
 OScDev_Error GetSelectedDispChannels(OScDev_Device *device);
+
+
+int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config);
+int32 ShutdownClock(OScDev_Device *device, struct ClockConfig *config);
+int32 StartClock(OScDev_Device *device, struct ClockConfig *config);
+int32 StopClock(OScDev_Device *device, struct ClockConfig *config);
+int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config);
+int32 ShutdownScanner(OScDev_Device *device, struct ScannerConfig *config);
+int32 StartScanner(OScDev_Device *device, struct ScannerConfig *config);
+int32 StopScanner(OScDev_Device *device, struct ScannerConfig *config);
+int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config);
+int32 ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config);
+int32 StartDetector(OScDev_Device *device, struct DetectorConfig *config);
+int32 StopDetector(OScDev_Device *device, struct DetectorConfig *config);
+
+
+
+// Must be called immediately after failed DAQmx function
+void LogNiError(OScDev_Device *device, int32 nierr, const char *when);

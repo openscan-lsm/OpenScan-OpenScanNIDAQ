@@ -71,6 +71,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <TargetExt>.osdev</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -78,9 +79,11 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <TargetExt>.osdev</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <TargetExt>.osdev</TargetExt>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -166,9 +169,12 @@
     <ClInclude Include="Waveform.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Clock.c" />
+    <ClCompile Include="Detector.c" />
     <ClCompile Include="OScNIDAQ.c" />
     <ClCompile Include="OScNIDAQDevice.c" />
     <ClCompile Include="OScNIDAQSettings.c" />
+    <ClCompile Include="Scanner.c" />
     <ClCompile Include="strmap.c" />
     <ClCompile Include="Waveform.c" />
   </ItemGroup>
