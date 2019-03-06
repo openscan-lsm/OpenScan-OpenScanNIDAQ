@@ -370,14 +370,28 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
 		&samplesPerChanRead,
 		NULL);
 	if (nierr == DAQmxErrorTimeoutExceeded)
+	{
+		OScDev_Log_Error(device, "Error: DAQ read data timeout");
 		return 0;
+	}
+
 	if (nierr)
 	{
 		LogNiError(device, nierr, "reading detector samples");
 		goto error;
 	}
+	
 	if (samplesPerChanRead == 0)
+	{
+		OScDev_Log_Error(device, "Error: DAQ failed to read any sample");
 		return 0;
+	}
+
+	GetData(device)->numLinesTriggered++;
+	char msg[OScDev_MAX_STR_LEN + 1];
+	snprintf(msg, OScDev_MAX_STR_LEN, "%d line triggered", GetData(device)->numLinesTriggered);
+	OScDev_Log_Debug(device, msg);
+
 	GetData(device)->rawDataSize += samplesPerChanRead * numChannels;
 
 	nierr = HandleRawData(device);
@@ -445,6 +459,10 @@ static int32 HandleRawData(OScDev_Device *device)
 
 	size_t pixelsPerFrame = GetData(device)->resolution *
 		GetData(device)->resolution;
+	char msg[OScDev_MAX_STR_LEN + 1];
+	snprintf(msg, OScDev_MAX_STR_LEN, "Read %d pixels", GetData(device)->framePixelsFilled);
+	OScDev_Log_Debug(device, msg);
+
 	if (GetData(device)->framePixelsFilled == pixelsPerFrame)
 	{
 		// TODO This method of communication is unreliable without a mutex

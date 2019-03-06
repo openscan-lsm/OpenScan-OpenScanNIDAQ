@@ -76,6 +76,8 @@ struct OScNIDAQPrivateData
 	double minVolts_; // min possible for device
 	double maxVolts_; // max possible for device
 	uint32_t channelCount;
+
+	uint32_t numLinesTriggered; // for debug only. to check how many times acq is triggered by line clocks
 	
 	char** aiPorts_;
 	char* aoChanList_; 

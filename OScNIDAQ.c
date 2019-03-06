@@ -59,6 +59,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 
 	data->oneFrameScanDone = false;
 	data->framePixelsFilled = 0;
+	data->numLinesTriggered = 0;
 
 	data->scanRate = 1.25;  // MHz
 	data->resolution = 512;
