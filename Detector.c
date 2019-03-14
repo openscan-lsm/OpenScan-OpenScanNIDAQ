@@ -21,6 +21,8 @@ int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config)
 {
 	bool mustCommit = false;
 
+	GetData(device)->numLinesTriggered = 0;
+
 	int32 nierr;
 	if (!config->aiTask)
 	{
