@@ -454,6 +454,11 @@ static int32 HandleRawData(OScDev_Device *device)
 
 	float64 *rawDataBuffer = GetData(device)->rawDataBuffer;
 
+	// Given 2 channels and 2 samples per pixel per channel, rawDataBuffer
+	// contains data in the following order:
+	// | ch0_samp0 ch1_samp0 ch0_samp1 ch1_samp1 | ch0_samp0 ...
+	// We need to transfer this into per-channel frame buffers.
+
 	// Process raw data and fill in frame buffers
 	for (size_t p = 0; p < pixelsToProducePerChan; ++p)
 	{
@@ -466,7 +471,7 @@ static int32 HandleRawData(OScDev_Device *device)
 
 			double sum = 0.0;
 			for (size_t s = 0; s < binFactor; ++s)
-				sum += rawDataBuffer[rawChannelStart + s];
+				sum += rawDataBuffer[rawChannelStart + s * numChannels];
 			double avg = sum / binFactor;
 
 			// Q: Why is the maximum 32767, not 65535?
