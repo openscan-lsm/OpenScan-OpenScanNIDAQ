@@ -405,6 +405,8 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
 	if (nierr)
 		goto error;
 
+	return 0;
+
 error:
 	if (GetData(device)->detectorConfig.aiTask)
 		ShutdownDetector(device, &GetData(device)->detectorConfig);
