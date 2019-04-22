@@ -273,9 +273,29 @@ static int32 ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConf
 }
 
 
+static int32 UnconfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config)
+{
+	int32 nierr = DAQmxRegisterEveryNSamplesEvent(config->aiTask,
+		DAQmx_Val_Acquired_Into_Buffer,
+		0, 0, NULL, NULL);
+	if (nierr)
+	{
+		LogNiError(device, nierr, "unregistering callback for detector");
+		return nierr;
+	}
+	return 0;
+}
+
+
 static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config)
 {
 	int32 nierr;
+
+	// Registering the callback in DAQmx is not idempotent, so we need to
+	// clear any existing callback.
+	nierr = UnconfigureDetectorCallback(device, config);
+	if (nierr)
+		return nierr;
 
 	// TODO: It probably makes sense to scale the buffer based on the time
 	// duration of data it holds (e.g. 500 ms), rather than the number of
