@@ -21,8 +21,6 @@ int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config)
 {
 	bool mustCommit = false;
 
-	GetData(device)->numLinesTriggered = 0;
-
 	int32 nierr;
 	if (!config->aiTask)
 	{
@@ -116,6 +114,10 @@ int32 StartDetector(OScDev_Device *device, struct DetectorConfig *config)
 
 int32 StopDetector(OScDev_Device *device, struct DetectorConfig *config)
 {
+	// The task may have been cleared in the case of an error
+	if (!config->aiTask)
+		return 0;
+
 	int32 nierr;
 	nierr = DAQmxStopTask(config->aiTask);
 	if (nierr)
@@ -287,6 +289,10 @@ static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorCon
 		samplesPerChanPerLine *
 		numChannels;
 
+	char msg[1024];
+	snprintf(msg, sizeof(msg) - 1, "Using DAQmx input buffer of size %zd", bufferSize);
+	OScDev_Log_Debug(device, msg);
+
 	nierr = DAQmxCfgInputBuffer(config->aiTask, (uInt32)bufferSize);
 	if (nierr)
 	{
@@ -353,6 +359,10 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
 	if (everyNsamplesEventType != DAQmx_Val_Acquired_Into_Buffer)
 		return 0;
 
+	char msg[1024];
+	snprintf(msg, sizeof(msg) - 1, "Detector callback (%d samples)", nSamples);
+	OScDev_Log_Debug(device, msg);
+
 	uint32_t numChannels = GetData(device)->numAIChannels;
 	int32 nierr;
 
@@ -388,11 +398,6 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
 		OScDev_Log_Error(device, "Error: DAQ failed to read any sample");
 		return 0;
 	}
-
-	GetData(device)->numLinesTriggered++;
-	char msg[OScDev_MAX_STR_LEN + 1];
-	snprintf(msg, OScDev_MAX_STR_LEN, "%d line triggered", GetData(device)->numLinesTriggered);
-	OScDev_Log_Debug(device, msg);
 
 	GetData(device)->rawDataSize += samplesPerChanRead * numChannels;
 
@@ -462,7 +467,7 @@ static int32 HandleRawData(OScDev_Device *device)
 	size_t pixelsPerFrame = GetData(device)->resolution *
 		GetData(device)->resolution;
 	char msg[OScDev_MAX_STR_LEN + 1];
-	snprintf(msg, OScDev_MAX_STR_LEN, "Read %d pixels", GetData(device)->framePixelsFilled);
+	snprintf(msg, OScDev_MAX_STR_LEN, "Read %zd pixels", GetData(device)->framePixelsFilled);
 	OScDev_Log_Debug(device, msg);
 
 	if (GetData(device)->framePixelsFilled == pixelsPerFrame)
