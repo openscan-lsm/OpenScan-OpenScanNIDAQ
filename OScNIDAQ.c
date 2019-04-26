@@ -63,6 +63,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->scanRate = 1.25;  // MHz
 	data->resolution = 512;
 	data->zoom = 1.0;
+	data->lineDelay = 50;
 	data->magnification = 1.0;
 	data->binFactor = 2;
 	data->numLinesToBuffer = 8;
@@ -411,7 +412,7 @@ static OScDev_Error WaitScanToFinish(OScDev_Device *device)
 	// "Finite acquisition or generation has been stopped before the requested number
 	// of samples were acquired or generated."
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
-	uint32_t xLen = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
+	uint32_t xLen = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
 	uint32_t yRetraceTime = (uint32_t)(1E-3 * (double)(xLen * Y_RETRACE_LEN * GetData(device)->binFactor / GetData(device)->scanRate));
 	uint32_t estFrameTime = (uint32_t)(1E-3 * (double)(xLen * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
@@ -475,7 +476,7 @@ static unsigned GetImageHeight(OScDev_Device *device) {
 // DAQ version; acquire from multiple channels
 static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 {
-	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
+	uint32_t elementsPerLine = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t scanLines = GetData(device)->resolution;
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
 	size_t nPixels = GetImageWidth(device) * GetImageHeight(device);

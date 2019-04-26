@@ -66,6 +66,10 @@ struct OScNIDAQPrivateData
 	double scanRate;  // MHz
 	double zoom;
 	uint32_t resolution;
+	// counted as number of pixels. 
+	// to adjust for the lag between the mirror control signal and the actual position of the mirror
+	// scan phase (uSec) = line delay * bin factor / scan rate
+	uint32_t lineDelay; 
 	double magnification;  // =(resolution/512) * (zoom/1)
 	uint32_t binFactor;
 	uint32_t numLinesToBuffer;

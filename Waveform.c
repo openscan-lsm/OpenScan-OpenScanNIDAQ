@@ -22,16 +22,16 @@ VoltsToDACUnits(double p, double zoom, double galvoOffset, uint16_t *result)
 
 
 int
-GenerateScaledWaveforms(uint32_t resolution, double zoom, uint16_t *xScaled, uint16_t *yScaled,
+GenerateScaledWaveforms(uint32_t resolution, double zoom, uint32_t lineDelay, uint16_t *xScaled, uint16_t *yScaled,
 	double galvoOffsetX, double galvoOffsetY)
 {
-	size_t xLength = X_UNDERSHOOT + resolution + X_RETRACE_LEN;
+	size_t xLength = lineDelay + resolution + X_RETRACE_LEN;
 	size_t yLength = resolution;
 	
 	double *xWaveform = (double *)malloc(sizeof(double) * xLength);
 	double *yWaveform = (double *)malloc(sizeof(double) * yLength);
 
-	GenerateGalvoWaveform(resolution, X_RETRACE_LEN, X_UNDERSHOOT, -0.5, 0.5, xWaveform);
+	GenerateGalvoWaveform(resolution, X_RETRACE_LEN, lineDelay, -0.5, 0.5, xWaveform);
 	GenerateGalvoWaveform(resolution, 0, 0, -0.5, 0.5, yWaveform);
 
 	for (int i = 0; i < xLength; ++i) {
@@ -91,13 +91,13 @@ void SplineInterpolate(int32_t n, double yFirst, double yLast,
 }
 
 /* Line clock pattern for NI DAQ to output from one of its digital IOs */
-int GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines, uint8_t * lineClock)
+int GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * lineClock)
 {
-	uint32_t x_length = X_UNDERSHOOT + x_resolution + X_RETRACE_LEN;
+	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
 	for (uint32_t j = 0; j < numScanLines; j++)
 		for (uint32_t i = 0; i < x_length; i++)
 			lineClock[i + j*x_length] =
-			((i >= X_UNDERSHOOT) && (i < X_UNDERSHOOT + x_resolution)) ? 1 : 0;
+			((i >= lineDelay) && (i < lineDelay + x_resolution)) ? 1 : 0;
 
 	return 0;
 }
@@ -105,27 +105,27 @@ int GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines, uint8_t * li
 // High voltage right after a line acquisition is done
 // like a line clock of reversed polarity
 // specially for B&H FLIM application
-int GenerateFLIMLineClock(uint32_t x_resolution, uint32_t numScanLines, uint8_t * lineClockFLIM)
+int GenerateFLIMLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * lineClockFLIM)
 {
-	uint32_t x_length = X_UNDERSHOOT + x_resolution + X_RETRACE_LEN;
+	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
 	for (uint32_t j = 0; j < numScanLines; j++)
 		for (uint32_t i = 0; i < x_length; i++)
-			lineClockFLIM[i + j*x_length] = (i >= X_UNDERSHOOT + x_resolution) ? 1 : 0;
+			lineClockFLIM[i + j*x_length] = (i >= lineDelay + x_resolution) ? 1 : 0;
 
 	return 0;
 }
 
 // Frame clock for B&H FLIM
 // High voltage at the end of the frame
-int GenerateFLIMFrameClock(uint32_t x_resolution, uint32_t numScanLines, uint8_t * frameClockFLIM)
+int GenerateFLIMFrameClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * frameClockFLIM)
 {
-	uint32_t x_length = X_UNDERSHOOT + x_resolution + X_RETRACE_LEN;
+	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
 	uint32_t y_length = numScanLines;
 
 	for (uint32_t j = 0; j < y_length; ++j)
 		for (uint32_t i = 0; i < x_length; ++i)
 			frameClockFLIM[i + j * x_length] =
-			((j == numScanLines - 1) && (i > X_UNDERSHOOT + x_resolution)) ? 1 : 0;
+			((j == numScanLines - 1) && (i > lineDelay + x_resolution)) ? 1 : 0;
 
 	return 0;
 }
@@ -138,14 +138,14 @@ Analog voltage range (-0.5V, 0.5V) at zoom 1
 Including Y retrace waveform that moves the slow galvo back to its starting position
 */
 int
-GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, double galvoOffsetX, double galvoOffsetY, double * xyWaveformFrame)
+GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, uint32_t lineDelay, double galvoOffsetX, double galvoOffsetY, double * xyWaveformFrame)
 {
-	size_t xLength = X_UNDERSHOOT + resolution + X_RETRACE_LEN;
+	size_t xLength = lineDelay + resolution + X_RETRACE_LEN;
 	size_t numScanLines = resolution;  // num of scan lines
 	size_t yLength = numScanLines + Y_RETRACE_LEN;
 	double *xWaveform = (double *)malloc(sizeof(double) * xLength);
 	double *yWaveform = (double *)malloc(sizeof(double) * yLength);
-	GenerateGalvoWaveform(resolution, X_RETRACE_LEN, X_UNDERSHOOT, -0.5 / zoom, 0.5 / zoom, xWaveform);
+	GenerateGalvoWaveform(resolution, X_RETRACE_LEN, lineDelay, -0.5 / zoom, 0.5 / zoom, xWaveform);
 	GenerateGalvoWaveform(resolution, Y_RETRACE_LEN, 0, -0.5 / zoom, 0.5 / zoom, yWaveform);
 
 	// convert to optical degree assuming 10V equal to 30 optical degree

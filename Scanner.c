@@ -127,7 +127,7 @@ int32 StopScanner(OScDev_Device *device, struct ScannerConfig *config)
 
 static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config)
 {
-	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
+	uint32_t elementsPerLine = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t scanLines = GetData(device)->resolution;
 	uint32_t yLen = scanLines + Y_RETRACE_LEN;
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
@@ -148,7 +148,7 @@ static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig 
 
 static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config)
 {
-	uint32_t elementsPerLine = X_UNDERSHOOT + GetData(device)->resolution + X_RETRACE_LEN;
+	uint32_t elementsPerLine = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
 	uint32_t numScanLines = GetData(device)->resolution;
 	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
 	int32 elementsPerFramePerChan = elementsPerLine * numScanLines;  // without y retrace portion
@@ -157,7 +157,7 @@ static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *con
 	double *xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
 	int err = GenerateGalvoWaveformFrame(GetData(device)->resolution, GetData(device)->zoom,
-		GetData(device)->offsetXY[0], GetData(device)->offsetXY[1], xyWaveformFrame);
+		GetData(device)->lineDelay, GetData(device)->offsetXY[0], GetData(device)->offsetXY[1], xyWaveformFrame);
 	if (err != 0)
 		return OScDev_Error_Waveform_Out_Of_Range;
 
