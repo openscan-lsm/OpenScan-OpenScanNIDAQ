@@ -163,7 +163,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="OScNIDAQ.h" />
-    <ClInclude Include="OScNIDAQDevice.h" />
     <ClInclude Include="OScNIDAQDevicePrivate.h" />
     <ClInclude Include="strmap.h" />
     <ClInclude Include="Waveform.h" />

@@ -18,9 +18,6 @@
     <ClInclude Include="OScNIDAQ.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="OScNIDAQDevice.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="OScNIDAQDevicePrivate.h">
       <Filter>Header Files</Filter>
     </ClInclude>

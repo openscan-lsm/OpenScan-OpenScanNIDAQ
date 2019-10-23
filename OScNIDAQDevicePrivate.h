@@ -1,6 +1,5 @@
 #pragma once
 #include "strmap.h"
-#include "OScNIDAQDevice.h"
 
 #include "OpenScanDeviceLib.h"
 
@@ -51,26 +50,22 @@ struct OScNIDAQPrivateData
 	// The DAQmx name for the DAQ card
 	char deviceName[OScDev_MAX_STR_LEN + 1];
 
-	OScDev_Setting **settings;
-	size_t settingCount;
-
 	struct ClockConfig clockConfig;
 	struct ScannerConfig scannerConfig;
 	struct DetectorConfig detectorConfig;
+	double configuredPixelRateHz;
+	uint32_t configuredResolution;
+	double configuredZoomFactor;
 
 	bool oneFrameScanDone;
 	// Flags for scanner and detector
 	bool detectorOnly;
 	bool scannerOnly;
 
-	double scanRate;  // MHz
-	double zoom;
-	uint32_t resolution;
 	// counted as number of pixels. 
 	// to adjust for the lag between the mirror control signal and the actual position of the mirror
 	// scan phase (uSec) = line delay * bin factor / scan rate
 	uint32_t lineDelay; 
-	double magnification;  // =(resolution/512) * (zoom/1)
 	uint32_t binFactor;
 	uint32_t numLinesToBuffer;
 	double inputVoltageRange;
@@ -89,7 +84,6 @@ struct OScNIDAQPrivateData
 	const char** selectedDispChan_; 
 	char* enabledAIPorts_;
 	StrMap* channelMap_;
-
 
 	enum {
 		CHANNEL1,
@@ -134,19 +128,20 @@ static inline struct OScNIDAQPrivateData *GetData(OScDev_Device *device)
 }
 
 
-OScDev_Error NIDAQ_PrepareSettings(OScDev_Device *device);
+OScDev_Error EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl);
+OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings);
 OScDev_Error GetSelectedDispChannels(OScDev_Device *device);
 
 
-int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config);
+int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq);
 int32 ShutdownClock(OScDev_Device *device, struct ClockConfig *config);
 int32 StartClock(OScDev_Device *device, struct ClockConfig *config);
 int32 StopClock(OScDev_Device *device, struct ClockConfig *config);
-int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config);
+int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
 int32 ShutdownScanner(OScDev_Device *device, struct ScannerConfig *config);
 int32 StartScanner(OScDev_Device *device, struct ScannerConfig *config);
 int32 StopScanner(OScDev_Device *device, struct ScannerConfig *config);
-int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config);
+int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
 int32 ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config);
 int32 StartDetector(OScDev_Device *device, struct DetectorConfig *config);
 int32 StopDetector(OScDev_Device *device, struct DetectorConfig *config);

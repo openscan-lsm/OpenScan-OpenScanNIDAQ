@@ -1,7 +1,6 @@
 /* Generic operation on NI DAQ properties */
 /* that are not tied to specific DAQ devices or NIDAQmx functions */
 
-#include "OScNIDAQDevice.h"
 #include "OScNIDAQDevicePrivate.h"
 #include "OScNIDAQ.h"
 #include <NIDAQmx.h>
@@ -10,9 +9,9 @@
 
 #include <Windows.h>
 
+// Forward declaration
+static OScDev_DeviceImpl DeviceImpl;
 
-static OScDev_Device **g_devices;
-static size_t g_deviceCount;
 
 static OScDev_Error NIDAQGetModelName(const char **name)
 {
@@ -20,14 +19,10 @@ static OScDev_Error NIDAQGetModelName(const char **name)
 	return OScDev_OK;
 }
 
-static OScDev_Error NIDAQGetInstances(OScDev_Device ***devices, size_t *count)
+
+static OScDev_Error NIDAQEnumerateInstances(OScDev_PtrArray **devices)
 {
-	OScDev_Error err;
-	if (!g_devices && OScDev_CHECK(err, NIDAQEnumerateInstances(&g_devices, &g_deviceCount)))
-		return err;
-	*devices = g_devices;
-	*count = g_deviceCount;
-	return OScDev_OK;
+	return EnumerateInstances(devices, &DeviceImpl);
 }
 
 
@@ -90,76 +85,46 @@ static OScDev_Error NIDAQHasDetector(OScDev_Device *device, bool *hasDetector)
 }
 
 
-static OScDev_Error NIDAQGetSettings(OScDev_Device *device, OScDev_Setting ***settings, size_t *count)
+static OScDev_Error NIDAQGetPixelRates(OScDev_Device *device, OScDev_NumRange **pixelRatesHz)
 {
-	OScDev_Error err;
-	if OScDev_CHECK(err, NIDAQ_PrepareSettings(device))
-		return err;
-	*settings = GetData(device)->settings;
-	*count = GetData(device)->settingCount;
-	return OScDev_OK;
-
-}
-
-static OScDev_Error NIDAQGetAllowedResolutions(OScDev_Device *device, size_t **widths, size_t **heights, size_t *count)
-{
-	static size_t resolutions[] = { 256, 512, 1024, 2048 };
-	*widths = *heights = resolutions;
-	*count = sizeof(resolutions) / sizeof(size_t);
-	return OScDev_OK;
-}
-
-static OScDev_Error NIDAQGetResolution(OScDev_Device *device, size_t *width, size_t *height)
-{
-	*width = *height = GetData(device)->resolution;
+	static const double ratesMHz[] = {
+		0.0500,
+		0.1000,
+		0.1250,
+		0.2000,
+		0.2500,
+		0.4000,
+		0.5000,
+		0.6250,
+		1.0000,
+		1.2500,
+		0.0 // End mark
+	};
+	*pixelRatesHz = OScDev_NumRange_CreateDiscrete();
+	for (size_t i = 0; ratesMHz[i] != 0.0; ++i) {
+		OScDev_NumRange_AppendDiscrete(*pixelRatesHz, 1e6 * ratesMHz[i]);
+	}
 	return OScDev_OK;
 }
 
 
-static OScDev_Error NIDAQSetResolution(OScDev_Device *device, size_t width, size_t height)
+static OScDev_Error NIDAQGetResolutions(OScDev_Device *device, OScDev_NumRange **resolutions)
 {
-	if (width == GetData(device)->resolution)
-		return OScDev_OK;
-	GetData(device)->resolution = (uint32_t)width;
-
-	GetData(device)->clockConfig.mustReconfigureTiming = true;
-	GetData(device)->scannerConfig.mustReconfigureTiming = true;
-	GetData(device)->detectorConfig.mustReconfigureTiming = true;
-	GetData(device)->clockConfig.mustRewriteOutput = true;
-	GetData(device)->scannerConfig.mustRewriteOutput = true;
-	GetData(device)->detectorConfig.mustReconfigureCallback = true;
-
-	// reflect the change to magnification as well
-	GetData(device)->magnification =
-		(double)width / OSc_DEFAULT_RESOLUTION * GetData(device)->zoom / OSc_DEFAULT_ZOOM;
-
+	*resolutions = OScDev_NumRange_CreateDiscrete();
+	OScDev_NumRange_AppendDiscrete(*resolutions, 256);
+	OScDev_NumRange_AppendDiscrete(*resolutions, 512);
+	OScDev_NumRange_AppendDiscrete(*resolutions, 1024);
+	OScDev_NumRange_AppendDiscrete(*resolutions, 2048);
 	return OScDev_OK;
 }
 
 
-static OScDev_Error NIDAQGetMagnification(OScDev_Device *device, double *magnification)
+static OScDev_Error NIDAQGetZoomFactors(OScDev_Device *device, OScDev_NumRange **zooms)
 {
-	*magnification = GetData(device)->magnification;
+	*zooms = OScDev_NumRange_CreateContinuous(0.2, 20.0);
 	return OScDev_OK;
 }
 
-// probably incorrect and no use as it doesn't reflect the change of resolution or zoom
-static OScDev_Error NIDAQSetMagnification(OScDev_Device *device)
-{
-	size_t resolution = GetData(device)->resolution;
-	double zoom = GetData(device)->zoom;
-	GetData(device)->magnification = 
-		(double)(resolution / OSc_DEFAULT_RESOLUTION) * (zoom / OSc_DEFAULT_ZOOM);
-	return OScDev_OK;
-}
-
-
-static OScDev_Error NIDAQGetImageSize(OScDev_Device *device, uint32_t *width, uint32_t *height)
-{
-	*width = GetData(device)->resolution;
-	*height = GetData(device)->resolution;
-	return OScDev_OK;
-}
 
 // Same as OpenScanDAQ::GetNumberOfChannels()
 static OScDev_Error NIDAQGetNumberOfChannels(OScDev_Device *device, uint32_t *nChannels)
@@ -176,7 +141,6 @@ static OScDev_Error NIDAQGetBytesPerSample(OScDev_Device *device, uint32_t *byte
 }
 
 
-// equal to SequenceThread::Start()
 static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	bool useClock, useScanner, useDetector;
@@ -188,12 +152,12 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 	if (!useClock || !useScanner)
 		return OScDev_Error_Unsupported_Operation;
 
-	enum OScDev_TriggerSource clockStartTriggerSource;
+	OScDev_TriggerSource clockStartTriggerSource;
 	OScDev_Acquisition_GetClockStartTriggerSource(acq, &clockStartTriggerSource);
 	if (clockStartTriggerSource != OScDev_TriggerSource_Software)
 		return OScDev_Error_Unsupported_Operation;
 
-	enum OScDev_ClockSource clockSource;
+	OScDev_ClockSource clockSource;
 	OScDev_Acquisition_GetClockSource(acq, &clockSource);
 	if (clockSource != OScDev_ClockSource_Internal)
 		return OScDev_Error_Unsupported_Operation;
@@ -231,8 +195,29 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 	}
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
 
+	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
+	if (pixelRateHz != GetData(device)->configuredPixelRateHz) {
+		GetData(device)->clockConfig.mustReconfigureTiming = true;
+		GetData(device)->scannerConfig.mustReconfigureTiming = true;
+		GetData(device)->detectorConfig.mustReconfigureTiming = true;
+	}
+	if (resolution != GetData(device)->configuredResolution) {
+		GetData(device)->clockConfig.mustReconfigureTiming = true;
+		GetData(device)->scannerConfig.mustReconfigureTiming = true;
+		GetData(device)->detectorConfig.mustReconfigureTiming = true;
+		GetData(device)->clockConfig.mustRewriteOutput = true;
+		GetData(device)->scannerConfig.mustRewriteOutput = true;
+		GetData(device)->detectorConfig.mustReconfigureCallback = true;
+	}
+	if (zoomFactor != GetData(device)->configuredZoomFactor) {
+		GetData(device)->clockConfig.mustRewriteOutput = true;
+		GetData(device)->scannerConfig.mustRewriteOutput = true;
+	}
+
 	OScDev_Error err;
-	if (OScDev_CHECK(err, ReconfigDAQ(device)))
+	if (OScDev_CHECK(err, ReconfigDAQ(device, acq)))
 		return err;
 
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
@@ -291,9 +276,9 @@ static OScDev_Error NIDAQWait(OScDev_Device *device)
 }
 
 
-struct OScDev_DeviceImpl OpenScan_NIDAQ_Device_Impl = {
+static OScDev_DeviceImpl DeviceImpl = {
 	.GetModelName = NIDAQGetModelName,
-	.GetInstances = NIDAQGetInstances,
+	.EnumerateInstances = NIDAQEnumerateInstances,
 	.ReleaseInstance = NIDAQReleaseInstance,
 	.GetName = NIDAQGetName,
 	.Open = NIDAQOpen,
@@ -301,13 +286,12 @@ struct OScDev_DeviceImpl OpenScan_NIDAQ_Device_Impl = {
 	.HasClock = NIDAQHasClock,
 	.HasScanner = NIDAQHasScanner,
 	.HasDetector = NIDAQHasDetector,
-	.GetSettings = NIDAQGetSettings,
-	.GetAllowedResolutions = NIDAQGetAllowedResolutions,
-	.GetResolution = NIDAQGetResolution,
-	.SetResolution = NIDAQSetResolution,
-	.GetMagnification = NIDAQGetMagnification,
-	.SetMagnification = NIDAQSetMagnification,
-	.GetImageSize = NIDAQGetImageSize,
+	.MakeSettings = NIDAQMakeSettings,
+	.GetPixelRates = NIDAQGetPixelRates,
+	.GetResolutions = NIDAQGetResolutions,
+	.GetZoomFactors = NIDAQGetZoomFactors,
+	.GetRasterWidths = NIDAQGetResolutions, // For now, equal to resolutions
+	.GetRasterHeights = NIDAQGetResolutions, // Ditto
 	.GetNumberOfChannels = NIDAQGetNumberOfChannels,
 	.GetBytesPerSample = NIDAQGetBytesPerSample,
 	.Arm = NIDAQArm,
@@ -318,13 +302,10 @@ struct OScDev_DeviceImpl OpenScan_NIDAQ_Device_Impl = {
 };
 
 
-static OScDev_Error GetDeviceImpls(struct OScDev_DeviceImpl **impls, size_t *implCount)
+static OScDev_Error GetDeviceImpls(OScDev_PtrArray **impls)
 {
-	if (*implCount < 1)
-		return OScDev_OK;
-
-	impls[0] = &OpenScan_NIDAQ_Device_Impl;
-	*implCount = 1;
+	*impls = OScDev_PtrArray_Create();
+	OScDev_PtrArray_Append(*impls, &DeviceImpl);
 	return OScDev_OK;
 }
 

@@ -7,12 +7,12 @@
 #include <string.h>
 
 
-static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config);
-static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config);
+static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
+static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
 
 
 // Initialize, configure, and arm the scanner, whatever its current state
-int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config)
+int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
 {
 	bool mustCommit = false;
 
@@ -45,7 +45,7 @@ int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config)
 
 	if (config->mustReconfigureTiming)
 	{
-		nierr = ConfigureScannerTiming(device, config);
+		nierr = ConfigureScannerTiming(device, config, acq);
 		if (nierr)
 			goto error;
 		config->mustReconfigureTiming = false;
@@ -54,7 +54,7 @@ int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config)
 
 	if (config->mustRewriteOutput)
 	{
-		nierr = WriteScannerOutput(device, config);
+		nierr = WriteScannerOutput(device, config, acq);
 		if (nierr)
 			goto error;
 		config->mustRewriteOutput = false;
@@ -125,16 +125,19 @@ int32 StopScanner(OScDev_Device *device, struct ScannerConfig *config)
 }
 
 
-static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config)
+static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
 {
-	uint32_t elementsPerLine = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
-	uint32_t scanLines = GetData(device)->resolution;
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+
+	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
+	uint32_t scanLines = resolution;
 	uint32_t yLen = scanLines + Y_RETRACE_LEN;
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
 
 	int32 nierr = DAQmxCfgSampClkTiming(config->aoTask, "",
-		1E6*GetData(device)->scanRate / GetData(device)->binFactor,
+		pixelRateHz / GetData(device)->binFactor,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan);
 	if (nierr)
 	{
@@ -146,17 +149,20 @@ static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig 
 }
 
 
-static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config)
+static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
 {
-	uint32_t elementsPerLine = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
-	uint32_t numScanLines = GetData(device)->resolution;
-	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
+
+	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
+	uint32_t numScanLines = resolution;
+	uint32_t yLen = resolution + Y_RETRACE_LEN;
 	int32 elementsPerFramePerChan = elementsPerLine * numScanLines;  // without y retrace portion
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
 
 	double *xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-	int err = GenerateGalvoWaveformFrame(GetData(device)->resolution, GetData(device)->zoom,
+	int err = GenerateGalvoWaveformFrame(resolution, zoomFactor,
 		GetData(device)->lineDelay, GetData(device)->offsetXY[0], GetData(device)->offsetXY[1], xyWaveformFrame);
 	if (err != 0)
 		return OScDev_Error_Waveform_Out_Of_Range;
