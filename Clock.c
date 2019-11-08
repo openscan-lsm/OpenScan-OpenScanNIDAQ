@@ -5,14 +5,14 @@
 #include <NIDAQmx.h>
 
 
-static int32 CreateClockTasks(OScDev_Device *device, struct ClockConfig *config);
-static int32 ConfigureClockTiming(OScDev_Device *device, struct ClockConfig *config);
+static int32 CreateClockTasks(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq);
+static int32 ConfigureClockTiming(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq);
 static int32 ConfigureClockTriggers(OScDev_Device *device, struct ClockConfig *config);
-static int32 WriteClockOutput(OScDev_Device *device, struct ClockConfig *config);
+static int32 WriteClockOutput(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq);
 
 
 // Initialize, configure, and arm the clock, whatever its current state
-int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config)
+int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq)
 {
 	bool mustCommit = false;
 
@@ -24,7 +24,7 @@ int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config)
 		if (nierr)
 			return nierr;
 
-		nierr = CreateClockTasks(device, config);
+		nierr = CreateClockTasks(device, config, acq);
 		if (nierr)
 			return nierr;
 		config->mustReconfigureTiming = true;
@@ -34,7 +34,7 @@ int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config)
 
 	if (config->mustReconfigureTiming)
 	{
-		nierr = ConfigureClockTiming(device, config);
+		nierr = ConfigureClockTiming(device, config, acq);
 		if (nierr)
 			goto error;
 		config->mustReconfigureTiming = false;
@@ -52,7 +52,7 @@ int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config)
 
 	if (config->mustRewriteOutput)
 	{
-		nierr = WriteClockOutput(device, config);
+		nierr = WriteClockOutput(device, config, acq);
 		if (nierr)
 			goto error;
 		config->mustRewriteOutput = false;
@@ -160,7 +160,7 @@ int32 StopClock(OScDev_Device *device, struct ClockConfig *config)
 }
 
 
-static int32 CreateClockTasks(OScDev_Device *device, struct ClockConfig *config)
+static int32 CreateClockTasks(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq)
 {
 	int32 nierr;
 	nierr = DAQmxCreateTask("ClockDO", &config->doTask);
@@ -201,11 +201,14 @@ static int32 CreateClockTasks(OScDev_Device *device, struct ClockConfig *config)
 		return nierr;
 	}
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
-	uint32_t scanLines = GetData(device)->resolution;
-	double effectiveScanPortion = (double)GetData(device)->resolution / elementsPerLine;
-	double lineFreqHz = (double)((1E6*GetData(device)->scanRate) / GetData(device)->binFactor / elementsPerLine);
-	double scanPhase = (double)(GetData(device)->binFactor / (1E6*GetData(device)->scanRate) * GetData(device)->lineDelay);
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+
+	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
+	uint32_t scanLines = resolution;
+	double effectiveScanPortion = (double)resolution / elementsPerLine;
+	double lineFreqHz = pixelRateHz / GetData(device)->binFactor / elementsPerLine;
+	double scanPhase = GetData(device)->binFactor / pixelRateHz * GetData(device)->lineDelay;
 
 	char ctrTerminals[256];
 	strncpy(ctrTerminals, GetData(device)->deviceName, sizeof(ctrTerminals) - 1);
@@ -223,18 +226,21 @@ static int32 CreateClockTasks(OScDev_Device *device, struct ClockConfig *config)
 }
 
 
-static int32 ConfigureClockTiming(OScDev_Device *device, struct ClockConfig *config)
+static int32 ConfigureClockTiming(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq)
 {
 	int32 nierr;
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
-	uint32_t scanLines = GetData(device)->resolution;
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+
+	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
+	uint32_t scanLines = resolution;
 	uint32_t yLen = scanLines + Y_RETRACE_LEN;
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
 
 	nierr = DAQmxCfgSampClkTiming(config->doTask, "",
-		1E6*GetData(device)->scanRate / GetData(device)->binFactor,
+		pixelRateHz / GetData(device)->binFactor,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, elementsPerFramePerChan);
 	if (nierr)
 	{
@@ -242,9 +248,9 @@ static int32 ConfigureClockTiming(OScDev_Device *device, struct ClockConfig *con
 		return nierr;
 	}
 
-	double effectiveScanPortion = (double)GetData(device)->resolution / elementsPerLine;
-	double lineFreqHz = (double)((1E6*GetData(device)->scanRate) / GetData(device)->binFactor / elementsPerLine);
-	double scanPhase = (double)(GetData(device)->binFactor / (1E6*GetData(device)->scanRate) * GetData(device)->lineDelay);
+	double effectiveScanPortion = (double)resolution / elementsPerLine;
+	double lineFreqHz = pixelRateHz / GetData(device)->binFactor / elementsPerLine;
+	double scanPhase = GetData(device)->binFactor / pixelRateHz * GetData(device)->lineDelay;
 
 	nierr = DAQmxSetChanAttribute(config->lineCtrTask, "",
 		DAQmx_CO_Pulse_Freq, lineFreqHz);
@@ -318,11 +324,13 @@ static int32 ConfigureClockTriggers(OScDev_Device *device, struct ClockConfig *c
 }
 
 
-static int32 WriteClockOutput(OScDev_Device *device, struct ClockConfig *config)
+static int32 WriteClockOutput(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq)
 {
-	uint32_t elementsPerLine = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
-	uint32_t numScanLines = GetData(device)->resolution;
-	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+
+	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
+	uint32_t numScanLines = resolution;
+	uint32_t yLen = resolution + Y_RETRACE_LEN;
 	int32 elementsPerFramePerChan = elementsPerLine * numScanLines;  // without y retrace portion
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
 
@@ -339,15 +347,15 @@ static int32 WriteClockOutput(OScDev_Device *device, struct ClockConfig *config)
 		elementsPerFramePerChan * GetData(device)->numDOChannels);
 
 	// TODO: why use elementsPerLine instead of elementsPerFramePerChan?
-	int err = GenerateLineClock(GetData(device)->resolution, numScanLines,
+	int err = GenerateLineClock(resolution, numScanLines,
 		GetData(device)->lineDelay,	lineClockPattern);
 	if (err != 0)
 		return OScDev_Error_Waveform_Out_Of_Range;
-	err = GenerateFLIMLineClock(GetData(device)->resolution, numScanLines,
+	err = GenerateFLIMLineClock(resolution, numScanLines,
 		GetData(device)->lineDelay, lineClockFLIM);
 	if (err != 0)
 		return OScDev_Error_Waveform_Out_Of_Range;
-	err = GenerateFLIMFrameClock(GetData(device)->resolution, numScanLines,
+	err = GenerateFLIMFrameClock(resolution, numScanLines,
 		GetData(device)->lineDelay, frameClockFLIM);
 	if (err != 0)
 		return OScDev_Error_Waveform_Out_Of_Range;

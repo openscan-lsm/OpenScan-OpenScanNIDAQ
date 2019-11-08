@@ -60,11 +60,7 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->oneFrameScanDone = false;
 	data->framePixelsFilled = 0;
 
-	data->scanRate = 1.25;  // MHz
-	data->resolution = 512;
-	data->zoom = 1.0;
 	data->lineDelay = 50;
-	data->magnification = 1.0;
 	data->binFactor = 2;
 	data->numLinesToBuffer = 8;
 	data->inputVoltageRange = 10.0;
@@ -116,7 +112,7 @@ static OScDev_Error ParseAIPortList(char *names,
 
 
 // automatically detect deviceName using DAQmxGetSysDevNames()
-OScDev_Error NIDAQEnumerateInstances(OScDev_Device ***devices, size_t *deviceCount)
+OScDev_Error EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl)
 {
 	OScDev_Error err;
 
@@ -130,18 +126,19 @@ OScDev_Error NIDAQEnumerateInstances(OScDev_Device ***devices, size_t *deviceCou
 
 	char deviceList[NUM_SLOTS_IN_CHASSIS][OScDev_MAX_STR_LEN + 1];
 
-	if (OScDev_CHECK(err, ParseDeviceNameList(deviceNames, deviceList, deviceCount)))
+	size_t deviceCount;
+	if (OScDev_CHECK(err, ParseDeviceNameList(deviceNames, deviceList, &deviceCount)))
 		return err;
 
-	*devices = malloc(*deviceCount * sizeof(OScDev_Device *));
+	*devices = OScDev_PtrArray_Create();
 
-	for (int i = 0; i < (int)(*deviceCount); ++i)
+	for (size_t i = 0; i < deviceCount; ++i)
 	{
 		struct OScNIDAQPrivateData *data = calloc(1, sizeof(struct OScNIDAQPrivateData));
 		strncpy(data->deviceName, deviceList[i], OScDev_MAX_STR_LEN);
 
 		OScDev_Device *device;
-		if (OScDev_CHECK(err, OScDev_Device_Create(&device, &OpenScan_NIDAQ_Device_Impl, data)))
+		if (OScDev_CHECK(err, OScDev_Device_Create(&device, impl, data)))
 		{
 			char msg[OScDev_MAX_STR_LEN + 1] = "Failed to create device ";
 			strcat(msg, data->deviceName);
@@ -151,7 +148,7 @@ OScDev_Error NIDAQEnumerateInstances(OScDev_Device ***devices, size_t *deviceCou
 
 		PopulateDefaultParameters(GetData(device));
 
-		(*devices)[i] = device;
+		OScDev_PtrArray_Append(*devices, device);
 	}
 	
 	return OScDev_OK;
@@ -403,8 +400,11 @@ static OScDev_Error StartScan(OScDev_Device *device)
 }
 
 
-static OScDev_Error WaitScanToFinish(OScDev_Device *device)
+static OScDev_Error WaitScanToFinish(OScDev_Device *device, OScDev_Acquisition *acq)
 {
+	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+
 	// When scanRate is low, it takes longer to finish generating scan waveform.
 	// Since acquisition only takes a portion of the total scan time,
 	// it may occur that waveform task is stopped right after acquisition is done
@@ -412,10 +412,10 @@ static OScDev_Error WaitScanToFinish(OScDev_Device *device)
 	// "Finite acquisition or generation has been stopped before the requested number
 	// of samples were acquired or generated."
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
-	uint32_t xLen = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
-	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
-	uint32_t yRetraceTime = (uint32_t)(1E-3 * (double)(xLen * Y_RETRACE_LEN * GetData(device)->binFactor / GetData(device)->scanRate));
-	uint32_t estFrameTime = (uint32_t)(1E-3 * (double)(xLen * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
+	uint32_t xLen = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
+	uint32_t yLen = resolution + Y_RETRACE_LEN;
+	uint32_t yRetraceTime = (uint32_t)(1e3 * xLen * Y_RETRACE_LEN * GetData(device)->binFactor / pixelRateHz);
+	uint32_t estFrameTime = (uint32_t)(1e3 * xLen * yLen * GetData(device)->binFactor / pixelRateHz);
 	// TODO: casting
 	uint32_t waitScanToFinish = GetData(device)->scannerOnly ? estFrameTime : yRetraceTime;  // wait longer if no real acquisition;
 	char msg[OScDev_MAX_STR_LEN + 1];
@@ -430,7 +430,7 @@ static OScDev_Error WaitScanToFinish(OScDev_Device *device)
 
 // stop running tasks
 // need to stop detector first, then clock and scanner
-static OScDev_Error StopScan(OScDev_Device *device)
+static OScDev_Error StopScan(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	OScDev_Error err, lastErr = 0;
 
@@ -450,7 +450,7 @@ static OScDev_Error StopScan(OScDev_Device *device)
 	// "Finite acquisition or generation has been stopped before the requested number
 	// of samples were acquired or generated."
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
-	if (OScDev_CHECK(err, WaitScanToFinish(device)))
+	if (OScDev_CHECK(err, WaitScanToFinish(device, acq)))
 		return err;
 
 	err = StopClock(device, &GetData(device)->clockConfig);
@@ -465,27 +465,22 @@ static OScDev_Error StopScan(OScDev_Device *device)
 }
 
 
-static unsigned GetImageWidth(OScDev_Device *device) {
-	return  GetData(device)->resolution;
-}
-
-static unsigned GetImageHeight(OScDev_Device *device) {
-	return  GetData(device)->resolution;
-}
-
 // DAQ version; acquire from multiple channels
 static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 {
-	uint32_t elementsPerLine = GetData(device)->lineDelay + GetData(device)->resolution + X_RETRACE_LEN;
-	uint32_t scanLines = GetData(device)->resolution;
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+
+	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
+	uint32_t scanLines = resolution;
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
-	size_t nPixels = GetImageWidth(device) * GetImageHeight(device);
+	size_t nPixels = resolution * resolution;
 
 	GetData(device)->oneFrameScanDone = false;
 	GetData(device)->framePixelsFilled = 0;
 
-	uint32_t yLen = GetData(device)->resolution + Y_RETRACE_LEN;
-	uint32_t estFrameTimeMs = (uint32_t)(1E-3 * (double)(elementsPerLine * yLen * GetData(device)->binFactor / GetData(device)->scanRate));
+	uint32_t yLen = resolution + Y_RETRACE_LEN;
+	uint32_t estFrameTimeMs = (uint32_t)(1e3 * elementsPerLine * yLen * GetData(device)->binFactor / pixelRateHz);
 	uint32_t totalWaitTimeMs = 0;
 
 	OScDev_Error err;
@@ -515,7 +510,7 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 		OScDev_Log_Debug(device, msg);
 	}
 
-	if (OScDev_CHECK(err, StopScan(device)))
+	if (OScDev_CHECK(err, StopScan(device, acq)))
 		return err;
 
 	// SplitChannels
@@ -566,10 +561,7 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 	OScDev_Device *device = (OScDev_Device *)param;
 	OScDev_Acquisition *acq = GetData(device)->acquisition.acquisition;
 
-	uint32_t totalFrames;
-	OScDev_Error err;
-	if (OScDev_CHECK(err, OScDev_Acquisition_GetNumberOfFrames(acq, &totalFrames)))
-		return 0;
+	uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
 
 	for (uint32_t frame = 0; frame < totalFrames; ++frame)
 	{
@@ -651,22 +643,29 @@ OScDev_Error WaitForAcquisitionToFinish(OScDev_Device *device)
 }
 
 
-OScDev_Error ReconfigDAQ(OScDev_Device *device)
+OScDev_Error ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	OScDev_Error err;
 
-	err = SetUpClock(device, &GetData(device)->clockConfig);
+	err = SetUpClock(device, &GetData(device)->clockConfig, acq);
 	if (err)
 		return err;
-	err = SetUpScanner(device, &GetData(device)->scannerConfig);
+	err = SetUpScanner(device, &GetData(device)->scannerConfig, acq);
 	if (err)
 		return err;
 	if (!GetData(device)->scannerOnly)
 	{
-		err = SetUpDetector(device, &GetData(device)->detectorConfig);
+		err = SetUpDetector(device, &GetData(device)->detectorConfig, acq);
 		if (err)
 			return err;
 	}
+
+	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
+	GetData(device)->configuredPixelRateHz = pixelRateHz;
+	GetData(device)->configuredResolution = resolution;
+	GetData(device)->configuredZoomFactor = zoomFactor;
 
 	return OScDev_OK;
 }

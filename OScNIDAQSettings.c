@@ -20,108 +20,18 @@ static inline struct OScNIDAQPrivateData *GetSettingDeviceData(OScDev_Setting *s
 }
 
 
-OScDev_Error GetNumericConstraintTypeImpl_DiscreteValues(OScDev_Setting *setting, enum OScDev_ValueConstraint *constraintType)
+OScDev_Error GetNumericConstraintTypeImpl_DiscreteValues(OScDev_Setting *setting, OScDev_ValueConstraint *constraintType)
 {
 	*constraintType = OScDev_ValueConstraint_DiscreteValues;
 	return OScDev_OK;
 }
 
 
-OScDev_Error GetNumericConstraintTypeImpl_Range(OScDev_Setting *setting, enum OScDev_ValueConstraint *constraintType)
+OScDev_Error GetNumericConstraintTypeImpl_Range(OScDev_Setting *setting, OScDev_ValueConstraint *constraintType)
 {
 	*constraintType = OScDev_ValueConstraint_Range;
 	return OScDev_OK;
 }
-
-
-static OScDev_Error GetScanRate(OScDev_Setting *setting, double *value)
-{
-	*value = GetSettingDeviceData(setting)->scanRate;
-	return OScDev_OK;
-}
-
-
-static OScDev_Error SetScanRate(OScDev_Setting *setting, double value)
-{
-	GetSettingDeviceData(setting)->scanRate = value;
-
-	GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
-	GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
-	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureTiming = true;
-
-	return OScDev_OK;
-}
-
-
-static OScDev_Error GetScanRateValues(OScDev_Setting *setting, double **values, size_t *count)
-{
-	static double v[] = {
-		0.0500,
-		0.1000,
-		0.1250,
-		0.2000,
-		0.2500,
-		0.4000,
-		0.5000,
-		0.6250,
-		1.0000,
-		1.2500,
-	};
-	*values = v;
-	*count = sizeof(v) / sizeof(double);
-	return OScDev_OK;
-}
-
-
-static struct OScDev_SettingImpl SettingImpl_ScanRate = {
-	.GetFloat64 = GetScanRate,
-	.SetFloat64 = SetScanRate,
-	.GetNumericConstraintType = GetNumericConstraintTypeImpl_DiscreteValues,
-	.GetFloat64DiscreteValues = GetScanRateValues,
-};
-
-
-static OScDev_Error GetZoom(OScDev_Setting *setting, double *value)
-{
-	*value = GetSettingDeviceData(setting)->zoom;
-
-	GetSettingDeviceData(setting)->magnification =
-		(double)GetSettingDeviceData(setting)->resolution / (double)OSc_DEFAULT_RESOLUTION
-		* GetSettingDeviceData(setting)->zoom / OSc_DEFAULT_ZOOM;
-
-	return OScDev_OK;
-}
-
-static OScDev_Error SetZoom(OScDev_Setting *setting, double value)
-{
-	GetSettingDeviceData(setting)->zoom = value;
-
-	GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
-	GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
-
-	// reflect the change to magnification as well
-	GetSettingDeviceData(setting)->magnification =
-		(double)GetSettingDeviceData(setting)->resolution / (double)OSc_DEFAULT_RESOLUTION
-		* value / OSc_DEFAULT_ZOOM;
-
-	return OScDev_OK;
-}
-
-
-static OScDev_Error GetZoomRange(OScDev_Setting *setting, double *min, double *max)
-{
-	*min = 0.2;
-	*max = 20.0;
-	return OScDev_OK;
-}
-
-
-static struct OScDev_SettingImpl SettingImpl_Zoom = {
-	.GetFloat64 = GetZoom,
-	.SetFloat64 = SetZoom,
-	.GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
-	.GetFloat64Range = GetZoomRange,
-};
 
 
 static OScDev_Error GetLineDelay(OScDev_Setting *setting, int32_t *value)
@@ -153,7 +63,7 @@ static OScDev_Error GetLineDelayRange(OScDev_Setting *setting, int32_t *min, int
 }
 
 
-static struct OScDev_SettingImpl SettingImpl_LineDelay = {
+OScDev_SettingImpl SettingImpl_LineDelay = {
 	.GetInt32 = GetLineDelay,
 	.SetInt32 = SetLineDelay,
 	.GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
@@ -189,7 +99,7 @@ static OScDev_Error GetBinFactorRange(OScDev_Setting *setting, int32_t *min, int
 	return OScDev_OK;
 }
 
-static struct OScDev_SettingImpl SettingImpl_BinFactor = {
+static OScDev_SettingImpl SettingImpl_BinFactor = {
 	.GetInt32 = GetBinFactor,
 	.SetInt32 = SetBinFactor,
 	.GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
@@ -212,9 +122,9 @@ static OScDev_Error SetAcqBufferSize(OScDev_Setting *setting, int32_t value)
 	return OScDev_OK;
 }
 
-static OScDev_Error GetAcqBufferSizeValues(OScDev_Setting *setting, int32_t **values, size_t *count)
+static OScDev_Error GetAcqBufferSizeValues(OScDev_Setting *setting, OScDev_NumArray **values)
 {
-	static int32_t v[] = {
+	static const uint32_t v[] = {
 		2,
 		4,
 		8,
@@ -223,13 +133,16 @@ static OScDev_Error GetAcqBufferSizeValues(OScDev_Setting *setting, int32_t **va
 		64,
 		128,
 		256,
+		0 // End mark
 	};
-	*values = v;
-	*count = sizeof(v) / sizeof(int32_t);
+	*values = OScDev_NumArray_Create();
+	for (size_t i = 0; v[i] != 0; ++i) {
+		OScDev_NumArray_Append(*values, v[i]);
+	}
 	return OScDev_OK;
 }
 
-static struct OScDev_SettingImpl SettingImpl_AcqBufferSize = {
+static OScDev_SettingImpl SettingImpl_AcqBufferSize = {
 	.GetInt32 = GetAcqBufferSize,
 	.SetInt32 = SetAcqBufferSize,
 	.GetNumericConstraintType = GetNumericConstraintTypeImpl_DiscreteValues,
@@ -250,21 +163,24 @@ static OScDev_Error SetInputVoltageRange(OScDev_Setting *setting, double value)
 }
 
 
-static OScDev_Error GetInputVoltageRangeValues(OScDev_Setting *setting, double **values, size_t *count)
+static OScDev_Error GetInputVoltageRangeValues(OScDev_Setting *setting, OScDev_NumArray **values)
 {
-	static double v[] = {
+	static const double v[] = {
 		1.0000,
 		2.0000,
 		5.0000,
 		10.0000,
+		0.0 // End mark
 	};
-	*values = v;
-	*count = sizeof(v) / sizeof(double);
+	*values = OScDev_NumArray_Create();
+	for (size_t i = 0; v[i] != 0.0; ++i) {
+		OScDev_NumArray_Append(*values, v[i]);
+	}
 	return OScDev_OK;
 }
 
 
-static struct OScDev_SettingImpl SettingImpl_InputVoltageRange = {
+static OScDev_SettingImpl SettingImpl_InputVoltageRange = {
 	.GetFloat64 = GetInputVoltageRange,
 	.SetFloat64 = SetInputVoltageRange,
 	.GetNumericConstraintType = GetNumericConstraintTypeImpl_DiscreteValues,
@@ -355,7 +271,7 @@ static OScDev_Error GetChannelsValueForName(OScDev_Setting *setting, uint32_t *v
 }
 
 
-static struct OScDev_SettingImpl SettingImpl_Channels = {
+static OScDev_SettingImpl SettingImpl_Channels = {
 	.GetEnum = GetChannels,
 	.SetEnum = SetChannels,
 	.GetEnumNumValues = GetChannelsNumValues,
@@ -375,7 +291,7 @@ static OScDev_Error SetScannerOnly(OScDev_Setting *setting, bool value)
 	return OScDev_OK;
 }
 
-static struct OScDev_SettingImpl SettingImpl_ScannerOnly = {
+static OScDev_SettingImpl SettingImpl_ScannerOnly = {
 	.GetBool = GetScannerOnly,
 	.SetBool = SetScannerOnly,
 };
@@ -419,86 +335,85 @@ static OScDev_Error GetOffsetRange(OScDev_Setting *setting, double *min, double 
 }
 
 
-static struct OScDev_SettingImpl SettingImpl_Offset = {
+static void ReleaseOffset(OScDev_Setting *setting)
+{
+	struct OffsetSettingData *data = OScDev_Setting_GetImplData(setting);
+	free(data);
+}
+
+
+static OScDev_SettingImpl SettingImpl_Offset = {
 	.GetFloat64 = GetOffset,
 	.SetFloat64 = SetOffset,
 	.GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
 	.GetFloat64Range = GetOffsetRange,
+	.Release = ReleaseOffset,
 };
 
 
-OScDev_Error NIDAQ_PrepareSettings(OScDev_Device *device)
+OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings)
 {
-	if (GetData(device)->settings)
-		return OScDev_OK;
-
-	OScDev_Error err;
-
-	OScDev_Setting *scanRate;
-	if (OScDev_CHECK(err, OScDev_Setting_Create(&scanRate, "ScanRate", OScDev_ValueType_Float64,
-		&SettingImpl_ScanRate, device)))
-		return err;
-
-	OScDev_Setting *zoom;
-	if (OScDev_CHECK(err, OScDev_Setting_Create(&zoom, "Zoom", OScDev_ValueType_Float64,
-		&SettingImpl_Zoom, device)))
-		return err;
+	OScDev_Error err = OScDev_OK;
+	*settings = OScDev_PtrArray_Create();
 
 	OScDev_Setting *lineDelay;
 	if (OScDev_CHECK(err, OScDev_Setting_Create(&lineDelay, "Line Delay (pixels)", OScDev_ValueType_Int32,
 		&SettingImpl_LineDelay, device)))
-		return err;
+		goto error;
+	OScDev_PtrArray_Append(*settings, lineDelay);
 
-	OScDev_Setting *offsets[2];
 	for (int i = 0; i < 2; ++i)
 	{
-		// TODO We currently never free the OffsetSettingData allocated here.
-		// Call free() once OpenScanDeviceLib supports a method to release setting data.
+		OScDev_Setting *offset;
 		struct OffsetSettingData *data = malloc(sizeof(struct OffsetSettingData));
 		data->device = device;
 		data->axis = i;
 		const char *name = i == 0 ? "GalvoOffsetX (degree)" : "GalvoOffsetY (degree)";
-		if (OScDev_CHECK(err, OScDev_Setting_Create(&offsets[i], name, OScDev_ValueType_Float64,
+		if (OScDev_CHECK(err, OScDev_Setting_Create(&offset, name, OScDev_ValueType_Float64,
 			&SettingImpl_Offset, data)))
-			return err;
+			goto error;
+		OScDev_PtrArray_Append(*settings, offset);
 	}
 
 	OScDev_Setting *binFactor;
 	if (OScDev_CHECK(err, OScDev_Setting_Create(&binFactor, "Bin Factor", OScDev_ValueType_Int32,
 		&SettingImpl_BinFactor, device)))
-		return err;
+		goto error;
+	OScDev_PtrArray_Append(*settings, binFactor);
 
 	OScDev_Setting *numLinesToBuffer;
 	if (OScDev_CHECK(err, OScDev_Setting_Create(&numLinesToBuffer, "Acq Buffer Size (lines)", OScDev_ValueType_Int32,
 		&SettingImpl_AcqBufferSize, device)))
-		return err;
+		goto error;
+	OScDev_PtrArray_Append(*settings, numLinesToBuffer);
 
 	OScDev_Setting *channels;
 	if (OScDev_CHECK(err, OScDev_Setting_Create(&channels, "Channels", OScDev_ValueType_Enum,
 		&SettingImpl_Channels, device)))
-		return err;
+		goto error;
+	OScDev_PtrArray_Append(*settings, channels);
 
 	OScDev_Setting *inputVoltageRange;
 	if (OScDev_CHECK(err, OScDev_Setting_Create(&inputVoltageRange, "Input Voltage Range", OScDev_ValueType_Float64,
 		&SettingImpl_InputVoltageRange, device)))
-		return err;
+		goto error;
+	OScDev_PtrArray_Append(*settings, inputVoltageRange);
 
 	OScDev_Setting *scannerOnly;
 	if (OScDev_CHECK(err, OScDev_Setting_Create(&scannerOnly, "ScannerOnly", OScDev_ValueType_Bool,
 		&SettingImpl_ScannerOnly, device)))
-		return err;
+		goto error;
+	OScDev_PtrArray_Append(*settings, scannerOnly); // TODO Remove when supported by OpenScanLib
 
-	OScDev_Setting *ss[] = {
-		scanRate, zoom, lineDelay, offsets[0], offsets[1], binFactor, numLinesToBuffer,
-		inputVoltageRange, channels, scannerOnly,
-	};
-	size_t nSettings = sizeof(ss) / sizeof(OScDev_Setting *);
-	OScDev_Setting **settings = malloc(sizeof(ss));
-	memcpy(settings, ss, sizeof(ss));
-
-	GetData(device)->settings = settings;
-	GetData(device)->settingCount = nSettings;
 	return OScDev_OK;
+
+error:
+	for (size_t i = 0; i < OScDev_PtrArray_Size(*settings); ++i) {
+		OScDev_Setting_Destroy(OScDev_PtrArray_At(*settings, i));
+	}
+	OScDev_PtrArray_Destroy(*settings);
+	*settings = NULL;
+	return err;
 }
 
 static OScDev_Error GetSelectedDispChannels(OScDev_Device *device)

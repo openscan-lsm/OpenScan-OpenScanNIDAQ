@@ -8,16 +8,16 @@
 
 
 static int32 CreateDetectorTask(OScDev_Device *device, struct DetectorConfig *config);
-static int32 ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config);
+static int32 ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
 static int32 ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConfig *config);
-static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config);
+static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
 static int32 CVICALLBACK DetectorDataCallback(TaskHandle taskHandle,
 	int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData);
 static int32 HandleRawData(OScDev_Device *device);
 
 
 // Initialize, configure, and arm the detector, whatever its current state
-int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config)
+int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
 {
 	bool mustCommit = false;
 
@@ -35,7 +35,7 @@ int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config)
 
 	if (config->mustReconfigureTiming)
 	{
-		nierr = ConfigureDetectorTiming(device, config);
+		nierr = ConfigureDetectorTiming(device, config, acq);
 		if (nierr)
 			goto error;
 		config->mustReconfigureTiming = false;
@@ -53,7 +53,7 @@ int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config)
 
 	if (config->mustReconfigureCallback)
 	{
-		nierr = ConfigureDetectorCallback(device, config);
+		nierr = ConfigureDetectorCallback(device, config, acq);
 		if (nierr)
 			goto error;
 		config->mustReconfigureCallback = false;
@@ -224,12 +224,15 @@ error:
 }
 
 
-static int32 ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config)
+static int32 ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
 {
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+
 	int32 nierr = DAQmxCfgSampClkTiming(config->aiTask,
-		"", 1E6*GetData(device)->scanRate,
+		"", pixelRateHz,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps,
-		GetData(device)->resolution * GetData(device)->binFactor);
+		resolution * GetData(device)->binFactor);
 	if (nierr)
 	{
 		LogNiError(device, nierr, "configuring timing for detector");
@@ -287,8 +290,10 @@ static int32 UnconfigureDetectorCallback(OScDev_Device *device, struct DetectorC
 }
 
 
-static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config)
+static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
 {
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+
 	int32 nierr;
 
 	// Registering the callback in DAQmx is not idempotent, so we need to
@@ -301,8 +306,8 @@ static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorCon
 	// duration of data it holds (e.g. 500 ms), rather than the number of
 	// lines. We could still provide a user-settable scaling factor.
 
-	uint32_t pixelsPerLine = GetData(device)->resolution;
-	uint32_t pixelsPerFrame = pixelsPerLine * GetData(device)->resolution;
+	uint32_t pixelsPerLine = resolution;
+	uint32_t pixelsPerFrame = pixelsPerLine * resolution;
 	uint32_t samplesPerChanPerLine = pixelsPerLine * GetData(device)->binFactor;
 	uint32_t numChannels = GetData(device)->numAIChannels;
 	size_t bufferSize = GetData(device)->numLinesToBuffer *
@@ -491,8 +496,12 @@ static int32 HandleRawData(OScDev_Device *device)
 		sizeof(float64) * leftoverSamples);
 	GetData(device)->rawDataSize = leftoverSamples;
 
-	size_t pixelsPerFrame = GetData(device)->resolution *
-		GetData(device)->resolution;
+	// TODO Cleaner to get resolution from the OScDev_Acquisition (a future
+	// OpenScanLib should allow getting the current device from the
+	// acquisition, so that we can pass the acquisition as callback data)
+	uint32_t resolution = GetData(device)->configuredResolution;
+
+	size_t pixelsPerFrame = resolution * resolution;
 	char msg[OScDev_MAX_STR_LEN + 1];
 	snprintf(msg, OScDev_MAX_STR_LEN, "Read %zd pixels", GetData(device)->framePixelsFilled);
 	OScDev_Log_Debug(device, msg);
