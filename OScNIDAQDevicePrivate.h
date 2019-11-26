@@ -56,6 +56,8 @@ struct OScNIDAQPrivateData
 	double configuredPixelRateHz;
 	uint32_t configuredResolution;
 	double configuredZoomFactor;
+	uint32_t configuredXOffset, configuredYOffset;
+	uint32_t configuredRasterWidth, configuredRasterHeight;
 
 	bool oneFrameScanDone;
 	// Flags for scanner and detector

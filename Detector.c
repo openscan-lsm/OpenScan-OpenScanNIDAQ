@@ -226,13 +226,14 @@ error:
 
 static int32 ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
 {
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
 	int32 nierr = DAQmxCfgSampClkTiming(config->aiTask,
 		"", pixelRateHz,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps,
-		resolution * GetData(device)->binFactor);
+		width * GetData(device)->binFactor);
 	if (nierr)
 	{
 		LogNiError(device, nierr, "configuring timing for detector");
@@ -292,7 +293,8 @@ static int32 UnconfigureDetectorCallback(OScDev_Device *device, struct DetectorC
 
 static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
 {
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
 	int32 nierr;
 
@@ -306,8 +308,8 @@ static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorCon
 	// duration of data it holds (e.g. 500 ms), rather than the number of
 	// lines. We could still provide a user-settable scaling factor.
 
-	uint32_t pixelsPerLine = resolution;
-	uint32_t pixelsPerFrame = pixelsPerLine * resolution;
+	uint32_t pixelsPerLine = width;
+	uint32_t pixelsPerFrame = pixelsPerLine * height;
 	uint32_t samplesPerChanPerLine = pixelsPerLine * GetData(device)->binFactor;
 	uint32_t numChannels = GetData(device)->numAIChannels;
 	size_t bufferSize = GetData(device)->numLinesToBuffer *
@@ -496,12 +498,13 @@ static int32 HandleRawData(OScDev_Device *device)
 		sizeof(float64) * leftoverSamples);
 	GetData(device)->rawDataSize = leftoverSamples;
 
-	// TODO Cleaner to get resolution from the OScDev_Acquisition (a future
+	// TODO Cleaner to get raster size from the OScDev_Acquisition (a future
 	// OpenScanLib should allow getting the current device from the
 	// acquisition, so that we can pass the acquisition as callback data)
-	uint32_t resolution = GetData(device)->configuredResolution;
+	uint32_t pixelsPerLine = GetData(device)->configuredRasterWidth;
+	uint32_t linesPerFrame = GetData(device)->configuredRasterHeight;
 
-	size_t pixelsPerFrame = resolution * resolution;
+	size_t pixelsPerFrame = pixelsPerLine * linesPerFrame;
 	char msg[OScDev_MAX_STR_LEN + 1];
 	snprintf(msg, OScDev_MAX_STR_LEN, "Read %zd pixels", GetData(device)->framePixelsFilled);
 	OScDev_Log_Debug(device, msg);

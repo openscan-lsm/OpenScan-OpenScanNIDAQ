@@ -201,12 +201,12 @@ static int32 CreateClockTasks(OScDev_Device *device, struct ClockConfig *config,
 		return nierr;
 	}
 
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
-	uint32_t scanLines = resolution;
-	double effectiveScanPortion = (double)resolution / elementsPerLine;
+	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
+	double effectiveScanPortion = (double)width / elementsPerLine;
 	double lineFreqHz = pixelRateHz / GetData(device)->binFactor / elementsPerLine;
 	double scanPhase = GetData(device)->binFactor / pixelRateHz * GetData(device)->lineDelay;
 
@@ -230,13 +230,13 @@ static int32 ConfigureClockTiming(OScDev_Device *device, struct ClockConfig *con
 {
 	int32 nierr;
 
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
-	uint32_t scanLines = resolution;
-	uint32_t yLen = scanLines + Y_RETRACE_LEN;
-	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
+	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
+	uint32_t yLen = height + Y_RETRACE_LEN;
+	int32 elementsPerFramePerChan = elementsPerLine * height;
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
 
 	nierr = DAQmxCfgSampClkTiming(config->doTask, "",
@@ -248,7 +248,7 @@ static int32 ConfigureClockTiming(OScDev_Device *device, struct ClockConfig *con
 		return nierr;
 	}
 
-	double effectiveScanPortion = (double)resolution / elementsPerLine;
+	double effectiveScanPortion = (double)width / elementsPerLine;
 	double lineFreqHz = pixelRateHz / GetData(device)->binFactor / elementsPerLine;
 	double scanPhase = GetData(device)->binFactor / pixelRateHz * GetData(device)->lineDelay;
 
@@ -277,7 +277,7 @@ static int32 ConfigureClockTiming(OScDev_Device *device, struct ClockConfig *con
 	}
 
 	nierr = DAQmxCfgImplicitTiming(config->lineCtrTask, DAQmx_Val_FiniteSamps,
-		scanLines);
+		height);
 	if (nierr)
 	{
 		LogNiError(device, nierr, "configuring timing for clock lineCtr");
@@ -326,12 +326,12 @@ static int32 ConfigureClockTriggers(OScDev_Device *device, struct ClockConfig *c
 
 static int32 WriteClockOutput(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq)
 {
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
-	uint32_t numScanLines = resolution;
-	uint32_t yLen = resolution + Y_RETRACE_LEN;
-	int32 elementsPerFramePerChan = elementsPerLine * numScanLines;  // without y retrace portion
+	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
+	uint32_t yLen = height + Y_RETRACE_LEN;
+	int32 elementsPerFramePerChan = elementsPerLine * height;  // without y retrace portion
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
 
 	// Q: Why do we use elementsPerFramePerChan, not totalElementsPerFramePerChan?
@@ -347,15 +347,15 @@ static int32 WriteClockOutput(OScDev_Device *device, struct ClockConfig *config,
 		elementsPerFramePerChan * GetData(device)->numDOChannels);
 
 	// TODO: why use elementsPerLine instead of elementsPerFramePerChan?
-	int err = GenerateLineClock(resolution, numScanLines,
+	int err = GenerateLineClock(width, height,
 		GetData(device)->lineDelay,	lineClockPattern);
 	if (err != 0)
 		return OScDev_Error_Waveform_Out_Of_Range;
-	err = GenerateFLIMLineClock(resolution, numScanLines,
+	err = GenerateFLIMLineClock(width, height,
 		GetData(device)->lineDelay, lineClockFLIM);
 	if (err != 0)
 		return OScDev_Error_Waveform_Out_Of_Range;
-	err = GenerateFLIMFrameClock(resolution, numScanLines,
+	err = GenerateFLIMFrameClock(width, height,
 		GetData(device)->lineDelay, frameClockFLIM);
 	if (err != 0)
 		return OScDev_Error_Waveform_Out_Of_Range;

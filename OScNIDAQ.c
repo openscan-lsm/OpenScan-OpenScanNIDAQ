@@ -403,7 +403,8 @@ static OScDev_Error StartScan(OScDev_Device *device)
 static OScDev_Error WaitScanToFinish(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
 	// When scanRate is low, it takes longer to finish generating scan waveform.
 	// Since acquisition only takes a portion of the total scan time,
@@ -412,8 +413,8 @@ static OScDev_Error WaitScanToFinish(OScDev_Device *device, OScDev_Acquisition *
 	// "Finite acquisition or generation has been stopped before the requested number
 	// of samples were acquired or generated."
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
-	uint32_t xLen = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
-	uint32_t yLen = resolution + Y_RETRACE_LEN;
+	uint32_t xLen = GetData(device)->lineDelay + width + X_RETRACE_LEN;
+	uint32_t yLen = height + Y_RETRACE_LEN;
 	uint32_t yRetraceTime = (uint32_t)(1e3 * xLen * Y_RETRACE_LEN * GetData(device)->binFactor / pixelRateHz);
 	uint32_t estFrameTime = (uint32_t)(1e3 * xLen * yLen * GetData(device)->binFactor / pixelRateHz);
 	// TODO: casting
@@ -468,18 +469,19 @@ static OScDev_Error StopScan(OScDev_Device *device, OScDev_Acquisition *acq)
 // DAQ version; acquire from multiple channels
 static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 {
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
-	uint32_t scanLines = resolution;
+	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
+	uint32_t scanLines = height;
 	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
-	size_t nPixels = resolution * resolution;
+	size_t nPixels = width * height;
 
 	GetData(device)->oneFrameScanDone = false;
 	GetData(device)->framePixelsFilled = 0;
 
-	uint32_t yLen = resolution + Y_RETRACE_LEN;
+	uint32_t yLen = height + Y_RETRACE_LEN;
 	uint32_t estFrameTimeMs = (uint32_t)(1e3 * elementsPerLine * yLen * GetData(device)->binFactor / pixelRateHz);
 	uint32_t totalWaitTimeMs = 0;
 
@@ -645,6 +647,40 @@ OScDev_Error WaitForAcquisitionToFinish(OScDev_Device *device)
 
 OScDev_Error ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq)
 {
+	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+	double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+	if (pixelRateHz != GetData(device)->configuredPixelRateHz) {
+		GetData(device)->clockConfig.mustReconfigureTiming = true;
+		GetData(device)->scannerConfig.mustReconfigureTiming = true;
+		GetData(device)->detectorConfig.mustReconfigureTiming = true;
+	}
+	if (resolution != GetData(device)->configuredResolution) {
+		GetData(device)->scannerConfig.mustReconfigureTiming = true;
+		GetData(device)->scannerConfig.mustRewriteOutput = true;
+	}
+	if (zoomFactor != GetData(device)->configuredZoomFactor) {
+		GetData(device)->clockConfig.mustRewriteOutput = true;
+		GetData(device)->scannerConfig.mustRewriteOutput = true;
+	}
+	if (xOffset != GetData(device)->configuredXOffset ||
+		yOffset != GetData(device)->configuredYOffset) {
+		GetData(device)->scannerConfig.mustRewriteOutput = true;
+	}
+	if (width != GetData(device)->configuredRasterWidth ||
+		height != GetData(device)->configuredRasterHeight) {
+		GetData(device)->clockConfig.mustReconfigureTiming = true;
+		GetData(device)->scannerConfig.mustReconfigureTiming = true;
+		GetData(device)->detectorConfig.mustReconfigureTiming = true;
+		GetData(device)->clockConfig.mustRewriteOutput = true;
+		GetData(device)->scannerConfig.mustRewriteOutput = true;
+		GetData(device)->detectorConfig.mustReconfigureCallback = true;
+	}
+
+	// Note that additional setting of 'mustReconfigure' flags occurs in settings
+
 	OScDev_Error err;
 
 	err = SetUpClock(device, &GetData(device)->clockConfig, acq);
@@ -660,12 +696,17 @@ OScDev_Error ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq)
 			return err;
 	}
 
-	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
-	double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
+	pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	resolution = OScDev_Acquisition_GetResolution(acq);
+	zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 	GetData(device)->configuredPixelRateHz = pixelRateHz;
 	GetData(device)->configuredResolution = resolution;
 	GetData(device)->configuredZoomFactor = zoomFactor;
+	GetData(device)->configuredXOffset = xOffset;
+	GetData(device)->configuredYOffset = yOffset;
+	GetData(device)->configuredRasterWidth = width;
+	GetData(device)->configuredRasterHeight = height;
 
 	return OScDev_OK;
 }

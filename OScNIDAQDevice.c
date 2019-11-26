@@ -126,6 +126,13 @@ static OScDev_Error NIDAQGetZoomFactors(OScDev_Device *device, OScDev_NumRange *
 }
 
 
+static OScDev_Error NIDAQIsROIScanSupported(OScDev_Device *device, bool *supported)
+{
+	*supported = true;
+	return OScDev_OK;
+}
+
+
 // Same as OpenScanDAQ::GetNumberOfChannels()
 static OScDev_Error NIDAQGetNumberOfChannels(OScDev_Device *device, uint32_t *nChannels)
 {
@@ -194,27 +201,6 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 		GetData(device)->acquisition.started = false;
 	}
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-
-	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
-	double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
-	if (pixelRateHz != GetData(device)->configuredPixelRateHz) {
-		GetData(device)->clockConfig.mustReconfigureTiming = true;
-		GetData(device)->scannerConfig.mustReconfigureTiming = true;
-		GetData(device)->detectorConfig.mustReconfigureTiming = true;
-	}
-	if (resolution != GetData(device)->configuredResolution) {
-		GetData(device)->clockConfig.mustReconfigureTiming = true;
-		GetData(device)->scannerConfig.mustReconfigureTiming = true;
-		GetData(device)->detectorConfig.mustReconfigureTiming = true;
-		GetData(device)->clockConfig.mustRewriteOutput = true;
-		GetData(device)->scannerConfig.mustRewriteOutput = true;
-		GetData(device)->detectorConfig.mustReconfigureCallback = true;
-	}
-	if (zoomFactor != GetData(device)->configuredZoomFactor) {
-		GetData(device)->clockConfig.mustRewriteOutput = true;
-		GetData(device)->scannerConfig.mustRewriteOutput = true;
-	}
 
 	OScDev_Error err;
 	if (OScDev_CHECK(err, ReconfigDAQ(device, acq)))
@@ -290,8 +276,7 @@ static OScDev_DeviceImpl DeviceImpl = {
 	.GetPixelRates = NIDAQGetPixelRates,
 	.GetResolutions = NIDAQGetResolutions,
 	.GetZoomFactors = NIDAQGetZoomFactors,
-	.GetRasterWidths = NIDAQGetResolutions, // For now, equal to resolutions
-	.GetRasterHeights = NIDAQGetResolutions, // Ditto
+	.IsROIScanSupported = NIDAQIsROIScanSupported,
 	.GetNumberOfChannels = NIDAQGetNumberOfChannels,
 	.GetBytesPerSample = NIDAQGetBytesPerSample,
 	.Arm = NIDAQArm,
