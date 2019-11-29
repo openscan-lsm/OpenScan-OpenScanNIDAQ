@@ -4,52 +4,8 @@
 #include <stdlib.h>
 
 
-inline int
-VoltsToDACUnits(double p, double zoom, double galvoOffset, uint16_t *result)
-{
-	/*The DAC units run from -10V to 10V, pk-pk 60 optical degrees.  
-	0V is at 32768.0.  
-	3276.8 = 1V 
-	0.33 V per optical degree 
-	*/
-
-	double scaled = round(p / zoom * 3276.8 + 32768.0 + (galvoOffset/3)*3276.8);
-	if (scaled < 0 || scaled > UINT16_MAX)
-		return -1;
-	*result = (uint16_t)scaled;
-	return 0;
-}
-
-
-int
-GenerateScaledWaveforms(uint32_t resolution, double zoom, uint32_t lineDelay, uint16_t *xScaled, uint16_t *yScaled,
-	double galvoOffsetX, double galvoOffsetY)
-{
-	size_t xLength = lineDelay + resolution + X_RETRACE_LEN;
-	size_t yLength = resolution;
-	
-	double *xWaveform = (double *)malloc(sizeof(double) * xLength);
-	double *yWaveform = (double *)malloc(sizeof(double) * yLength);
-
-	GenerateGalvoWaveform(resolution, X_RETRACE_LEN, lineDelay, -0.5, 0.5, xWaveform);
-	GenerateGalvoWaveform(resolution, 0, 0, -0.5, 0.5, yWaveform);
-
-	for (int i = 0; i < xLength; ++i) {
-		if (VoltsToDACUnits(xWaveform[i], zoom, galvoOffsetX, &(xScaled[i])) != 0)
-			return -1;
-	}
-	for (int j = 0; j < yLength; ++j) {
-		if (VoltsToDACUnits(yWaveform[j], zoom, galvoOffsetY, &(yScaled[j])) != 0)
-			return -1;
-	}
-
-	free(xWaveform);
-	free(yWaveform);
-
-	return 0;
-}
-
-
+// Generate 1D (undershoot + trace + retrace).
+// The trace part spans voltage scanStart to scanEnd.
 void
 GenerateGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
 	int32_t undershootLen, double scanStart, double scanEnd, double *waveform)
@@ -74,8 +30,10 @@ GenerateGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
 }
 
 
+// n = number of elements
+// slope in units of per element
 void SplineInterpolate(int32_t n, double yFirst, double yLast,
-	double slopeFirst, double slopeLast, double* result)
+	double slopeFirst, double slopeLast, double *result)
 {
 	double c[4];
 
@@ -89,6 +47,7 @@ void SplineInterpolate(int32_t n, double yFirst, double yLast,
 		result[x] = c[0] * x*x*x + c[1] * x*x + c[2] * x + c[3];
 	}
 }
+
 
 /* Line clock pattern for NI DAQ to output from one of its digital IOs */
 int GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * lineClock)
@@ -138,17 +97,28 @@ Analog voltage range (-0.5V, 0.5V) at zoom 1
 Including Y retrace waveform that moves the slow galvo back to its starting position
 */
 int
-GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, uint32_t lineDelay, double galvoOffsetX, double galvoOffsetY, double * xyWaveformFrame)
+GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, uint32_t undershoot,
+	uint32_t xOffset, uint32_t yOffset, // ROI offset
+	uint32_t pixelsPerLine, uint32_t linesPerFrame, // ROI size
+	double galvoOffsetX, double galvoOffsetY, // Adjustment offset
+	double *xyWaveformFrame)
 {
-	size_t xLength = lineDelay + resolution + X_RETRACE_LEN;
-	size_t numScanLines = resolution;  // num of scan lines
-	size_t yLength = numScanLines + Y_RETRACE_LEN;
+	// Voltage ranges of the ROI
+	double xStart = (-0.5 * resolution + xOffset) / (zoom * resolution);
+	double yStart = (-0.5 * resolution + yOffset) / (zoom * resolution);
+	double xEnd = xStart + pixelsPerLine / (zoom * resolution);
+	double yEnd = yStart + linesPerFrame / (zoom * resolution);
+
+	size_t xLength = undershoot + pixelsPerLine + X_RETRACE_LEN;
+	size_t yLength = linesPerFrame + Y_RETRACE_LEN;
 	double *xWaveform = (double *)malloc(sizeof(double) * xLength);
 	double *yWaveform = (double *)malloc(sizeof(double) * yLength);
-	GenerateGalvoWaveform(resolution, X_RETRACE_LEN, lineDelay, -0.5 / zoom, 0.5 / zoom, xWaveform);
-	GenerateGalvoWaveform(resolution, Y_RETRACE_LEN, 0, -0.5 / zoom, 0.5 / zoom, yWaveform);
+	GenerateGalvoWaveform(pixelsPerLine, X_RETRACE_LEN, undershoot, xStart, xEnd, xWaveform);
+	GenerateGalvoWaveform(linesPerFrame, Y_RETRACE_LEN, 0, yStart, yEnd, yWaveform);
 
 	// convert to optical degree assuming 10V equal to 30 optical degree
+	// TODO We shouldn't make such an assumption! Also I think the variable
+	// names are the other way around ("inDegree" means "in volts" here).
 	double offsetXinDegree = galvoOffsetX / 3.0;
 	double offsetYinDegree = galvoOffsetY / 3.0;
 
@@ -160,7 +130,7 @@ GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, uint32_t lineDelay,
 			// first half is X waveform,
 			// x line scan repeated yLength times (sawteeth) 
 			// galvo x stays at starting position after one frame is scanned
-			xyWaveformFrame[i + j*xLength] = (j < numScanLines) ?
+			xyWaveformFrame[i + j*xLength] = (j < linesPerFrame) ?
 				(xWaveform[i] + offsetXinDegree) : (xWaveform[0] + offsetXinDegree);
 			//xyWaveformFrame[i + j*xLength] = xWaveform[i];
 			// second half is Y waveform
@@ -169,6 +139,10 @@ GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, uint32_t lineDelay,
 			xyWaveformFrame[i + j*xLength + yLength*xLength] = (yWaveform[j] + offsetYinDegree);
 		}
 	}
+	// TODO When we are scanning multiple frames, the Y retrace can be
+	// simultaneous with the last line's X retrace. (Spline interpolate
+	// with zero slope at each end of retrace.)
+	// TODO Simpler to use interleaved x,y format?
 
 	free(xWaveform);
 	free(yWaveform);

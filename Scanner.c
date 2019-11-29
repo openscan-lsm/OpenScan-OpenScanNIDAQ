@@ -127,13 +127,13 @@ int32 StopScanner(OScDev_Device *device, struct ScannerConfig *config)
 
 static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
 {
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
-	uint32_t scanLines = resolution;
-	uint32_t yLen = scanLines + Y_RETRACE_LEN;
-	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
+	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
+	uint32_t yLen = height + Y_RETRACE_LEN;
+	int32 elementsPerFramePerChan = elementsPerLine * height;
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
 
 	int32 nierr = DAQmxCfgSampClkTiming(config->aoTask, "",
@@ -153,17 +153,22 @@ static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *con
 {
 	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
 	double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
+	uint32_t xOffset, yOffset, width, height;
+	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + resolution + X_RETRACE_LEN;
-	uint32_t numScanLines = resolution;
-	uint32_t yLen = resolution + Y_RETRACE_LEN;
-	int32 elementsPerFramePerChan = elementsPerLine * numScanLines;  // without y retrace portion
+	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
+	uint32_t yLen = height + Y_RETRACE_LEN;
+	int32 elementsPerFramePerChan = elementsPerLine * height;  // without y retrace portion
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
 
 	double *xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
 	int err = GenerateGalvoWaveformFrame(resolution, zoomFactor,
-		GetData(device)->lineDelay, GetData(device)->offsetXY[0], GetData(device)->offsetXY[1], xyWaveformFrame);
+		GetData(device)->lineDelay,
+		xOffset, yOffset, width, height,
+		GetData(device)->offsetXY[0],
+		GetData(device)->offsetXY[1],
+		xyWaveformFrame);
 	if (err != 0)
 		return OScDev_Error_Waveform_Out_Of_Range;
 
