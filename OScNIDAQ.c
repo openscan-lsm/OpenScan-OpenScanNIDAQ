@@ -547,17 +547,6 @@ static OScDev_Error AcquireFrame(OScDev_Device *device, OScDev_Acquisition *acq)
 }
 
 
-static void FinishAcquisition(OScDev_Device *device)
-{
-	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
-	GetData(device)->acquisition.running = false;
-	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-	CONDITION_VARIABLE *cv = &(GetData(device)->acquisition.acquisitionFinishCondition);
-	WakeAllConditionVariable(cv);
-}
-
-
-// equal to SequenceThread::svc()
 static DWORD WINAPI AcquisitionLoop(void *param)
 {
 	OScDev_Device *device = (OScDev_Device *)param;
@@ -584,12 +573,16 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 			char msg[OScDev_MAX_STR_LEN + 1];
 			snprintf(msg, OScDev_MAX_STR_LEN, "Error during sequence acquisition: %d", (int)err);
 			OScDev_Log_Error(device, msg);
-			FinishAcquisition(device);
-			return 0;
+			break;
 		}
 	}
 
-	FinishAcquisition(device);
+	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
+	GetData(device)->acquisition.running = false;
+	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+	CONDITION_VARIABLE *cv = &(GetData(device)->acquisition.acquisitionFinishCondition);
+	WakeAllConditionVariable(cv);
+
 	return 0;
 }
 
@@ -603,21 +596,26 @@ OScDev_Error RunAcquisitionLoop(OScDev_Device *device)
 }
 
 
-
 OScDev_Error StopAcquisitionAndWait(OScDev_Device *device)
 {
-	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
-	{
-		if (!GetData(device)->acquisition.running)
-		{
-			LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-			return OScDev_OK;
-		}
+	CRITICAL_SECTION *mutex = &GetData(device)->acquisition.mutex;
+	CONDITION_VARIABLE *cv = &(GetData(device)->acquisition.acquisitionFinishCondition);
 
+	EnterCriticalSection(mutex);
+	if (GetData(device)->acquisition.started) {
 		GetData(device)->acquisition.stopRequested = true;
 	}
-	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-	return WaitForAcquisitionToFinish(device);
+	else { // Armed but not started
+		GetData(device)->acquisition.running = false;
+	}
+
+	while (GetData(device)->acquisition.running)
+	{
+		SleepConditionVariableCS(cv, mutex, INFINITE);
+	}
+	LeaveCriticalSection(mutex);
+
+	return OScDev_OK;
 }
 
 
@@ -632,16 +630,17 @@ OScDev_Error IsAcquisitionRunning(OScDev_Device *device, bool *isRunning)
 
 OScDev_Error WaitForAcquisitionToFinish(OScDev_Device *device)
 {
-	OScDev_Error err = OScDev_OK;
+	CRITICAL_SECTION *mutex = &GetData(device)->acquisition.mutex;
 	CONDITION_VARIABLE *cv = &(GetData(device)->acquisition.acquisitionFinishCondition);
 
-	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
+	EnterCriticalSection(mutex);
 	while (GetData(device)->acquisition.running)
 	{
-		SleepConditionVariableCS(cv, &(GetData(device)->acquisition.mutex), INFINITE);
+		SleepConditionVariableCS(cv, mutex, INFINITE);
 	}
-	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-	return err;
+	LeaveCriticalSection(mutex);
+
+	return OScDev_OK;
 }
 
 

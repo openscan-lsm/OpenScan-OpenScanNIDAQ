@@ -181,16 +181,16 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 		GetData(device)->scannerOnly = true;
 	}
 
-	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
+	OScDev_Error err = OScDev_OK;
+	CRITICAL_SECTION *mutex = &GetData(device)->acquisition.mutex;
+	EnterCriticalSection(mutex);
 	{
-		if (GetData(device)->acquisition.running &&
-			GetData(device)->acquisition.armed)
+		if (GetData(device)->acquisition.running)
 		{
-			LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-			if (GetData(device)->acquisition.started)
-				return OScDev_Error_Acquisition_Running;
-			else
-				return OScDev_OK;
+			// TODO Error should be "already armed"
+			err = OScDev_Error_Acquisition_Running;
+			LeaveCriticalSection(mutex);
+			return err;
 		}
 
 		GetData(device)->acquisition.acquisition = acq;
@@ -200,11 +200,10 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 		GetData(device)->acquisition.armed = false;
 		GetData(device)->acquisition.started = false;
 	}
-	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+	LeaveCriticalSection(mutex);
 
-	OScDev_Error err;
 	if (OScDev_CHECK(err, ReconfigDAQ(device, acq)))
-		return err;
+		goto error;
 
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
@@ -213,12 +212,20 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
 
 	return OScDev_OK;
+
+error:
+	EnterCriticalSection(mutex);
+	{
+		GetData(device)->acquisition.running = false;
+		GetData(device)->acquisition.acquisition = NULL;
+	}
+	LeaveCriticalSection(mutex);
+	return err;
 }
 
 
 static OScDev_Error NIDAQStart(OScDev_Device *device)
 {
-	// start scanner
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	{
 		if (!GetData(device)->acquisition.running ||
@@ -237,10 +244,7 @@ static OScDev_Error NIDAQStart(OScDev_Device *device)
 	}
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
 
-	// We don't yet support running detector as trigger source
-
 	return RunAcquisitionLoop(device);
-
 }
 
 
