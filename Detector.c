@@ -165,6 +165,7 @@ static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *
 			*maxVolts = ranges[2 * i + 1];
 		}
 	}
+
 	return 0;
 }
 
@@ -476,17 +477,27 @@ static int32 HandleRawData(OScDev_Device *device)
 		{
 			size_t rawChannelStart = rawPixelStart + ch;
 
+			// TODO Aside from the fact that simply averaging consecutive
+			// samples is not the correct opeartion (see signal processing
+			// theory), this is probably not the best place to do data
+			// processing.
 			double sum = 0.0;
 			for (size_t s = 0; s < binFactor; ++s)
 				sum += rawDataBuffer[rawChannelStart + s * numChannels];
-			double avg = sum / binFactor;
+			double avgVolts = sum / binFactor;
 
-			// Q: Why is the maximum 32767, not 65535?
-			// TODO In any case, this scaling may introduce nasty artifacts in the
-			// histogram; we should be using the raw 16-bit samples, as commented
-			// in DetectorDataCallback().
-			double scaled = 32767.0 * avg / inputVoltageRange;
-			uint16_t pixel = scaled >= 0.0 ? (uint16_t)scaled : 0;
+			// TODO We need a positive offset so as not to clip the background
+			// noise
+			double offsetVolts = 1.0; // Temporary
+
+			double dpixel = 65535.0 * (avgVolts + offsetVolts) / inputVoltageRange;
+			if (dpixel < 0) {
+				dpixel = 0.0;
+			}
+			if (dpixel > 65535.0) {
+				dpixel = 65535.0;
+			}
+			uint16_t pixel = (uint16_t)dpixel;
 
 			GetData(device)->frameBuffers[ch][pixelIndex] = pixel;
 		}
