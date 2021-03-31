@@ -221,7 +221,7 @@ OScDev_Error GetVoltageRangeForDevice(OScDev_Device* device, double* minVolts, d
 
 
 OScDev_Error GetEnabledAIPorts(OScDev_Device *device) {
-	char* portList;
+	char* portList = malloc(1);
 	struct OScNIDAQPrivateData* debug = GetData(device);
 	// Assume three channels at most
 	int channelNum = GetData(device)->channelCount;
@@ -244,6 +244,7 @@ OScDev_Error GetEnabledAIPorts(OScDev_Device *device) {
 	
 	}
 	GetData(device)->enabledAIPorts_ = portList;
+	free(portList);
 	return OScDev_OK;
 }
 
