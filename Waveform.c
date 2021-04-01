@@ -50,7 +50,7 @@ void SplineInterpolate(int32_t n, double yFirst, double yLast,
 
 
 /* Line clock pattern for NI DAQ to output from one of its digital IOs */
-int GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * lineClock)
+OScDev_RichError *GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * lineClock)
 {
 	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
 	for (uint32_t j = 0; j < numScanLines; j++)
@@ -58,25 +58,25 @@ int GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lin
 			lineClock[i + j*x_length] =
 			((i >= lineDelay) && (i < lineDelay + x_resolution)) ? 1 : 0;
 
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 // High voltage right after a line acquisition is done
 // like a line clock of reversed polarity
 // specially for B&H FLIM application
-int GenerateFLIMLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * lineClockFLIM)
+OScDev_RichError *GenerateFLIMLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * lineClockFLIM)
 {
 	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
 	for (uint32_t j = 0; j < numScanLines; j++)
 		for (uint32_t i = 0; i < x_length; i++)
 			lineClockFLIM[i + j*x_length] = (i >= lineDelay + x_resolution) ? 1 : 0;
 
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 // Frame clock for B&H FLIM
 // High voltage at the end of the frame
-int GenerateFLIMFrameClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * frameClockFLIM)
+OScDev_RichError *GenerateFLIMFrameClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * frameClockFLIM)
 {
 	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
 	uint32_t y_length = numScanLines;
@@ -86,7 +86,7 @@ int GenerateFLIMFrameClock(uint32_t x_resolution, uint32_t numScanLines, uint32_
 			frameClockFLIM[i + j * x_length] =
 			((j == numScanLines - 1) && (i > lineDelay + x_resolution)) ? 1 : 0;
 
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
@@ -96,8 +96,8 @@ Format: X|Y in a 1D array for NI DAQ to simultaneously output in two channels
 Analog voltage range (-0.5V, 0.5V) at zoom 1
 Including Y retrace waveform that moves the slow galvo back to its starting position
 */
-int
-GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, uint32_t undershoot,
+OScDev_RichError
+*GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, uint32_t undershoot,
 	uint32_t xOffset, uint32_t yOffset, // ROI offset
 	uint32_t pixelsPerLine, uint32_t linesPerFrame, // ROI size
 	double galvoOffsetX, double galvoOffsetY, // Adjustment offset
@@ -147,5 +147,5 @@ GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, uint32_t undershoot
 	free(xWaveform);
 	free(yWaveform);
 
-	return 0;
+	return OScDev_RichError_OK;
 }

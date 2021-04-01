@@ -26,6 +26,27 @@ void LogNiError(OScDev_Device *device, int32 nierr, const char *when)
 }
 
 
+char* ErrorCodeDomain()
+{
+	static char* domainName = NULL;
+	if (domainName == NULL) {
+		domainName = "NI DAQmx";
+		OScDev_Error_RegisterCodeDomain(domainName, 1);
+	}
+	return domainName;
+}
+
+
+// Must be called immediately after failed DAQmx function
+OScDev_RichError *CreateDAQmxError(int32 nierr)
+{
+	char buf[1024];
+	DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+
+	return OScDev_Error_CreateWithCode(ErrorCodeDomain(), nierr, buf);
+}
+
+
 static inline uint16_t DoubleToFixed16(double d, int intBits)
 {
 	int fracBits = 16 - intBits;
@@ -112,22 +133,22 @@ static OScDev_Error ParseAIPortList(char *names,
 
 
 // automatically detect deviceName using DAQmxGetSysDevNames()
-OScDev_Error EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl)
+OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl)
 {
-	OScDev_Error err;
+	OScDev_RichError *err;
+	OScDev_Error errCode;
 
 	// get a comma - delimited list of all of the devices installed in the system
 	char deviceNames[4096];
 	int32 nierr = DAQmxGetSysDevNames(deviceNames, sizeof(deviceNames));
-	if (nierr != 0)
-	{
-		return OScDev_Error_Unknown;  //TODO
-	}
+	if (nierr)
+		return CreateDAQmxError(nierr);
 
 	char deviceList[NUM_SLOTS_IN_CHASSIS][OScDev_MAX_STR_LEN + 1];
 
 	size_t deviceCount;
-	if (OScDev_CHECK(err, ParseDeviceNameList(deviceNames, deviceList, &deviceCount)))
+	err = ParseDeviceNameList(deviceNames, deviceList, &deviceCount);
+	if (err)
 		return err;
 
 	*devices = OScDev_PtrArray_Create();
@@ -138,12 +159,12 @@ OScDev_Error EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *im
 		strncpy(data->deviceName, deviceList[i], OScDev_MAX_STR_LEN);
 
 		OScDev_Device *device;
-		if (OScDev_CHECK(err, OScDev_Device_Create(&device, impl, data)))
+		errCode = OScDev_Device_Create(&device, impl, data);
+		if (errCode)
 		{
 			char msg[OScDev_MAX_STR_LEN + 1] = "Failed to create device ";
 			strcat(msg, data->deviceName);
-			OScDev_Log_Error(device, msg);
-			return err;
+			return OScDev_Error_Create(msg);
 		}
 
 		PopulateDefaultParameters(GetData(device));
@@ -151,7 +172,7 @@ OScDev_Error EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *im
 		OScDev_PtrArray_Append(*devices, device);
 	}
 	
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
@@ -251,7 +272,7 @@ OScDev_Error GetEnabledAIPorts(OScDev_Device *device) {
 
 // convert comma comma - delimited device list to a 2D string array
 // each row contains the name of one device
-static OScDev_Error ParseDeviceNameList(char *names,
+static OScDev_RichError *ParseDeviceNameList(char *names,
 	char (*deviceNames)[OScDev_MAX_STR_LEN + 1], size_t *deviceCount)
 {
 	const char s[3] = ", ";
@@ -267,16 +288,16 @@ static OScDev_Error ParseDeviceNameList(char *names,
 			count++;
 		}
 		else
-			return OScDev_Error_Unknown;  //TODO
+			return OScDev_Error_Create("Error Unknown");
 	}
 
 	*deviceCount = (size_t)count;
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
-OScDev_Error MapDispChanToAIPorts(OScDev_Device* device)
+OScDev_RichError *MapDispChanToAIPorts(OScDev_Device* device)
 {
 	struct OScNIDAQPrivateData* debug = GetData(device);
 	char dispChannels[3][512] = {
@@ -296,17 +317,18 @@ OScDev_Error MapDispChanToAIPorts(OScDev_Device* device)
 		sm_put(GetData(device)->channelMap_, dispChannels[i], GetData(device)->aiPorts_[i]);
 	}
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
 // same to Initialize() in old OpenScan format
-OScDev_Error OpenDAQ(OScDev_Device *device)
+OScDev_RichError *OpenDAQ(OScDev_Device *device)
 {
 	OScDev_Log_Debug(device, "Start initializing DAQ");
-	OScDev_Error err;
-	if (OScDev_CHECK(err, MapDispChanToAIPorts(device))) {
-		OScDev_Log_Error(device, "Fail to init hash table");
+	OScDev_RichError *err;
+	err = MapDispChanToAIPorts(device);
+	if (err) {
+		return OScDev_Error_Wrap(err, "Fail to init hash table");
 	}
 	struct OScNIDAQPrivateData* debug = GetData(device);
 	// TODO: allow user to select these channels -- probably need a Hub structure
@@ -337,20 +359,21 @@ OScDev_Error OpenDAQ(OScDev_Device *device)
 	strcat(buffer, noSlash);
 	strcpy(GetData(device)->acqTrigPort_,  buffer);
 
-	return OScDev_OK;
+	// ???
+	return OScDev_RichError_OK;
 }
 
 
-OScDev_Error CloseDAQ(OScDev_Device *device)
+OScDev_RichError *CloseDAQ(OScDev_Device *device)
 {
 	//TODO
 	//StopAcquisitionAndWait(device, acq);
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
-static OScDev_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char terminalName[], char triggerName[])
+static OScDev_RichError *GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char terminalName[], char triggerName[])
 {
 	int32	error = 0;
 	char	device[256];
@@ -358,22 +381,22 @@ static OScDev_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const ch
 	uInt32	numDevices, i = 1;
 
 	int32 nierr = DAQmxGetTaskNumDevices(taskHandle, &numDevices);
-	if (nierr != 0)
-		return nierr;
+	if (nierr)
+		return CreateDAQmxError(nierr);
 	while (i <= numDevices) {
 		nierr = DAQmxGetNthTaskDevice(taskHandle, i++, device, 256);
-		if (nierr != 0)
-			return nierr;
+		if (nierr)
+			return CreateDAQmxError(nierr);
 		nierr = DAQmxGetDevProductCategory(device, &productCategory);
-		if (nierr != 0)
-			return nierr;
+		if (nierr)
+			return CreateDAQmxError(nierr);
 		if (productCategory != DAQmx_Val_CSeriesModule && productCategory != DAQmx_Val_SCXIModule) {
 			*triggerName++ = '/';
 			strcat(strcat(strcpy(triggerName, device), "/"), terminalName);
 			break;
 		}
 	}
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
@@ -381,27 +404,30 @@ static OScDev_Error GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const ch
 // Arm acquisition task first. Then make sure the (digital) line clock output 
 // is armed before the (analog) waveform output. 
 // This will ensure both tasks will start at the same time.
-static OScDev_Error StartScan(OScDev_Device *device)
+static OScDev_RichError *StartScan(OScDev_Device *device)
 {
-	OScDev_Error err;
+	OScDev_RichError *err;
 	if (!GetData(device)->scannerOnly) {
-		if (OScDev_CHECK(err, StartDetector(device, &GetData(device)->detectorConfig)))
+		err = StartDetector(device, &GetData(device)->detectorConfig);
+		if (err)
 			return err;
 	}		
 	else
 		OScDev_Log_Debug(device, "DAQ not used as detector");
 
-	if (OScDev_CHECK(err, StartClock(device, &GetData(device)->clockConfig)))
+	err = StartClock(device, &GetData(device)->clockConfig);
+	if (err)
 		return err;
 
-	if (OScDev_CHECK(err, StartScanner(device, &GetData(device)->scannerConfig)))
+	err = StartScanner(device, &GetData(device)->scannerConfig);
+	if (err)
 		return err;
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
-static OScDev_Error WaitScanToFinish(OScDev_Device *device, OScDev_Acquisition *acq)
+static OScDev_RichError *WaitScanToFinish(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
 	uint32_t xOffset, yOffset, width, height;
@@ -425,16 +451,16 @@ static OScDev_Error WaitScanToFinish(OScDev_Device *device, OScDev_Acquisition *
 	OScDev_Log_Debug(device, msg);
 	Sleep(waitScanToFinish);
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
 
 // stop running tasks
 // need to stop detector first, then clock and scanner
-static OScDev_Error StopScan(OScDev_Device *device, OScDev_Acquisition *acq)
+static OScDev_RichError *StopScan(OScDev_Device *device, OScDev_Acquisition *acq)
 {
-	OScDev_Error err, lastErr = 0;
+	OScDev_RichError *err, *lastErr = OScDev_RichError_OK;
 
 	// Stopping a task may return an error if it failed, so make sure to stop
 	// all tasks even if we get errors.
@@ -452,7 +478,8 @@ static OScDev_Error StopScan(OScDev_Device *device, OScDev_Acquisition *acq)
 	// "Finite acquisition or generation has been stopped before the requested number
 	// of samples were acquired or generated."
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
-	if (OScDev_CHECK(err, WaitScanToFinish(device, acq)))
+	err = WaitScanToFinish(device, acq);
+	if (err)
 		return err;
 
 	err = StopClock(device, &GetData(device)->clockConfig);
@@ -468,7 +495,7 @@ static OScDev_Error StopScan(OScDev_Device *device, OScDev_Acquisition *acq)
 
 
 // DAQ version; acquire from multiple channels
-static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
+static OScDev_RichError *ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
 	uint32_t xOffset, yOffset, width, height;
@@ -486,8 +513,9 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 	uint32_t estFrameTimeMs = (uint32_t)(1e3 * elementsPerLine * yLen * GetData(device)->binFactor / pixelRateHz);
 	uint32_t totalWaitTimeMs = 0;
 
-	OScDev_Error err;
-	if (OScDev_CHECK(err, StartScan(device)))
+	OScDev_RichError *err;
+	err = StartScan(device);
+	if (err)
 		return err;
 
 	// Wait for scan to complete
@@ -513,7 +541,8 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 		OScDev_Log_Debug(device, msg);
 	}
 
-	if (OScDev_CHECK(err, StopScan(device, acq)))
+	err = StopScan(device, acq);
+	if (err)
 		return err;
 
 	// SplitChannels
@@ -532,19 +561,20 @@ static OScDev_Error ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 		}
 	}
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
-static OScDev_Error AcquireFrame(OScDev_Device *device, OScDev_Acquisition *acq)
+static OScDev_RichError *AcquireFrame(OScDev_Device *device, OScDev_Acquisition *acq)
 {
-	OScDev_Error err;
+	OScDev_RichError *err;
 	OScDev_Log_Debug(device, "Reading image...");
-	if (OScDev_CHECK(err, ReadImage(device, acq)))
+	err = ReadImage(device, acq);
+	if (err)
 		return err;
 	OScDev_Log_Debug(device, "Finished reading image");
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
@@ -568,8 +598,9 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 		snprintf(msg, OScDev_MAX_STR_LEN, "Sequence acquiring frame # %d", frame);
 		OScDev_Log_Debug(device, msg);
 
-		OScDev_Error err;
-		if (OScDev_CHECK(err, AcquireFrame(device, acq)))
+		OScDev_RichError *err;
+		err = AcquireFrame(device, acq);
+		if (err)
 		{
 			char msg[OScDev_MAX_STR_LEN + 1];
 			snprintf(msg, OScDev_MAX_STR_LEN, "Error during sequence acquisition: %d", (int)err);
@@ -588,16 +619,16 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 }
 
 
-OScDev_Error RunAcquisitionLoop(OScDev_Device *device)
+OScDev_RichError *RunAcquisitionLoop(OScDev_Device *device)
 {
 	DWORD id;
 	GetData(device)->acquisition.thread =
 		CreateThread(NULL, 0, AcquisitionLoop, device, 0, &id);
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
-OScDev_Error StopAcquisitionAndWait(OScDev_Device *device)
+OScDev_RichError *StopAcquisitionAndWait(OScDev_Device *device)
 {
 	CRITICAL_SECTION *mutex = &GetData(device)->acquisition.mutex;
 	CONDITION_VARIABLE *cv = &(GetData(device)->acquisition.acquisitionFinishCondition);
@@ -616,20 +647,20 @@ OScDev_Error StopAcquisitionAndWait(OScDev_Device *device)
 	}
 	LeaveCriticalSection(mutex);
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
-OScDev_Error IsAcquisitionRunning(OScDev_Device *device, bool *isRunning)
+OScDev_RichError *IsAcquisitionRunning(OScDev_Device *device, bool *isRunning)
 {
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	*isRunning = GetData(device)->acquisition.running;
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
-OScDev_Error WaitForAcquisitionToFinish(OScDev_Device *device)
+OScDev_RichError *WaitForAcquisitionToFinish(OScDev_Device *device)
 {
 	CRITICAL_SECTION *mutex = &GetData(device)->acquisition.mutex;
 	CONDITION_VARIABLE *cv = &(GetData(device)->acquisition.acquisitionFinishCondition);
@@ -641,11 +672,11 @@ OScDev_Error WaitForAcquisitionToFinish(OScDev_Device *device)
 	}
 	LeaveCriticalSection(mutex);
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
 
 
-OScDev_Error ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq)
+OScDev_RichError *ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
 	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
@@ -681,7 +712,7 @@ OScDev_Error ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq)
 
 	// Note that additional setting of 'mustReconfigure' flags occurs in settings
 
-	OScDev_Error err;
+	OScDev_RichError *err;
 
 	err = SetUpClock(device, &GetData(device)->clockConfig, acq);
 	if (err)
@@ -708,5 +739,5 @@ OScDev_Error ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq)
 	GetData(device)->configuredRasterWidth = width;
 	GetData(device)->configuredRasterHeight = height;
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }

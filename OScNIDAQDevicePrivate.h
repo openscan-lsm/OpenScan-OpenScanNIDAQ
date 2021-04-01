@@ -130,25 +130,28 @@ static inline struct OScNIDAQPrivateData *GetData(OScDev_Device *device)
 }
 
 
-OScDev_Error EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl);
+OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl);
 OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings);
-OScDev_Error GetSelectedDispChannels(OScDev_Device *device);
+OScDev_RichError *GetSelectedDispChannels(OScDev_Device *device);
 
 
-int32 SetUpClock(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq);
-int32 ShutdownClock(OScDev_Device *device, struct ClockConfig *config);
-int32 StartClock(OScDev_Device *device, struct ClockConfig *config);
-int32 StopClock(OScDev_Device *device, struct ClockConfig *config);
-int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
-int32 ShutdownScanner(OScDev_Device *device, struct ScannerConfig *config);
-int32 StartScanner(OScDev_Device *device, struct ScannerConfig *config);
-int32 StopScanner(OScDev_Device *device, struct ScannerConfig *config);
-int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
-int32 ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config);
-int32 StartDetector(OScDev_Device *device, struct DetectorConfig *config);
-int32 StopDetector(OScDev_Device *device, struct DetectorConfig *config);
+OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq);
+OScDev_RichError *ShutdownClock(OScDev_Device *device, struct ClockConfig *config);
+OScDev_RichError *StartClock(OScDev_Device *device, struct ClockConfig *config);
+OScDev_RichError *StopClock(OScDev_Device *device, struct ClockConfig *config);
+OScDev_RichError *SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
+OScDev_RichError *ShutdownScanner(OScDev_Device *device, struct ScannerConfig *config);
+OScDev_RichError *StartScanner(OScDev_Device *device, struct ScannerConfig *config);
+OScDev_RichError *StopScanner(OScDev_Device *device, struct ScannerConfig *config);
+OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
+OScDev_RichError *ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config);
+OScDev_RichError *StartDetector(OScDev_Device *device, struct DetectorConfig *config);
+OScDev_RichError *StopDetector(OScDev_Device *device, struct DetectorConfig *config);
 
 
 
 // Must be called immediately after failed DAQmx function
 void LogNiError(OScDev_Device *device, int32 nierr, const char *when);
+char *ErrorCodeDomain();
+// Must be called immediately after failed DAQmx functio
+OScDev_RichError *CreateDAQmxError(int32 nierr);

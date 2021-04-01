@@ -7,13 +7,14 @@
 #include <string.h>
 
 
-static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
-static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
+static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
+static OScDev_RichError *WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
 
 
 // Initialize, configure, and arm the scanner, whatever its current state
-int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
+OScDev_RichError *SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
 {
+	OScDev_RichError *err;
 	bool mustCommit = false;
 
 	int32 nierr;
@@ -22,8 +23,9 @@ int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_A
 		nierr = DAQmxCreateTask("Scanner", &config->aoTask);
 		if (nierr)
 		{
-			LogNiError(device, nierr, "creating scanner task");
-			return nierr;
+			err = CreateDAQmxError(nierr);
+			err = OScDev_Error_Wrap(err, "creating scanner task");
+			return err;
 		}
 
 		char aoTerminals[256];
@@ -34,7 +36,8 @@ int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_A
 			"Galvos", -10.0, 10.0, DAQmx_Val_Volts, NULL);
 		if (nierr)
 		{
-			LogNiError(device, nierr, "creating ao channels for scanner");
+			err = CreateDAQmxError(nierr);
+			err = OScDev_Error_Wrap(err, "creating ao channels for scanner");
 			goto error;
 		}
 
@@ -45,8 +48,8 @@ int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_A
 
 	if (config->mustReconfigureTiming)
 	{
-		nierr = ConfigureScannerTiming(device, config, acq);
-		if (nierr)
+		err = ConfigureScannerTiming(device, config, acq);
+		if (err)
 			goto error;
 		config->mustReconfigureTiming = false;
 		mustCommit = true;
@@ -54,8 +57,8 @@ int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_A
 
 	if (config->mustRewriteOutput)
 	{
-		nierr = WriteScannerOutput(device, config, acq);
-		if (nierr)
+		err = WriteScannerOutput(device, config, acq);
+		if (err)
 			goto error;
 		config->mustRewriteOutput = false;
 		mustCommit = true;
@@ -66,67 +69,75 @@ int32 SetUpScanner(OScDev_Device *device, struct ScannerConfig *config, OScDev_A
 		nierr = DAQmxTaskControl(config->aoTask, DAQmx_Val_Task_Commit);
 		if (nierr)
 		{
-			LogNiError(device, nierr, "committing task for scanner");
+			err = CreateDAQmxError(nierr);
+			err = OScDev_Error_Wrap(err, "committing task for scanner");
 			goto error;
 		}
 	}
 
-	return 0;
+	return OScDev_RichError_OK;
 
 error:
 	if (ShutdownScanner(device, config))
 		OScDev_Log_Error(device, "Failed to clean up scanner task after error");
-	return nierr;
+	return err;
 }
 
 
 // Remove all DAQmx configuration for the scanner
-int32 ShutdownScanner(OScDev_Device *device, struct ScannerConfig *config)
+OScDev_RichError *ShutdownScanner(OScDev_Device *device, struct ScannerConfig *config)
 {
+	OScDev_RichError *err;
 	if (config->aoTask)
 	{
 		int32 nierr = DAQmxClearTask(config->aoTask);
 		if (nierr)
 		{
-			LogNiError(device, nierr, "clearing scanner task");
-			return nierr;
+			err = CreateDAQmxError(nierr);
+			err = OScDev_Error_Wrap(err, "clearing scanner task");
+			return err;
 		}
 		config->aoTask = 0;
 	}
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-int32 StartScanner(OScDev_Device *device, struct ScannerConfig *config)
+OScDev_RichError *StartScanner(OScDev_Device *device, struct ScannerConfig *config)
 {
+	OScDev_RichError *err;
 	int32 nierr;
 	nierr = DAQmxStartTask(config->aoTask);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "starting scanner task");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "starting scanner task");
 		ShutdownScanner(device, config); // Force re-setup next time
-		return nierr;
+		return err;
 	}
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-int32 StopScanner(OScDev_Device *device, struct ScannerConfig *config)
+OScDev_RichError *StopScanner(OScDev_Device *device, struct ScannerConfig *config)
 {
+	OScDev_RichError *err;
 	int32 nierr;
 	nierr = DAQmxStopTask(config->aoTask);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "stopping scanner task");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "stopping scanner task");
 		ShutdownScanner(device, config); // Force re-setup next time
-		return nierr;
+		return err;
 	}
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
+static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
 {
+	OScDev_RichError *err;
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
 	uint32_t xOffset, yOffset, width, height;
 	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
@@ -141,16 +152,18 @@ static int32 ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig 
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "configuring timing for scanner");
-		return nierr;
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "configuring timing for scanner");
+		return err;
 	}
 
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
+static OScDev_RichError *WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
 {
+	OScDev_RichError *err;
 	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
 	double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
 	uint32_t xOffset, yOffset, width, height;
@@ -163,14 +176,14 @@ static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *con
 
 	double *xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-	int err = GenerateGalvoWaveformFrame(resolution, zoomFactor,
+	err = GenerateGalvoWaveformFrame(resolution, zoomFactor,
 		GetData(device)->lineDelay,
 		xOffset, yOffset, width, height,
 		GetData(device)->offsetXY[0],
 		GetData(device)->offsetXY[1],
 		xyWaveformFrame);
-	if (err != 0)
-		return OScDev_Error_Waveform_Out_Of_Range;
+	if (err)
+		return err;
 
 	int32 numWritten = 0;
 	int32 nierr = nierr = DAQmxWriteAnalogF64(config->aoTask,
@@ -178,16 +191,18 @@ static int32 WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *con
 		DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "writing scanner waveforms");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "writing scanner waveforms");
 		goto cleanup;
 	}
 	if (numWritten != totalElementsPerFramePerChan)
 	{
-		OScDev_Log_Error(device, "Failed to write complete scan waveform");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "Failed to write complete scan waveform");
 		goto cleanup;
 	}
 
 cleanup:
 	free(xyWaveformFrame);
-	return nierr;
+	return err;
 }

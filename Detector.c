@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 
-static int32 CreateDetectorTask(OScDev_Device *device, struct DetectorConfig *config);
+static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct DetectorConfig *config);
 static int32 ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
 static int32 ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConfig *config);
 static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
@@ -17,16 +17,18 @@ static int32 HandleRawData(OScDev_Device *device);
 
 
 // Initialize, configure, and arm the detector, whatever its current state
-int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
+OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
 {
+	OScDev_RichError *err = OScDev_RichError_OK;
 	bool mustCommit = false;
 
 	int32 nierr;
 	if (!config->aiTask)
 	{
-		nierr = CreateDetectorTask(device, config);
-		if (nierr)
-			return nierr;
+		err = CreateDetectorTask(device, config);
+		if (err)
+			return err;
+
 		config->mustReconfigureTiming = true;
 		config->mustReconfigureTrigger = true;
 		config->mustReconfigureCallback = true;
@@ -65,68 +67,75 @@ int32 SetUpDetector(OScDev_Device *device, struct DetectorConfig *config, OScDev
 		nierr = DAQmxTaskControl(config->aiTask, DAQmx_Val_Task_Commit);
 		if (nierr)
 		{
-			LogNiError(device, nierr, "committing task for detector");
+			err = CreateDAQmxError(nierr);
+			err = OScDev_Error_Wrap(err, "committing task for detector");
 			goto error;
 		}
 	}
 
-	return 0;
+	return OScDev_RichError_OK;
 
 error:
 	if (ShutdownDetector(device, config))
 		OScDev_Log_Error(device, "Failed to clean up detector task after error");
-	return nierr;
+	return err;
 }
 
 
 // Remove all DAQmx configuration for the detector
 // This can be called to force task recreation the next time the detector is
 // armed
-int32 ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config)
+OScDev_RichError *ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config)
 {
+	OScDev_RichError *err;
 	if (config->aiTask)
 	{
 		int32 nierr = DAQmxClearTask(config->aiTask);
 		if (nierr)
 		{
-			LogNiError(device, nierr, "clearing detector task");
-			return nierr;
+			err = CreateDAQmxError(nierr);
+			err = OScDev_Error_Wrap(err, "clearing detector task");
+			return err;
 		}
 		config->aiTask = 0;
 	}
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-int32 StartDetector(OScDev_Device *device, struct DetectorConfig *config)
+OScDev_RichError *StartDetector(OScDev_Device *device, struct DetectorConfig *config)
 {
+	OScDev_RichError *err;
 	int32 nierr;
 	nierr = DAQmxStartTask(config->aiTask);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "starting detector task");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "starting detector task");
 		ShutdownDetector(device, config); // Force re-setup next time
-		return nierr;
+		return err;
 	}
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-int32 StopDetector(OScDev_Device *device, struct DetectorConfig *config)
+OScDev_RichError *StopDetector(OScDev_Device *device, struct DetectorConfig *config)
 {
+	OScDev_RichError *err;
 	// The task may have been cleared in the case of an error
 	if (!config->aiTask)
-		return 0;
+		return OScDev_RichError_OK;
 
 	int32 nierr;
 	nierr = DAQmxStopTask(config->aiTask);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "stopping detector task");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "stopping detector task");
 		ShutdownDetector(device, config); // Force re-setup next time
-		return nierr;
+		return err;
 	}
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
@@ -170,14 +179,16 @@ static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *
 }
 
 
-static int32 CreateDetectorTask(OScDev_Device *device, struct DetectorConfig *config)
+static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct DetectorConfig *config)
 {
+	OScDev_RichError *err = OScDev_RichError_OK;
 	int32 nierr;
 	nierr = DAQmxCreateTask("Detector", &config->aiTask);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "creating detector task");
-		return nierr;
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "creating detector task");
+		return err;
 	}
 
 	char aiPorts[1024] = "";
@@ -205,23 +216,25 @@ static int32 CreateDetectorTask(OScDev_Device *device, struct DetectorConfig *co
 		DAQmx_Val_Volts, NULL);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "creating ai channel for detector");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "creating ai channel for detector");
 		goto error;
 	}
 
 	nierr = DAQmxGetReadNumChans(config->aiTask, &GetData(device)->numAIChannels);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "getting number of ai channels for detector");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "getting number of ai channels for detector");
 		goto error;
 	}
 
-	return 0;
+	return OScDev_RichError_OK;
 
 error:
 	if (ShutdownDetector(device, config))
 		OScDev_Log_Error(device, "Failed to clean up detector task after error");
-	return nierr;
+	return err;
 }
 
 
