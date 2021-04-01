@@ -8,12 +8,12 @@
 
 
 static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct DetectorConfig *config);
-static int32 ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
-static int32 ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConfig *config);
-static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
-static int32 CVICALLBACK DetectorDataCallback(TaskHandle taskHandle,
+static OScDev_RichError *ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
+static OScDev_RichError *ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConfig *config);
+static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
+static OScDev_RichError *CVICALLBACK DetectorDataCallback(TaskHandle taskHandle,
 	int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData);
-static int32 HandleRawData(OScDev_Device *device);
+static OScDev_RichError *HandleRawData(OScDev_Device *device);
 
 
 // Initialize, configure, and arm the detector, whatever its current state
@@ -238,8 +238,9 @@ error:
 }
 
 
-static int32 ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
+static OScDev_RichError *ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
 {
+	OScDev_RichError *err;
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
 	uint32_t xOffset, yOffset, width, height;
 	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
@@ -250,15 +251,16 @@ static int32 ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfi
 		width * GetData(device)->binFactor);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "configuring timing for detector");
-		return nierr;
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "configuring timing for detector");
+		return err;
 	}
 
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-static int32 ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConfig *config)
+static OScDev_RichError *ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConfig *config)
 {
 	// For now we hard-code the trigger to PFI12, which is the output of CTR0
 
@@ -266,6 +268,7 @@ static int32 ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConf
 	// acquisition triggerIn terminal without physical wiring:
 	//nierr = DAQmxConnectTerms("/PXI1Slot2/Ctr0InternalOutput", "/PXI1Slot2/PFI8", DAQmx_Val_DoNotInvertPolarity);
 	//nierr = DAQmxCfgDigEdgeStartTrig(acqTaskHandle_, "/PXI1Slot2/PFI8", DAQmx_Val_Rising);
+	OScDev_RichError *err;
 
 	char triggerSource[256] = "/";
 	strncat(triggerSource, GetData(device)->deviceName,
@@ -277,46 +280,52 @@ static int32 ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConf
 		triggerSource, DAQmx_Val_Rising);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "setting start trigger for detector task");
-		return nierr;
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "setting start trigger for detector task");
+		return err;
 	}
 
 	nierr = DAQmxSetStartTrigRetriggerable(config->aiTask, 1);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "setting detector task retriggerable");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "setting detector task retriggerable");
 		return nierr;
 	}
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-static int32 UnconfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config)
+static OScDev_RichError *UnconfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config)
 {
+	OScDev_RichError *err;
 	int32 nierr = DAQmxRegisterEveryNSamplesEvent(config->aiTask,
 		DAQmx_Val_Acquired_Into_Buffer,
 		0, 0, NULL, NULL);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "unregistering callback for detector");
-		return nierr;
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "unregistering callback for detector");
+		return err;
 	}
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
+static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq)
 {
 	uint32_t xOffset, yOffset, width, height;
 	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
+	OScDev_RichError *err;
 	int32 nierr;
 
 	// Registering the callback in DAQmx is not idempotent, so we need to
 	// clear any existing callback.
 	nierr = UnconfigureDetectorCallback(device, config);
 	if (nierr)
-		return nierr;
+		return CreateDAQmxError(nierr);
+		
 
 	// TODO: It probably makes sense to scale the buffer based on the time
 	// duration of data it holds (e.g. 500 ms), rather than the number of
@@ -337,8 +346,9 @@ static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorCon
 	nierr = DAQmxCfgInputBuffer(config->aiTask, (uInt32)bufferSize);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "configuring input buffer for detector");
-		return nierr;
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "configuring input buffer for detector");
+		return err;
 	}
 
 	// Allocate buffer into which we read data. Set it to be large enough
@@ -368,9 +378,9 @@ static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorCon
 	nierr = DAQmxSetReadReadAllAvailSamp(config->aiTask, TRUE);
 	if (nierr)
 	{
-		LogNiError(device, nierr,
-			"setting the Read All Available Samples property for the detector task");
-		return nierr;
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "setting the Read All Available Samples property for the detector task");
+		return err;
 	}
 
 	// TODO: It probably makes sense to scale the callback frequency so that
@@ -382,29 +392,32 @@ static int32 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorCon
 		0, DetectorDataCallback, device);
 	if (nierr)
 	{
-		LogNiError(device, nierr, "registering callback for detector");
-		return nierr;
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "registering callback for detector");
+		return err;
 	}
 
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
-static int32 DetectorDataCallback(TaskHandle taskHandle,
+static OScDev_RichError *DetectorDataCallback(TaskHandle taskHandle,
 	int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData)
 {
 	OScDev_Device *device = (OScDev_Device*)(callbackData);
 
 	if (taskHandle != GetData(device)->detectorConfig.aiTask)
-		return 0;
+		return OScDev_RichError_OK;
 	if (everyNsamplesEventType != DAQmx_Val_Acquired_Into_Buffer)
-		return 0;
+		return OScDev_RichError_OK;
 
 	char msg[1024];
 	snprintf(msg, sizeof(msg) - 1, "Detector callback (%d samples)", nSamples);
 	OScDev_Log_Debug(device, msg);
 
 	uint32_t numChannels = GetData(device)->numAIChannels;
+
+	OScDev_RichError *err;
 	int32 nierr;
 
 	// TODO We should use DAQmxReadBinaryU16, so that users have access to raw
@@ -425,38 +438,43 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
 	if (nierr == DAQmxErrorTimeoutExceeded)
 	{
 		OScDev_Log_Error(device, "Error: DAQ read data timeout");
-		return 0;
+		return OScDev_RichError_OK;
 	}
 
 	if (nierr)
 	{
 		LogNiError(device, nierr, "reading detector samples");
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "registering callback for detector");
 		goto error;
 	}
 	
 	if (samplesPerChanRead == 0)
 	{
 		OScDev_Log_Error(device, "Error: DAQ failed to read any sample");
-		return 0;
+		return OScDev_RichError_OK;
 	}
 
 	GetData(device)->rawDataSize += samplesPerChanRead * numChannels;
 
 	nierr = HandleRawData(device);
 	if (nierr)
+	{
+		err = CreateDAQmxError(nierr);
 		goto error;
-
-	return 0;
+	}
+		
+	return OScDev_RichError_OK;
 
 error:
 	if (GetData(device)->detectorConfig.aiTask)
 		ShutdownDetector(device, &GetData(device)->detectorConfig);
-	return nierr;
+	return err;
 }
 
 
 // Process data in rawDataBuffer and place the result into frameBuffers
-static int32 HandleRawData(OScDev_Device *device)
+static OScDev_RichError *HandleRawData(OScDev_Device *device)
 {
 	// Some amount of data (rawDataSize samples) is in the rawDataBuffer.
 	// Since we have C channels and are binning every B samples per channel,
@@ -543,5 +561,5 @@ static int32 HandleRawData(OScDev_Device *device)
 		GetData(device)->framePixelsFilled = 0;
 	}
 
-	return 0;
+	return OScDev_RichError_OK;
 }

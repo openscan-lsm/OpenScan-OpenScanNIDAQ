@@ -119,7 +119,6 @@ OScDev_RichError *ShutdownClock(OScDev_Device *device, struct ClockConfig *confi
 			err = OScDev_Error_Wrap(err, "clearing clock lineCtr task");
 			return err;
 		}
-			LogNiError(device, nierr2, "clearing clock lineCtr task");
 		config->lineCtrTask = 0;
 	}
 
@@ -177,7 +176,7 @@ OScDev_RichError *StopClock(OScDev_Device *device, struct ClockConfig *config)
 		return err;
 	}
 
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
@@ -358,7 +357,7 @@ static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device, struct Cl
 		return err;
 	}
 
-	return 0;
+	return OScDev_RichError_OK;
 }
 
 
