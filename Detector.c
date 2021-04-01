@@ -290,7 +290,7 @@ static OScDev_RichError *ConfigureDetectorTrigger(OScDev_Device *device, struct 
 	{
 		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "setting detector task retriggerable");
-		return nierr;
+		return err;
 	}
 	return OScDev_RichError_OK;
 }
@@ -443,9 +443,8 @@ static OScDev_RichError *DetectorDataCallback(TaskHandle taskHandle,
 
 	if (nierr)
 	{
-		LogNiError(device, nierr, "reading detector samples");
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "registering callback for detector");
+		err = OScDev_Error_Wrap(err, "reading detector samples");
 		goto error;
 	}
 	
