@@ -68,7 +68,7 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *co
 		if (nierr)
 		{
 			err = CreateDAQmxError(nierr);
-			err = OScDev_Error_Wrap(err, "committing task for detector");
+			err = OScDev_Error_Wrap(err, "Failed to commit task for detector");
 			goto error;
 		}
 	}
@@ -94,7 +94,7 @@ OScDev_RichError *ShutdownDetector(OScDev_Device *device, struct DetectorConfig 
 		if (nierr)
 		{
 			err = CreateDAQmxError(nierr);
-			err = OScDev_Error_Wrap(err, "clearing detector task");
+			err = OScDev_Error_Wrap(err, "Failed to clear detector task");
 			return err;
 		}
 		config->aiTask = 0;
@@ -111,7 +111,7 @@ OScDev_RichError *StartDetector(OScDev_Device *device, struct DetectorConfig *co
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "starting detector task");
+		err = OScDev_Error_Wrap(err, "Failed to start detector task");
 		ShutdownDetector(device, config); // Force re-setup next time
 		return err;
 	}
@@ -131,7 +131,7 @@ OScDev_RichError *StopDetector(OScDev_Device *device, struct DetectorConfig *con
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "stopping detector task");
+		err = OScDev_Error_Wrap(err, "Failed to stop detector task");
 		ShutdownDetector(device, config); // Force re-setup next time
 		return err;
 	}
@@ -150,7 +150,7 @@ static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *
 		sizeof(ranges) / sizeof(float64));
 	if (nierr)
 	{
-		LogNiError(device, nierr, "getting voltage range for detector");
+		LogNiError(device, nierr, "Failed to get voltage range for detector");
 		return nierr;
 	}
 
@@ -187,7 +187,7 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct Detect
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "creating detector task");
+		err = OScDev_Error_Wrap(err, "Failed to create detector task");
 		return err;
 	}
 
@@ -217,7 +217,7 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct Detect
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "creating ai channel for detector");
+		err = OScDev_Error_Wrap(err, "Failed to create ai channel for detector");
 		goto error;
 	}
 
@@ -225,7 +225,7 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct Detect
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "getting number of ai channels for detector");
+		err = OScDev_Error_Wrap(err, "Failed to get number of ai channels for detector");
 		goto error;
 	}
 
@@ -252,7 +252,7 @@ static OScDev_RichError *ConfigureDetectorTiming(OScDev_Device *device, struct D
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "configuring timing for detector");
+		err = OScDev_Error_Wrap(err, "Failed to configure timing for detector");
 		return err;
 	}
 
@@ -281,7 +281,7 @@ static OScDev_RichError *ConfigureDetectorTrigger(OScDev_Device *device, struct 
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "setting start trigger for detector task");
+		err = OScDev_Error_Wrap(err, "Failed to set start trigger for detector task");
 		return err;
 	}
 
@@ -289,7 +289,7 @@ static OScDev_RichError *ConfigureDetectorTrigger(OScDev_Device *device, struct 
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "setting detector task retriggerable");
+		err = OScDev_Error_Wrap(err, "Failed to set detector task retriggerable");
 		return err;
 	}
 	return OScDev_RichError_OK;
@@ -305,7 +305,7 @@ static OScDev_RichError *UnconfigureDetectorCallback(OScDev_Device *device, stru
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "unregistering callback for detector");
+		err = OScDev_Error_Wrap(err, "Failed to unregister callback for detector");
 		return err;
 	}
 	return OScDev_RichError_OK;
@@ -347,7 +347,7 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "configuring input buffer for detector");
+		err = OScDev_Error_Wrap(err, "Failed to configure input buffer for detector");
 		return err;
 	}
 
@@ -379,7 +379,7 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "setting the Read All Available Samples property for the detector task");
+		err = OScDev_Error_Wrap(err, "Failed to set the Read All Available Samples property for the detector task");
 		return err;
 	}
 
@@ -393,7 +393,7 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "registering callback for detector");
+		err = OScDev_Error_Wrap(err, "Failed to register callback for detector");
 		return err;
 	}
 
@@ -444,7 +444,7 @@ static OScDev_RichError *DetectorDataCallback(TaskHandle taskHandle,
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "reading detector samples");
+		err = OScDev_Error_Wrap(err, "Failed to read detector samples");
 		goto error;
 	}
 	

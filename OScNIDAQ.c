@@ -31,7 +31,7 @@ char* ErrorCodeDomain()
 	static char* domainName = NULL;
 	if (domainName == NULL) {
 		domainName = "NI DAQmx";
-		OScDev_Error_RegisterCodeDomain(domainName, 1);
+		OScDev_Error_RegisterCodeDomain(domainName, OScDev_ErrorCodeFormat_I32);
 	}
 	return domainName;
 }
@@ -252,11 +252,11 @@ OScDev_Error GetEnabledAIPorts(OScDev_Device *device) {
 		// Append comma
 		// port0, port1, port3...
 		if (i == 0) {
-			portList = malloc(strlen(mappedStr) * sizeof(char));
+			portList = realloc(portList, strlen(mappedStr) * sizeof(char));
 			strcpy(portList, mappedStr);
 		}
 		else {
-			char* buffer = malloc((strlen(portList) + strlen(mappedStr) + 1) * sizeof(char));
+			char* buffer = realloc(portList, (strlen(portList) + strlen(mappedStr) + 1) * sizeof(char));
 			strcpy(buffer, portList);
 			strcat(buffer, ",");
 			strcat(buffer, mappedStr);

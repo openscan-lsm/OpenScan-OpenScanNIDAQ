@@ -190,7 +190,7 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 		{
 			// TODO Error should be "already armed"
 			LeaveCriticalSection(mutex);
-			return OScDev_Error_ReturnAsCode(OScDev_Error_Create("Acquisition Running"));
+			return OScDev_Error_ReturnAsCode(OScDev_Error_Create("Device already armed"));
 		}
 
 		GetData(device)->acquisition.acquisition = acq;

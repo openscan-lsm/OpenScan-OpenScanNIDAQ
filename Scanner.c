@@ -24,7 +24,7 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device, struct ScannerConfig *conf
 		if (nierr)
 		{
 			err = CreateDAQmxError(nierr);
-			err = OScDev_Error_Wrap(err, "creating scanner task");
+			err = OScDev_Error_Wrap(err, "Failed to create scanner task");
 			return err;
 		}
 
@@ -37,7 +37,7 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device, struct ScannerConfig *conf
 		if (nierr)
 		{
 			err = CreateDAQmxError(nierr);
-			err = OScDev_Error_Wrap(err, "creating ao channels for scanner");
+			err = OScDev_Error_Wrap(err, "Failed to create ao channels for scanner");
 			goto error;
 		}
 
@@ -70,7 +70,7 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device, struct ScannerConfig *conf
 		if (nierr)
 		{
 			err = CreateDAQmxError(nierr);
-			err = OScDev_Error_Wrap(err, "committing task for scanner");
+			err = OScDev_Error_Wrap(err, "Failed to commit task for scanner");
 			goto error;
 		}
 	}
@@ -94,7 +94,7 @@ OScDev_RichError *ShutdownScanner(OScDev_Device *device, struct ScannerConfig *c
 		if (nierr)
 		{
 			err = CreateDAQmxError(nierr);
-			err = OScDev_Error_Wrap(err, "clearing scanner task");
+			err = OScDev_Error_Wrap(err, "Failed to clear scanner task");
 			return err;
 		}
 		config->aoTask = 0;
@@ -111,7 +111,7 @@ OScDev_RichError *StartScanner(OScDev_Device *device, struct ScannerConfig *conf
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "starting scanner task");
+		err = OScDev_Error_Wrap(err, "Failed to start scanner task");
 		ShutdownScanner(device, config); // Force re-setup next time
 		return err;
 	}
@@ -127,7 +127,7 @@ OScDev_RichError *StopScanner(OScDev_Device *device, struct ScannerConfig *confi
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "stopping scanner task");
+		err = OScDev_Error_Wrap(err, "Failed to stop scanner task");
 		ShutdownScanner(device, config); // Force re-setup next time
 		return err;
 	}
@@ -153,7 +153,7 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device, struct Sc
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "configuring timing for scanner");
+		err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
 		return err;
 	}
 
@@ -192,7 +192,7 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device, struct Scanne
 	if (nierr)
 	{
 		err = CreateDAQmxError(nierr);
-		err = OScDev_Error_Wrap(err, "writing scanner waveforms");
+		err = OScDev_Error_Wrap(err, "Failed to write scanner waveforms");
 		goto cleanup;
 	}
 	if (numWritten != totalElementsPerFramePerChan)

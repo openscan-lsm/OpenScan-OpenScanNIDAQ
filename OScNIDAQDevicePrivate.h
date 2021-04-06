@@ -153,5 +153,5 @@ OScDev_RichError *StopDetector(OScDev_Device *device, struct DetectorConfig *con
 // Must be called immediately after failed DAQmx function
 void LogNiError(OScDev_Device *device, int32 nierr, const char *when);
 char *ErrorCodeDomain();
-// Must be called immediately after failed DAQmx functio
+// Must be called immediately after failed DAQmx function
 OScDev_RichError *CreateDAQmxError(int32 nierr);
