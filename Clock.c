@@ -97,15 +97,15 @@ OScDev_RichError *ShutdownClock(OScDev_Device *device, struct ClockConfig *confi
 {
 	OScDev_RichError* err;
 	int32 nierr1 = 0, nierr2 = 0;
+	OScDev_RichError* err1 = NULL, *err2 = NULL;
 
 	if (config->doTask)
 	{
 		nierr1 = DAQmxClearTask(config->doTask);
 		if (nierr1) 
 		{
-			err = CreateDAQmxError(nierr1);
-			err = OScDev_Error_Wrap(err, "Failed to clear clock do task");
-			return err;
+			err1 = CreateDAQmxError(nierr1);
+			err1 = OScDev_Error_Wrap(err1, "Failed to clear clock do task");
 		}
 		config->doTask = 0;
 	}
@@ -115,14 +115,20 @@ OScDev_RichError *ShutdownClock(OScDev_Device *device, struct ClockConfig *confi
 		nierr2 = DAQmxClearTask(config->lineCtrTask);
 		if (nierr2)
 		{
-			err = CreateDAQmxError(nierr2);
-			err = OScDev_Error_Wrap(err, "Failed to clear clock lineCtr task");
-			return err;
+			err2 = CreateDAQmxError(nierr2);
+			err2 = OScDev_Error_Wrap(err2, "Failed to clear clock lineCtr task");
 		}
 		config->lineCtrTask = 0;
 	}
 
-	return OScDev_RichError_OK;
+	if (nierr1) {
+		// todo destroy err2
+		return err1;
+	}
+	else {
+		// todo destroy err1
+		return err2;
+	}
 }
 
 

@@ -521,8 +521,11 @@ static OScDev_RichError *ReadImage(OScDev_Device *device, OScDev_Acquisition *ac
 	// Wait for scan to complete
 	int32 nierr = DAQmxWaitUntilTaskDone(GetData(device)->scannerConfig.aoTask,
 		2 * estFrameTimeMs * 1e-3);
-	if (nierr)
-		LogNiError(device, nierr, "waiting for scanner task to finish");
+	if (nierr) {
+		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "Failed to wait for scanner task to finish");
+		return err;
+	}
 
 	// Wait for data
 	if (!GetData(device)->scannerOnly)
