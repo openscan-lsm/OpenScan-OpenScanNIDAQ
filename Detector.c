@@ -440,9 +440,7 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
 
 	errCode = HandleRawData(device);
 	if (errCode)
-	{
 		goto error;
-	}
 		
 	return OScDev_OK;
 

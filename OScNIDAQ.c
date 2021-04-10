@@ -44,9 +44,8 @@ OScDev_RichError *CreateDAQmxError(int32 nierr)
 	char buf[1024];
 	DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 
-	if (nierr > 0) {
+	if (nierr > 0)
 		OScDev_Log_Warning(NULL, buf);
-	}
 
 	if (nierr >= 0)
 		return OScDev_RichError_OK;
@@ -144,7 +143,6 @@ static OScDev_Error ParseAIPortList(char *names,
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl)
 {
 	OScDev_RichError *err;
-	OScDev_Error errCode;
 
 	// get a comma - delimited list of all of the devices installed in the system
 	char deviceNames[4096];
@@ -167,12 +165,13 @@ OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImp
 		strncpy(data->deviceName, deviceList[i], OScDev_MAX_STR_LEN);
 
 		OScDev_Device *device;
-		errCode = OScDev_Device_Create(&device, impl, data);
-		if (errCode)
+		err = OScDev_Error_AsRichError(OScDev_Device_Create(&device, impl, data));
+		if (err)
 		{
 			char msg[OScDev_MAX_STR_LEN + 1] = "Failed to create device ";
 			strcat(msg, data->deviceName);
-			return OScDev_Error_Create(msg);
+			err = OScDev_Error_Wrap(err, msg);
+			return err;
 		}
 
 		PopulateDefaultParameters(GetData(device));
@@ -335,9 +334,9 @@ OScDev_RichError *OpenDAQ(OScDev_Device *device)
 	OScDev_Log_Debug(device, "Start initializing DAQ");
 	OScDev_RichError *err;
 	err = MapDispChanToAIPorts(device);
-	if (err) {
+	if (err)
 		return OScDev_Error_Wrap(err, "Fail to init hash table");
-	}
+
 	struct OScNIDAQPrivateData* debug = GetData(device);
 	// TODO: allow user to select these channels -- probably need a Hub structure
 
