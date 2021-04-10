@@ -17,13 +17,11 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device, struct ScannerConfig *conf
 	OScDev_RichError *err;
 	bool mustCommit = false;
 
-	int32 nierr;
 	if (!config->aoTask)
 	{
-		nierr = DAQmxCreateTask("Scanner", &config->aoTask);
-		if (nierr)
+		err = CreateDAQmxError(DAQmxCreateTask("Scanner", &config->aoTask));
+		if (err)
 		{
-			err = CreateDAQmxError(nierr);
 			err = OScDev_Error_Wrap(err, "Failed to create scanner task");
 			return err;
 		}
@@ -32,11 +30,10 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device, struct ScannerConfig *conf
 		strncpy(aoTerminals, GetData(device)->deviceName, sizeof(aoTerminals) - 1);
 		strncat(aoTerminals, "/ao0:1", sizeof(aoTerminals) - strlen(aoTerminals) - 1);
 
-		nierr = DAQmxCreateAOVoltageChan(config->aoTask, aoTerminals,
-			"Galvos", -10.0, 10.0, DAQmx_Val_Volts, NULL);
-		if (nierr)
+		err = CreateDAQmxError(DAQmxCreateAOVoltageChan(config->aoTask, aoTerminals,
+			"Galvos", -10.0, 10.0, DAQmx_Val_Volts, NULL));
+		if (err)
 		{
-			err = CreateDAQmxError(nierr);
 			err = OScDev_Error_Wrap(err, "Failed to create ao channels for scanner");
 			goto error;
 		}
@@ -66,10 +63,9 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device, struct ScannerConfig *conf
 
 	if (mustCommit)
 	{
-		nierr = DAQmxTaskControl(config->aoTask, DAQmx_Val_Task_Commit);
-		if (nierr)
+		err = CreateDAQmxError(DAQmxTaskControl(config->aoTask, DAQmx_Val_Task_Commit));
+		if (err)
 		{
-			err = CreateDAQmxError(nierr);
 			err = OScDev_Error_Wrap(err, "Failed to commit task for scanner");
 			goto error;
 		}
@@ -90,10 +86,9 @@ OScDev_RichError *ShutdownScanner(OScDev_Device *device, struct ScannerConfig *c
 	OScDev_RichError *err;
 	if (config->aoTask)
 	{
-		int32 nierr = DAQmxClearTask(config->aoTask);
-		if (nierr)
+		err = CreateDAQmxError(DAQmxClearTask(config->aoTask));
+		if (err)
 		{
-			err = CreateDAQmxError(nierr);
 			err = OScDev_Error_Wrap(err, "Failed to clear scanner task");
 			return err;
 		}
@@ -106,11 +101,9 @@ OScDev_RichError *ShutdownScanner(OScDev_Device *device, struct ScannerConfig *c
 OScDev_RichError *StartScanner(OScDev_Device *device, struct ScannerConfig *config)
 {
 	OScDev_RichError *err;
-	int32 nierr;
-	nierr = DAQmxStartTask(config->aoTask);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to start scanner task");
 		ShutdownScanner(device, config); // Force re-setup next time
 		return err;
@@ -122,11 +115,9 @@ OScDev_RichError *StartScanner(OScDev_Device *device, struct ScannerConfig *conf
 OScDev_RichError *StopScanner(OScDev_Device *device, struct ScannerConfig *config)
 {
 	OScDev_RichError *err;
-	int32 nierr;
-	nierr = DAQmxStopTask(config->aoTask);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to stop scanner task");
 		ShutdownScanner(device, config); // Force re-setup next time
 		return err;
@@ -147,12 +138,11 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device, struct Sc
 	int32 elementsPerFramePerChan = elementsPerLine * height;
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
 
-	int32 nierr = DAQmxCfgSampClkTiming(config->aoTask, "",
+	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "",
 		pixelRateHz / GetData(device)->binFactor,
-		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan);
-	if (nierr)
+		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
 		return err;
 	}
@@ -186,18 +176,16 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device, struct Scanne
 		return err;
 
 	int32 numWritten = 0;
-	int32 nierr = nierr = DAQmxWriteAnalogF64(config->aoTask,
+	err = CreateDAQmxError(DAQmxWriteAnalogF64(config->aoTask,
 		totalElementsPerFramePerChan, FALSE, 10.0,
-		DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL);
-	if (nierr)
+		DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to write scanner waveforms");
 		goto cleanup;
 	}
 	if (numWritten != totalElementsPerFramePerChan)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to write complete scan waveform");
 		goto cleanup;
 	}

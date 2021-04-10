@@ -15,7 +15,6 @@ static OScDev_RichError *WriteClockOutput(OScDev_Device *device, struct ClockCon
 OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq)
 {
 	OScDev_RichError* err;
-	int32 nierr;
 
 	bool mustCommit = false;
 
@@ -66,18 +65,16 @@ OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config, 
 
 	if (mustCommit)
 	{
-		nierr = DAQmxTaskControl(config->doTask, DAQmx_Val_Task_Commit);
-		if (nierr)
+		err = CreateDAQmxError(DAQmxTaskControl(config->doTask, DAQmx_Val_Task_Commit));
+		if (err)
 		{
-			err = CreateDAQmxError(nierr);
 			err = OScDev_Error_Wrap(err, "Failed to commit clock do task");
 			goto error;
 		}
 
-		nierr = DAQmxTaskControl(config->lineCtrTask, DAQmx_Val_Task_Commit);
-		if (nierr)
+		err = CreateDAQmxError(DAQmxTaskControl(config->lineCtrTask, DAQmx_Val_Task_Commit));
+		if (err)
 		{
-			err = CreateDAQmxError(nierr);
 			err = OScDev_Error_Wrap(err, "Failed to commit clock lineCtr task");
 			goto error;
 		}
@@ -95,16 +92,14 @@ error:
 // Remove all DAQmx configuration for the clock
 OScDev_RichError *ShutdownClock(OScDev_Device *device, struct ClockConfig *config)
 {
-	OScDev_RichError* err;
 	int32 nierr1 = 0, nierr2 = 0;
 	OScDev_RichError* err1 = NULL, *err2 = NULL;
 
 	if (config->doTask)
 	{
-		nierr1 = DAQmxClearTask(config->doTask);
-		if (nierr1) 
+		err1 = CreateDAQmxError(DAQmxClearTask(config->doTask));
+		if (err1) 
 		{
-			err1 = CreateDAQmxError(nierr1);
 			err1 = OScDev_Error_Wrap(err1, "Failed to clear clock do task");
 		}
 		config->doTask = 0;
@@ -112,21 +107,20 @@ OScDev_RichError *ShutdownClock(OScDev_Device *device, struct ClockConfig *confi
 
 	if (config->lineCtrTask)
 	{
-		nierr2 = DAQmxClearTask(config->lineCtrTask);
-		if (nierr2)
+		err2 = CreateDAQmxError(DAQmxClearTask(config->lineCtrTask));
+		if (err2)
 		{
-			err2 = CreateDAQmxError(nierr2);
 			err2 = OScDev_Error_Wrap(err2, "Failed to clear clock lineCtr task");
 		}
 		config->lineCtrTask = 0;
 	}
 
-	if (nierr1) {
-		// todo destroy err2
+	if (err1) {
+		OScDev_Error_Destroy(err2);
 		return err1;
 	}
 	else {
-		// todo destroy err1
+		OScDev_Error_Destroy(err1);
 		return err2;
 	}
 }
@@ -162,21 +156,18 @@ OScDev_RichError *StartClock(OScDev_Device *device, struct ClockConfig *config)
 OScDev_RichError *StopClock(OScDev_Device *device, struct ClockConfig *config)
 {
 	OScDev_RichError *err;
-	int32 nierr;
 
-	nierr = DAQmxStopTask(config->doTask);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxStopTask(config->doTask));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to stop clock do task");
 		ShutdownClock(device, config);
 		return err;
 	}
 
-	nierr = DAQmxStopTask(config->lineCtrTask);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxStopTask(config->lineCtrTask));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to stop clock lineCtr task");
 		ShutdownClock(device, config);
 		return err;
@@ -189,11 +180,9 @@ OScDev_RichError *StopClock(OScDev_Device *device, struct ClockConfig *config)
 static OScDev_RichError *CreateClockTasks(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq)
 {
 	OScDev_RichError* err;
-	int32 nierr;
-	nierr = DAQmxCreateTask("ClockDO", &config->doTask);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCreateTask("ClockDO", &config->doTask));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to create clock do task");
 		return err;
 	}
@@ -207,27 +196,24 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device, struct ClockCon
 	strncpy(doTerminals, GetData(device)->deviceName, sizeof(doTerminals) - 1);
 	strncat(doTerminals, "/port0/line5:7",
 		sizeof(doTerminals) - strlen(doTerminals) - 1);
-	nierr = DAQmxCreateDOChan(config->doTask, doTerminals, "ClockDO",
-		DAQmx_Val_ChanPerLine);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCreateDOChan(config->doTask, doTerminals, "ClockDO",
+		DAQmx_Val_ChanPerLine));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to create clock do channel");
 		return err;
 	}
 
-	nierr = DAQmxGetReadNumChans(config->doTask, &GetData(device)->numDOChannels);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxGetReadNumChans(config->doTask, &GetData(device)->numDOChannels));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to get number of channels from clock do task");
 		return err;
 	}
 
-	nierr = DAQmxCreateTask("ClockCtr", &config->lineCtrTask);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCreateTask("ClockCtr", &config->lineCtrTask));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to create clock lineCtr task");
 		return err;
 	}
@@ -245,11 +231,10 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device, struct ClockCon
 	strncpy(ctrTerminals, GetData(device)->deviceName, sizeof(ctrTerminals) - 1);
 	strncat(ctrTerminals, "/ctr0",
 		sizeof(ctrTerminals) - strlen(ctrTerminals) - 1);
-	nierr = DAQmxCreateCOPulseChanFreq(config->lineCtrTask, ctrTerminals, "ClockLineCTR",
-		DAQmx_Val_Hz, DAQmx_Val_Low, scanPhase, lineFreqHz, effectiveScanPortion);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCreateCOPulseChanFreq(config->lineCtrTask, ctrTerminals, "ClockLineCTR",
+		DAQmx_Val_Hz, DAQmx_Val_Low, scanPhase, lineFreqHz, effectiveScanPortion));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to create clock co pulse channel");
 		return err;
 	}
@@ -261,7 +246,6 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device, struct ClockCon
 static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq)
 {
 	OScDev_RichError *err;
-	int32 nierr;
 
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
 	uint32_t xOffset, yOffset, width, height;
@@ -272,12 +256,11 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device, struct Cloc
 	int32 elementsPerFramePerChan = elementsPerLine * height;
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
 
-	nierr = DAQmxCfgSampClkTiming(config->doTask, "",
+	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->doTask, "",
 		pixelRateHz / GetData(device)->binFactor,
-		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, elementsPerFramePerChan);
-	if (nierr)
+		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, elementsPerFramePerChan));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to configure timing for clock do task");
 		return err;
 	}
@@ -286,39 +269,35 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device, struct Cloc
 	double lineFreqHz = pixelRateHz / GetData(device)->binFactor / elementsPerLine;
 	double scanPhase = GetData(device)->binFactor / pixelRateHz * GetData(device)->lineDelay;
 
-	nierr = DAQmxSetChanAttribute(config->lineCtrTask, "",
-		DAQmx_CO_Pulse_Freq, lineFreqHz);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxSetChanAttribute(config->lineCtrTask, "",
+		DAQmx_CO_Pulse_Freq, lineFreqHz));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to set clock lineCtr frequency");
 		return err;
 	}
 
-	nierr = DAQmxSetChanAttribute(config->lineCtrTask, "",
-		DAQmx_CO_Pulse_Freq_InitialDelay, scanPhase);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxSetChanAttribute(config->lineCtrTask, "",
+		DAQmx_CO_Pulse_Freq_InitialDelay, scanPhase));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to set clock lineCtr initial delay");
 		return err;
 
 	}
 
-	nierr = DAQmxSetChanAttribute(config->lineCtrTask, "",
-		DAQmx_CO_Pulse_DutyCyc, effectiveScanPortion);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxSetChanAttribute(config->lineCtrTask, "",
+		DAQmx_CO_Pulse_DutyCyc, effectiveScanPortion));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to set clock lineCtr duty cycle");
 		return err;
 	}
 
-	nierr = DAQmxCfgImplicitTiming(config->lineCtrTask, DAQmx_Val_FiniteSamps,
-		height);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCfgImplicitTiming(config->lineCtrTask, DAQmx_Val_FiniteSamps,
+		height));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to configure timing for clock lineCtr");
 		return err;
 	}
@@ -336,29 +315,25 @@ static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device, struct Cl
 	strncat(triggerSource, "/ao/StartTrigger",
 		sizeof(triggerSource) - strlen(triggerSource) - 1);
 
-	int32 nierr;
-	nierr = DAQmxCfgDigEdgeStartTrig(config->doTask,
-		triggerSource, DAQmx_Val_Rising);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(config->doTask,
+		triggerSource, DAQmx_Val_Rising));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to configure trigger for clock do task");
 		return err;
 	}
 
-	nierr = DAQmxSetStartTrigRetriggerable(config->doTask, 1);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxSetStartTrigRetriggerable(config->doTask, 1));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to set retriggerable clock do task");
 		return err;
 	}
 
-	nierr = DAQmxCfgDigEdgeStartTrig(config->lineCtrTask,
-		triggerSource, DAQmx_Val_Rising);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(config->lineCtrTask,
+		triggerSource, DAQmx_Val_Rising));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to configure trigger for clock lineCtr task");
 		return err;
 	}
@@ -414,18 +389,16 @@ static OScDev_RichError *WriteClockOutput(OScDev_Device *device, struct ClockCon
 	}
 
 	int32 numWritten = 0;
-	int32 nierr = DAQmxWriteDigitalLines(config->doTask,
+	err = CreateDAQmxError(DAQmxWriteDigitalLines(config->doTask,
 		elementsPerFramePerChan, FALSE, 10.0,
-		DAQmx_Val_GroupByChannel, lineClockPatterns, &numWritten, NULL);
-	if (nierr)
+		DAQmx_Val_GroupByChannel, lineClockPatterns, &numWritten, NULL));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to write clock do waveforms");
 		goto cleanup;
 	}
 	if (numWritten != elementsPerFramePerChan)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to write complete clock waveform");
 		goto cleanup;
 	}

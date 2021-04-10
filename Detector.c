@@ -11,9 +11,9 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct Detect
 static OScDev_RichError *ConfigureDetectorTiming(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
 static OScDev_RichError *ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConfig *config);
 static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config, OScDev_Acquisition *acq);
-static OScDev_RichError *CVICALLBACK DetectorDataCallback(TaskHandle taskHandle,
+static int32 CVICALLBACK DetectorDataCallback(TaskHandle taskHandle,
 	int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData);
-static OScDev_RichError *HandleRawData(OScDev_Device *device);
+static int32 HandleRawData(OScDev_Device *device);
 
 
 // Initialize, configure, and arm the detector, whatever its current state
@@ -22,7 +22,6 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *co
 	OScDev_RichError *err = OScDev_RichError_OK;
 	bool mustCommit = false;
 
-	int32 nierr;
 	if (!config->aiTask)
 	{
 		err = CreateDetectorTask(device, config);
@@ -37,8 +36,8 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *co
 
 	if (config->mustReconfigureTiming)
 	{
-		nierr = ConfigureDetectorTiming(device, config, acq);
-		if (nierr)
+		err = ConfigureDetectorTiming(device, config, acq);
+		if (err)
 			goto error;
 		config->mustReconfigureTiming = false;
 		mustCommit = true;
@@ -46,8 +45,8 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *co
 
 	if (config->mustReconfigureTrigger)
 	{
-		nierr = ConfigureDetectorTrigger(device, config);
-		if (nierr)
+		err = ConfigureDetectorTrigger(device, config);
+		if (err)
 			goto error;
 		config->mustReconfigureTrigger = false;
 		mustCommit = true;
@@ -55,8 +54,8 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *co
 
 	if (config->mustReconfigureCallback)
 	{
-		nierr = ConfigureDetectorCallback(device, config, acq);
-		if (nierr)
+		err = ConfigureDetectorCallback(device, config, acq);
+		if (err)
 			goto error;
 		config->mustReconfigureCallback = false;
 		mustCommit = true;
@@ -64,10 +63,9 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *co
 
 	if (mustCommit)
 	{
-		nierr = DAQmxTaskControl(config->aiTask, DAQmx_Val_Task_Commit);
-		if (nierr)
+		err = CreateDAQmxError(DAQmxTaskControl(config->aiTask, DAQmx_Val_Task_Commit));
+		if (err)
 		{
-			err = CreateDAQmxError(nierr);
 			err = OScDev_Error_Wrap(err, "Failed to commit task for detector");
 			goto error;
 		}
@@ -90,10 +88,9 @@ OScDev_RichError *ShutdownDetector(OScDev_Device *device, struct DetectorConfig 
 	OScDev_RichError *err;
 	if (config->aiTask)
 	{
-		int32 nierr = DAQmxClearTask(config->aiTask);
-		if (nierr)
+		err = CreateDAQmxError(DAQmxClearTask(config->aiTask));
+		if (err)
 		{
-			err = CreateDAQmxError(nierr);
 			err = OScDev_Error_Wrap(err, "Failed to clear detector task");
 			return err;
 		}
@@ -106,11 +103,9 @@ OScDev_RichError *ShutdownDetector(OScDev_Device *device, struct DetectorConfig 
 OScDev_RichError *StartDetector(OScDev_Device *device, struct DetectorConfig *config)
 {
 	OScDev_RichError *err;
-	int32 nierr;
-	nierr = DAQmxStartTask(config->aiTask);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxStartTask(config->aiTask));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to start detector task");
 		ShutdownDetector(device, config); // Force re-setup next time
 		return err;
@@ -126,11 +121,9 @@ OScDev_RichError *StopDetector(OScDev_Device *device, struct DetectorConfig *con
 	if (!config->aiTask)
 		return OScDev_RichError_OK;
 
-	int32 nierr;
-	nierr = DAQmxStopTask(config->aiTask);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxStopTask(config->aiTask));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to stop detector task");
 		ShutdownDetector(device, config); // Force re-setup next time
 		return err;
@@ -182,11 +175,9 @@ static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *
 static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct DetectorConfig *config)
 {
 	OScDev_RichError *err = OScDev_RichError_OK;
-	int32 nierr;
-	nierr = DAQmxCreateTask("Detector", &config->aiTask);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCreateTask("Detector", &config->aiTask));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to create detector task");
 		return err;
 	}
@@ -205,26 +196,24 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct Detect
 	}
 
 	double minVolts, maxVolts;
-	nierr = GetAIVoltageRange(device, &minVolts, &maxVolts);
-	if (nierr)
+	err = CreateDAQmxError(GetAIVoltageRange(device, &minVolts, &maxVolts));
+	if (err)
 		goto error;
 
-	nierr = DAQmxCreateAIVoltageChan(config->aiTask,
+	err = CreateDAQmxError(DAQmxCreateAIVoltageChan(config->aiTask,
 		aiPorts, "",
 		DAQmx_Val_Cfg_Default,
 		minVolts, maxVolts,
-		DAQmx_Val_Volts, NULL);
-	if (nierr)
+		DAQmx_Val_Volts, NULL));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to create ai channel for detector");
 		goto error;
 	}
 
-	nierr = DAQmxGetReadNumChans(config->aiTask, &GetData(device)->numAIChannels);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxGetReadNumChans(config->aiTask, &GetData(device)->numAIChannels));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to get number of ai channels for detector");
 		goto error;
 	}
@@ -245,13 +234,12 @@ static OScDev_RichError *ConfigureDetectorTiming(OScDev_Device *device, struct D
 	uint32_t xOffset, yOffset, width, height;
 	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-	int32 nierr = DAQmxCfgSampClkTiming(config->aiTask,
+	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aiTask,
 		"", pixelRateHz,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps,
-		width * GetData(device)->binFactor);
-	if (nierr)
+		width * GetData(device)->binFactor));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to configure timing for detector");
 		return err;
 	}
@@ -276,19 +264,17 @@ static OScDev_RichError *ConfigureDetectorTrigger(OScDev_Device *device, struct 
 	strncat(triggerSource, "/PFI12",
 		sizeof(triggerSource) - strlen(triggerSource) - 1);
 
-	int32 nierr = DAQmxCfgDigEdgeStartTrig(config->aiTask,
-		triggerSource, DAQmx_Val_Rising);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(config->aiTask,
+		triggerSource, DAQmx_Val_Rising));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to set start trigger for detector task");
 		return err;
 	}
 
-	nierr = DAQmxSetStartTrigRetriggerable(config->aiTask, 1);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxSetStartTrigRetriggerable(config->aiTask, 1));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to set detector task retriggerable");
 		return err;
 	}
@@ -299,12 +285,11 @@ static OScDev_RichError *ConfigureDetectorTrigger(OScDev_Device *device, struct 
 static OScDev_RichError *UnconfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config)
 {
 	OScDev_RichError *err;
-	int32 nierr = DAQmxRegisterEveryNSamplesEvent(config->aiTask,
+	err = CreateDAQmxError(DAQmxRegisterEveryNSamplesEvent(config->aiTask,
 		DAQmx_Val_Acquired_Into_Buffer,
-		0, 0, NULL, NULL);
-	if (nierr)
+		0, 0, NULL, NULL));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to unregister callback for detector");
 		return err;
 	}
@@ -318,13 +303,12 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
 	OScDev_RichError *err;
-	int32 nierr;
 
 	// Registering the callback in DAQmx is not idempotent, so we need to
 	// clear any existing callback.
-	nierr = UnconfigureDetectorCallback(device, config);
-	if (nierr)
-		return CreateDAQmxError(nierr);
+	err = UnconfigureDetectorCallback(device, config);
+	if (err)
+		return err;
 		
 
 	// TODO: It probably makes sense to scale the buffer based on the time
@@ -343,10 +327,9 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 	snprintf(msg, sizeof(msg) - 1, "Using DAQmx input buffer of size %zd", bufferSize);
 	OScDev_Log_Debug(device, msg);
 
-	nierr = DAQmxCfgInputBuffer(config->aiTask, (uInt32)bufferSize);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxCfgInputBuffer(config->aiTask, (uInt32)bufferSize));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to configure input buffer for detector");
 		return err;
 	}
@@ -375,10 +358,9 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 	// Set DAQmxRead*() with DAQmx_Val_Auto to immediately return all
 	// available samples instead of waiting for the requested number of
 	// samples to become available.
-	nierr = DAQmxSetReadReadAllAvailSamp(config->aiTask, TRUE);
-	if (nierr)
+	err = CreateDAQmxError(DAQmxSetReadReadAllAvailSamp(config->aiTask, TRUE));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
 		err = OScDev_Error_Wrap(err, "Failed to set the Read All Available Samples property for the detector task");
 		return err;
 	}
@@ -386,13 +368,13 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 	// TODO: It probably makes sense to scale the callback frequency so that
 	// it is called at roughly 10 Hz. For now it is called once per line.
 
-	nierr = DAQmxRegisterEveryNSamplesEvent(config->aiTask,
+	err = CreateDAQmxError(DAQmxRegisterEveryNSamplesEvent(config->aiTask,
 		DAQmx_Val_Acquired_Into_Buffer,
 		samplesPerChanPerLine,
-		0, DetectorDataCallback, device);
-	if (nierr)
+		0, DetectorDataCallback, device));
+	if (err)
 	{
-		err = CreateDAQmxError(nierr);
+		err = OScDev_Error_Wrap(err, "Failed to register callback for detector");
 		err = OScDev_Error_Wrap(err, "Failed to register callback for detector");
 		return err;
 	}
@@ -401,15 +383,16 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 }
 
 
-static OScDev_RichError *DetectorDataCallback(TaskHandle taskHandle,
+static int32 DetectorDataCallback(TaskHandle taskHandle,
 	int32 everyNsamplesEventType, uInt32 nSamples, void* callbackData)
 {
+	OScDev_Error errCode;
 	OScDev_Device *device = (OScDev_Device*)(callbackData);
 
 	if (taskHandle != GetData(device)->detectorConfig.aiTask)
-		return OScDev_RichError_OK;
+		return OScDev_OK;
 	if (everyNsamplesEventType != DAQmx_Val_Acquired_Into_Buffer)
-		return OScDev_RichError_OK;
+		return OScDev_OK;
 
 	char msg[1024];
 	snprintf(msg, sizeof(msg) - 1, "Detector callback (%d samples)", nSamples);
@@ -418,7 +401,6 @@ static OScDev_RichError *DetectorDataCallback(TaskHandle taskHandle,
 	uint32_t numChannels = GetData(device)->numAIChannels;
 
 	OScDev_RichError *err;
-	int32 nierr;
 
 	// TODO We should use DAQmxReadBinaryU16, so that users have access to raw
 	// ADC values. This is often critical for correct interpretation or
@@ -427,7 +409,7 @@ static OScDev_RichError *DetectorDataCallback(TaskHandle taskHandle,
 	// Read all available samples without waiting (because we have set the
 	// Read All Available Samples property on the task)
 	int32 samplesPerChanRead;
-	nierr = DAQmxReadAnalogF64(taskHandle,
+	errCode = DAQmxReadAnalogF64(taskHandle,
 		DAQmx_Val_Auto,
 		0.0,
 		DAQmx_Val_GroupByScanNumber,
@@ -435,15 +417,15 @@ static OScDev_RichError *DetectorDataCallback(TaskHandle taskHandle,
 		(uInt32)(GetData(device)->rawDataCapacity - GetData(device)->rawDataSize),
 		&samplesPerChanRead,
 		NULL);
-	if (nierr == DAQmxErrorTimeoutExceeded)
+	if (errCode == DAQmxErrorTimeoutExceeded)
 	{
 		OScDev_Log_Error(device, "Error: DAQ read data timeout");
 		return OScDev_RichError_OK;
 	}
 
-	if (nierr)
+	if (errCode)
 	{
-		err = CreateDAQmxError(nierr);
+		err = CreateDAQmxError(errCode);
 		err = OScDev_Error_Wrap(err, "Failed to read detector samples");
 		goto error;
 	}
@@ -451,29 +433,28 @@ static OScDev_RichError *DetectorDataCallback(TaskHandle taskHandle,
 	if (samplesPerChanRead == 0)
 	{
 		OScDev_Log_Error(device, "Error: DAQ failed to read any sample");
-		return OScDev_RichError_OK;
+		return OScDev_OK;
 	}
 
 	GetData(device)->rawDataSize += samplesPerChanRead * numChannels;
 
-	nierr = HandleRawData(device);
-	if (nierr)
+	errCode = HandleRawData(device);
+	if (errCode)
 	{
-		err = CreateDAQmxError(nierr);
 		goto error;
 	}
 		
-	return OScDev_RichError_OK;
+	return OScDev_OK;
 
 error:
 	if (GetData(device)->detectorConfig.aiTask)
 		ShutdownDetector(device, &GetData(device)->detectorConfig);
-	return err;
+	return errCode;
 }
 
 
 // Process data in rawDataBuffer and place the result into frameBuffers
-static OScDev_RichError *HandleRawData(OScDev_Device *device)
+static int32 HandleRawData(OScDev_Device *device)
 {
 	// Some amount of data (rawDataSize samples) is in the rawDataBuffer.
 	// Since we have C channels and are binning every B samples per channel,
@@ -560,5 +541,5 @@ static OScDev_RichError *HandleRawData(OScDev_Device *device)
 		GetData(device)->framePixelsFilled = 0;
 	}
 
-	return OScDev_RichError_OK;
+	return OScDev_OK;
 }

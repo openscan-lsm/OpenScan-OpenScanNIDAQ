@@ -40,8 +40,16 @@ char* ErrorCodeDomain()
 // Must be called immediately after failed DAQmx function
 OScDev_RichError *CreateDAQmxError(int32 nierr)
 {
+
 	char buf[1024];
 	DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
+
+	if (nierr > 0) {
+		OScDev_Log_Warning(NULL, buf);
+	}
+
+	if (nierr >= 0)
+		return OScDev_RichError_OK;
 
 	return OScDev_Error_CreateWithCode(ErrorCodeDomain(), nierr, buf);
 }
@@ -140,9 +148,9 @@ OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImp
 
 	// get a comma - delimited list of all of the devices installed in the system
 	char deviceNames[4096];
-	int32 nierr = DAQmxGetSysDevNames(deviceNames, sizeof(deviceNames));
-	if (nierr)
-		return CreateDAQmxError(nierr);
+	err = CreateDAQmxError(DAQmxGetSysDevNames(deviceNames, sizeof(deviceNames)));
+	if (err)
+		return err;
 
 	char deviceList[NUM_SLOTS_IN_CHASSIS][OScDev_MAX_STR_LEN + 1];
 
@@ -379,17 +387,18 @@ static OScDev_RichError *GetTerminalNameWithDevPrefix(TaskHandle taskHandle, con
 	char	device[256];
 	int32	productCategory;
 	uInt32	numDevices, i = 1;
+	OScDev_RichError *err;
 
-	int32 nierr = DAQmxGetTaskNumDevices(taskHandle, &numDevices);
-	if (nierr)
-		return CreateDAQmxError(nierr);
+	err = CreateDAQmxError(DAQmxGetTaskNumDevices(taskHandle, &numDevices));
+	if (err)
+		return err;
 	while (i <= numDevices) {
-		nierr = DAQmxGetNthTaskDevice(taskHandle, i++, device, 256);
-		if (nierr)
-			return CreateDAQmxError(nierr);
-		nierr = DAQmxGetDevProductCategory(device, &productCategory);
-		if (nierr)
-			return CreateDAQmxError(nierr);
+		err = CreateDAQmxError(DAQmxGetNthTaskDevice(taskHandle, i++, device, 256));
+		if (err)
+			return err;
+		err = CreateDAQmxError(DAQmxGetDevProductCategory(device, &productCategory));
+		if (err)
+			return err;
 		if (productCategory != DAQmx_Val_CSeriesModule && productCategory != DAQmx_Val_SCXIModule) {
 			*triggerName++ = '/';
 			strcat(strcat(strcpy(triggerName, device), "/"), terminalName);
@@ -519,10 +528,9 @@ static OScDev_RichError *ReadImage(OScDev_Device *device, OScDev_Acquisition *ac
 		return err;
 
 	// Wait for scan to complete
-	int32 nierr = DAQmxWaitUntilTaskDone(GetData(device)->scannerConfig.aoTask,
-		2 * estFrameTimeMs * 1e-3);
-	if (nierr) {
-		err = CreateDAQmxError(nierr);
+	err = CreateDAQmxError(DAQmxWaitUntilTaskDone(GetData(device)->scannerConfig.aoTask,
+		2 * estFrameTimeMs * 1e-3));
+	if (err) {
 		err = OScDev_Error_Wrap(err, "Failed to wait for scanner task to finish");
 		return err;
 	}
@@ -606,7 +614,7 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 		if (err)
 		{
 			char msg[OScDev_MAX_STR_LEN + 1];
-			snprintf(msg, OScDev_MAX_STR_LEN, "Error during sequence acquisition: %d", (int)err);
+			snprintf(msg, OScDev_MAX_STR_LEN, "Error during sequence acquisition: %s", OScDev_Error_FormatRecursive(err));
 			OScDev_Log_Error(device, msg);
 			break;
 		}
