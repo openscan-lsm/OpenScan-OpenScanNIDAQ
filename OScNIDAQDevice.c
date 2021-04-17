@@ -22,7 +22,8 @@ static OScDev_Error NIDAQGetModelName(const char **name)
 
 static OScDev_Error NIDAQEnumerateInstances(OScDev_PtrArray **devices)
 {
-	return EnumerateInstances(devices, &DeviceImpl);
+	OScDev_RichError* err = EnumerateInstances(devices, &DeviceImpl);
+	return OScDev_Error_ReturnAsCode(err);
 }
 
 
@@ -46,21 +47,21 @@ static OScDev_Error NIDAQOpen(OScDev_Device *device)
 	int32 nierr = DAQmxResetDevice(GetData(device)->deviceName); // TODO wrong function
 	if (nierr)
 	{
+		OScDev_RichError* err = CreateDAQmxError(nierr);
+
 		char msg[OScDev_MAX_STR_LEN + 1] = "Cannot reset NI DAQ card ";
 		strcat(msg, GetData(device)->deviceName);
-		OScDev_Log_Error(device, msg);
-		return OScDev_Error_Unknown; // TODO Detailed info
+		return OScDev_Error_ReturnAsCode(OScDev_Error_Wrap(err, msg));
 	}
 
-	return OpenDAQ(device);
+	return OScDev_Error_ReturnAsCode(OpenDAQ(device));
 }
 
 
 static OScDev_Error NIDAQClose(OScDev_Device *device)
 {
 	StopAcquisitionAndWait(device);
-	OScDev_Error err = CloseDAQ(device);
-	return err;
+	return OScDev_Error_ReturnAsCode(CloseDAQ(device));
 }
 
 
@@ -157,17 +158,17 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 
 	// assume scanner is always enabled
 	if (!useClock || !useScanner)
-		return OScDev_Error_Unsupported_Operation;
+		return OScDev_Error_ReturnAsCode(OScDev_Error_Create("Unsupported Operation"));
 
 	OScDev_TriggerSource clockStartTriggerSource;
 	OScDev_Acquisition_GetClockStartTriggerSource(acq, &clockStartTriggerSource);
 	if (clockStartTriggerSource != OScDev_TriggerSource_Software)
-		return OScDev_Error_Unsupported_Operation;
+		return OScDev_Error_ReturnAsCode(OScDev_Error_Create("Unsupported Operation"));
 
 	OScDev_ClockSource clockSource;
 	OScDev_Acquisition_GetClockSource(acq, &clockSource);
 	if (clockSource != OScDev_ClockSource_Internal)
-		return OScDev_Error_Unsupported_Operation;
+		return OScDev_Error_ReturnAsCode(OScDev_Error_Create("Unsupported Operation"));
 	// what if we use external line clock to trigger acquisition?
 
 	if (useDetector)
@@ -181,16 +182,15 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 		GetData(device)->scannerOnly = true;
 	}
 
-	OScDev_Error err = OScDev_OK;
+	OScDev_RichError *err;
 	CRITICAL_SECTION *mutex = &GetData(device)->acquisition.mutex;
 	EnterCriticalSection(mutex);
 	{
 		if (GetData(device)->acquisition.running)
 		{
 			// TODO Error should be "already armed"
-			err = OScDev_Error_Acquisition_Running;
 			LeaveCriticalSection(mutex);
-			return err;
+			return OScDev_Error_ReturnAsCode(OScDev_Error_Create("Device already armed"));
 		}
 
 		GetData(device)->acquisition.acquisition = acq;
@@ -202,7 +202,8 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq)
 	}
 	LeaveCriticalSection(mutex);
 
-	if (OScDev_CHECK(err, ReconfigDAQ(device, acq)))
+	err = ReconfigDAQ(device, acq);
+	if (err)
 		goto error;
 
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
@@ -220,7 +221,7 @@ error:
 		GetData(device)->acquisition.acquisition = NULL;
 	}
 	LeaveCriticalSection(mutex);
-	return err;
+	return OScDev_Error_ReturnAsCode(err);
 }
 
 
@@ -244,25 +245,25 @@ static OScDev_Error NIDAQStart(OScDev_Device *device)
 	}
 	LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
 
-	return RunAcquisitionLoop(device);
+	return OScDev_Error_ReturnAsCode(RunAcquisitionLoop(device));
 }
 
 
 static OScDev_Error NIDAQStop(OScDev_Device *device)
 {
-	return StopAcquisitionAndWait(device);
+	return OScDev_Error_ReturnAsCode(StopAcquisitionAndWait(device));
 }
 
 
 static OScDev_Error NIDAQIsRunning(OScDev_Device *device, bool *isRunning)
 {
-	return IsAcquisitionRunning(device, isRunning);
+	return OScDev_Error_ReturnAsCode(IsAcquisitionRunning(device, isRunning));
 }
 
 
 static OScDev_Error NIDAQWait(OScDev_Device *device)
 {
-	return WaitForAcquisitionToFinish(device);
+	return OScDev_Error_ReturnAsCode(WaitForAcquisitionToFinish(device));
 }
 
 
@@ -302,4 +303,5 @@ static OScDev_Error GetDeviceImpls(OScDev_PtrArray **impls)
 OScDev_MODULE_IMPL = {
 	.displayName = "OpenScan NI-DAQ",
 	.GetDeviceImpls = GetDeviceImpls,
+	.supportsRichErrors = true,
 };

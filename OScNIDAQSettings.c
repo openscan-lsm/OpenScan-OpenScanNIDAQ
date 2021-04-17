@@ -201,10 +201,10 @@ static OScDev_Error SetChannels(OScDev_Setting *setting, uint32_t value)
 
 	// Force recreation of detector task next time
 	OScDev_Device *device = (OScDev_Device *)OScDev_Setting_GetImplData(setting);
-	OScDev_Error err = ShutdownDetector(device,
+	OScDev_RichError *err = ShutdownDetector(device,
 		&GetSettingDeviceData(setting)->detectorConfig);
 
-	return OScDev_OK;
+	return OScDev_Error_ReturnAsCode(err);
 }
 
 
@@ -240,13 +240,15 @@ static OScDev_Error GetChannelsNameForValue(OScDev_Setting *setting, uint32_t va
 		break;
 	default:
 		strcpy(name, "");
-		return OScDev_Error_Unknown;
+		return OScDev_Error_ReturnAsCode(OScDev_Error_Create("Error Unknown"));
 	}
 
 	OScDev_Device *device = (OScDev_Device *)OScDev_Setting_GetImplData(setting);
-	OScDev_Error err;
-	if (OScDev_CHECK(err, GetSelectedDispChannels(device))) {
+	OScDev_RichError *err;
+	err = GetSelectedDispChannels(device);
+	if (err) {
 		OScDev_Log_Error(device, "Fail to get selected disp channels");
+		return OScDev_Error_ReturnAsCode(err);
 	}
 	return OScDev_OK;
 }
@@ -351,14 +353,15 @@ static OScDev_SettingImpl SettingImpl_Offset = {
 };
 
 
-OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings)
+OScDev_RichError *NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings)
 {
-	OScDev_Error err = OScDev_OK;
+	OScDev_RichError *err;
 	*settings = OScDev_PtrArray_Create();
 
 	OScDev_Setting *lineDelay;
-	if (OScDev_CHECK(err, OScDev_Setting_Create(&lineDelay, "Line Delay (pixels)", OScDev_ValueType_Int32,
-		&SettingImpl_LineDelay, device)))
+	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&lineDelay, "Line Delay (pixels)", OScDev_ValueType_Int32,
+		&SettingImpl_LineDelay, device));
+	if (err)
 		goto error;
 	OScDev_PtrArray_Append(*settings, lineDelay);
 
@@ -369,43 +372,49 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings
 		data->device = device;
 		data->axis = i;
 		const char *name = i == 0 ? "GalvoOffsetX (degree)" : "GalvoOffsetY (degree)";
-		if (OScDev_CHECK(err, OScDev_Setting_Create(&offset, name, OScDev_ValueType_Float64,
-			&SettingImpl_Offset, data)))
+		err = OScDev_Error_AsRichError(OScDev_Setting_Create(&offset, name, OScDev_ValueType_Float64,
+			&SettingImpl_Offset, data));
+		if (err)
 			goto error;
 		OScDev_PtrArray_Append(*settings, offset);
 	}
 
 	OScDev_Setting *binFactor;
-	if (OScDev_CHECK(err, OScDev_Setting_Create(&binFactor, "Bin Factor", OScDev_ValueType_Int32,
-		&SettingImpl_BinFactor, device)))
+	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&binFactor, "Bin Factor", OScDev_ValueType_Int32,
+		&SettingImpl_BinFactor, device));
+	if (err)
 		goto error;
 	OScDev_PtrArray_Append(*settings, binFactor);
 
 	OScDev_Setting *numLinesToBuffer;
-	if (OScDev_CHECK(err, OScDev_Setting_Create(&numLinesToBuffer, "Acq Buffer Size (lines)", OScDev_ValueType_Int32,
-		&SettingImpl_AcqBufferSize, device)))
+	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&numLinesToBuffer, "Acq Buffer Size (lines)", OScDev_ValueType_Int32,
+		&SettingImpl_AcqBufferSize, device));
+	if (err)
 		goto error;
 	OScDev_PtrArray_Append(*settings, numLinesToBuffer);
 
 	OScDev_Setting *channels;
-	if (OScDev_CHECK(err, OScDev_Setting_Create(&channels, "Channels", OScDev_ValueType_Enum,
-		&SettingImpl_Channels, device)))
+	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&channels, "Channels", OScDev_ValueType_Enum,
+		&SettingImpl_Channels, device));
+	if (err)
 		goto error;
 	OScDev_PtrArray_Append(*settings, channels);
 
 	OScDev_Setting *inputVoltageRange;
-	if (OScDev_CHECK(err, OScDev_Setting_Create(&inputVoltageRange, "Input Voltage Range", OScDev_ValueType_Float64,
-		&SettingImpl_InputVoltageRange, device)))
+	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&inputVoltageRange, "Input Voltage Range", OScDev_ValueType_Float64,
+		&SettingImpl_InputVoltageRange, device));
+	if (err)
 		goto error;
 	OScDev_PtrArray_Append(*settings, inputVoltageRange);
 
 	OScDev_Setting *scannerOnly;
-	if (OScDev_CHECK(err, OScDev_Setting_Create(&scannerOnly, "ScannerOnly", OScDev_ValueType_Bool,
-		&SettingImpl_ScannerOnly, device)))
+	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&scannerOnly, "ScannerOnly", OScDev_ValueType_Bool,
+		&SettingImpl_ScannerOnly, device));
+	if (err)
 		goto error;
 	OScDev_PtrArray_Append(*settings, scannerOnly); // TODO Remove when supported by OpenScanLib
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 
 error:
 	for (size_t i = 0; i < OScDev_PtrArray_Size(*settings); ++i) {
@@ -416,7 +425,7 @@ error:
 	return err;
 }
 
-static OScDev_Error GetSelectedDispChannels(OScDev_Device *device)
+static OScDev_RichError *GetSelectedDispChannels(OScDev_Device *device)
 {
 	// clear selectedDispChan
 	GetData(device)->selectedDispChan_ = calloc(OSc_Total_Channel_Num * (OScDev_MAX_STR_LEN + 1), sizeof(char));
@@ -453,5 +462,5 @@ static OScDev_Error GetSelectedDispChannels(OScDev_Device *device)
 		break;
 	}
 
-	return OScDev_OK;
+	return OScDev_RichError_OK;
 }
