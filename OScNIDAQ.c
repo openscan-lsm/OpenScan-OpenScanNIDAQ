@@ -612,8 +612,9 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 		err = AcquireFrame(device, acq);
 		if (err)
 		{
+			err = OScDev_Error_Wrap(err, "Error during sequence acquisition");
 			char msg[OScDev_MAX_STR_LEN + 1];
-			snprintf(msg, OScDev_MAX_STR_LEN, "Error during sequence acquisition: %s", OScDev_Error_FormatRecursive(err));
+			OScDev_Error_FormatRecursive(err, msg, sizeof(msg));
 			OScDev_Log_Error(device, msg);
 			break;
 		}
