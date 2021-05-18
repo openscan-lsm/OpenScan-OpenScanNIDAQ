@@ -164,7 +164,7 @@
   <ItemGroup>
     <ClInclude Include="OScNIDAQ.h" />
     <ClInclude Include="OScNIDAQDevicePrivate.h" />
-    <ClInclude Include="strmap.h" />
+    <ClInclude Include="strmap\strmap.h" />
     <ClInclude Include="Waveform.h" />
   </ItemGroup>
   <ItemGroup>
@@ -174,7 +174,7 @@
     <ClCompile Include="OScNIDAQDevice.c" />
     <ClCompile Include="OScNIDAQSettings.c" />
     <ClCompile Include="Scanner.c" />
-    <ClCompile Include="strmap.c" />
+    <ClCompile Include="strmap\strmap.c" />
     <ClCompile Include="Waveform.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

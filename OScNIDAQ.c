@@ -4,7 +4,7 @@
 
 #include "OScNIDAQ.h"
 #include "Waveform.h"
-#include "strmap.h"
+#include "strmap/strmap.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
