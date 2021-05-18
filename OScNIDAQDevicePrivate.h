@@ -1,5 +1,5 @@
 #pragma once
-#include "strmap.h"
+#include "strmap/strmap.h"
 
 #include "OpenScanDeviceLib.h"
 

@@ -21,10 +21,10 @@
     <ClInclude Include="OScNIDAQDevicePrivate.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="strmap.h">
+    <ClInclude Include="Waveform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Waveform.h">
+    <ClInclude Include="strmap\strmap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -38,9 +38,6 @@
     <ClCompile Include="OScNIDAQSettings.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="strmap.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Waveform.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -51,6 +48,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Clock.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="strmap\strmap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
