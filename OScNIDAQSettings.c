@@ -1,7 +1,5 @@
 #include "OScNIDAQDevicePrivate.h"
 
-#include <NIDAQmx.h>
-
 #include <string.h>
 
 const char* const PROPERTY_VALUE_Channel1 = "Channel1";
