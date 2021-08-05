@@ -217,8 +217,8 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device, struct ClockCon
 
 	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
 	double effectiveScanPortion = (double)width / elementsPerLine;
-	double lineFreqHz = pixelRateHz / GetData(device)->binFactor / elementsPerLine;
-	double scanPhase = GetData(device)->binFactor / pixelRateHz * GetData(device)->lineDelay;
+	double lineFreqHz = pixelRateHz / elementsPerLine;
+	double scanPhase = 1.0 / pixelRateHz * GetData(device)->lineDelay;
 
 	char ctrTerminals[256];
 	strncpy(ctrTerminals, GetData(device)->deviceName, sizeof(ctrTerminals) - 1);
@@ -249,8 +249,7 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device, struct Cloc
 	int32 elementsPerFramePerChan = elementsPerLine * height;
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
 
-	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->doTask, "",
-		pixelRateHz / GetData(device)->binFactor,
+	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->doTask, "", pixelRateHz,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, elementsPerFramePerChan));
 	if (err)
 	{
@@ -259,8 +258,8 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device, struct Cloc
 	}
 
 	double effectiveScanPortion = (double)width / elementsPerLine;
-	double lineFreqHz = pixelRateHz / GetData(device)->binFactor / elementsPerLine;
-	double scanPhase = GetData(device)->binFactor / pixelRateHz * GetData(device)->lineDelay;
+	double lineFreqHz = pixelRateHz / elementsPerLine;
+	double scanPhase = 1.0 / pixelRateHz * GetData(device)->lineDelay;
 
 	err = CreateDAQmxError(DAQmxSetChanAttribute(config->lineCtrTask, "",
 		DAQmx_CO_Pulse_Freq, lineFreqHz));

@@ -89,7 +89,6 @@ static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
 	data->framePixelsFilled = 0;
 
 	data->lineDelay = 50;
-	data->binFactor = 2;
 	data->numLinesToBuffer = 8;
 	data->inputVoltageRange = 10.0;
 	data->channels = CHANNEL1;
@@ -450,8 +449,8 @@ static OScDev_RichError *WaitScanToFinish(OScDev_Device *device, OScDev_Acquisit
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
 	uint32_t xLen = GetData(device)->lineDelay + width + X_RETRACE_LEN;
 	uint32_t yLen = height + Y_RETRACE_LEN;
-	uint32_t yRetraceTime = (uint32_t)(1e3 * xLen * Y_RETRACE_LEN * GetData(device)->binFactor / pixelRateHz);
-	uint32_t estFrameTime = (uint32_t)(1e3 * xLen * yLen * GetData(device)->binFactor / pixelRateHz);
+	uint32_t yRetraceTime = (uint32_t)(1e3 * xLen * Y_RETRACE_LEN / pixelRateHz);
+	uint32_t estFrameTime = (uint32_t)(1e3 * xLen * yLen / pixelRateHz);
 	// TODO: casting
 	uint32_t waitScanToFinish = GetData(device)->scannerOnly ? estFrameTime : yRetraceTime;  // wait longer if no real acquisition;
 	char msg[OScDev_MAX_STR_LEN + 1];
@@ -518,7 +517,7 @@ static OScDev_RichError *ReadImage(OScDev_Device *device, OScDev_Acquisition *ac
 	GetData(device)->framePixelsFilled = 0;
 
 	uint32_t yLen = height + Y_RETRACE_LEN;
-	uint32_t estFrameTimeMs = (uint32_t)(1e3 * elementsPerLine * yLen * GetData(device)->binFactor / pixelRateHz);
+	uint32_t estFrameTimeMs = (uint32_t)(1e3 * elementsPerLine * yLen / pixelRateHz);
 	uint32_t totalWaitTimeMs = 0;
 
 	OScDev_RichError *err;

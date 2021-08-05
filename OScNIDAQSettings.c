@@ -71,41 +71,6 @@ OScDev_SettingImpl SettingImpl_LineDelay = {
 };
 
 
-static OScDev_Error GetBinFactor(OScDev_Setting *setting, int32_t *value)
-{
-	*value = GetSettingDeviceData(setting)->binFactor;
-	return OScDev_OK;
-}
-
-
-// OnBinFactor
-static OScDev_Error SetBinFactor(OScDev_Setting *setting, int32_t value)
-{
-	GetSettingDeviceData(setting)->binFactor = value;
-
-	GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
-	GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
-	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureTiming = true;
-	GetSettingDeviceData(setting)->detectorConfig.mustReconfigureCallback = true;
-
-	return OScDev_OK;
-}
-
-
-static OScDev_Error GetBinFactorRange(OScDev_Setting *setting, int32_t *min, int32_t *max)
-{
-	*min = 1;
-	*max = 25;
-	return OScDev_OK;
-}
-
-static OScDev_SettingImpl SettingImpl_BinFactor = {
-	.GetInt32 = GetBinFactor,
-	.SetInt32 = SetBinFactor,
-	.GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
-	.GetInt32Range = GetBinFactorRange,
-};
-
 static OScDev_Error GetAcqBufferSize(OScDev_Setting *setting, int32_t *value)
 {
 	*value = GetSettingDeviceData(setting)->numLinesToBuffer;
@@ -378,13 +343,6 @@ OScDev_RichError *NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **set
 			goto error;
 		OScDev_PtrArray_Append(*settings, offset);
 	}
-
-	OScDev_Setting *binFactor;
-	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&binFactor, "Bin Factor", OScDev_ValueType_Int32,
-		&SettingImpl_BinFactor, device));
-	if (err)
-		goto error;
-	OScDev_PtrArray_Append(*settings, binFactor);
 
 	OScDev_Setting *numLinesToBuffer;
 	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&numLinesToBuffer, "Acq Buffer Size (lines)", OScDev_ValueType_Int32,

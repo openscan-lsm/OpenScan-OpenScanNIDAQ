@@ -138,8 +138,7 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device, struct Sc
 	int32 elementsPerFramePerChan = elementsPerLine * height;
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
 
-	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "",
-		pixelRateHz / GetData(device)->binFactor,
+	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "", pixelRateHz,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
 	if (err)
 	{

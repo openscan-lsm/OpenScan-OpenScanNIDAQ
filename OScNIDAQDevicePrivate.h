@@ -66,9 +66,8 @@ struct OScNIDAQPrivateData
 
 	// counted as number of pixels. 
 	// to adjust for the lag between the mirror control signal and the actual position of the mirror
-	// scan phase (uSec) = line delay * bin factor / scan rate
+	// scan phase (uSec) = line delay / scan rate
 	uint32_t lineDelay; 
-	uint32_t binFactor;
 	uint32_t numLinesToBuffer;
 	double inputVoltageRange;
 	uInt32 numAIChannels;

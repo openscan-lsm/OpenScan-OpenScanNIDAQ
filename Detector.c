@@ -237,7 +237,7 @@ static OScDev_RichError *ConfigureDetectorTiming(OScDev_Device *device, struct D
 	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aiTask,
 		"", pixelRateHz,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps,
-		width * GetData(device)->binFactor));
+		width));
 	if (err)
 	{
 		err = OScDev_Error_Wrap(err, "Failed to configure timing for detector");
@@ -317,7 +317,7 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 
 	uint32_t pixelsPerLine = width;
 	uint32_t pixelsPerFrame = pixelsPerLine * height;
-	uint32_t samplesPerChanPerLine = pixelsPerLine * GetData(device)->binFactor;
+	uint32_t samplesPerChanPerLine = pixelsPerLine;
 	uint32_t numChannels = GetData(device)->numAIChannels;
 	size_t bufferSize = GetData(device)->numLinesToBuffer *
 		samplesPerChanPerLine *
@@ -462,10 +462,9 @@ static int32 HandleRawData(OScDev_Device *device)
 
 	size_t availableSamples = GetData(device)->rawDataSize;
 	uint32_t numChannels = GetData(device)->numAIChannels;
-	uint32_t binFactor = GetData(device)->binFactor;
-	size_t leftoverSamples = availableSamples % (numChannels * binFactor);
+	size_t leftoverSamples = availableSamples % numChannels;
 	size_t samplesToProcess = availableSamples - leftoverSamples;
-	size_t pixelsToProducePerChan = samplesToProcess / (numChannels * binFactor);
+	size_t pixelsToProducePerChan = samplesToProcess / numChannels;
 
 	double inputVoltageRange = GetData(device)->inputVoltageRange;
 
@@ -479,27 +478,20 @@ static int32 HandleRawData(OScDev_Device *device)
 	// Process raw data and fill in frame buffers
 	for (size_t p = 0; p < pixelsToProducePerChan; ++p)
 	{
-		size_t rawPixelStart = p * numChannels * binFactor;
+		size_t rawPixelStart = p * numChannels;
 		size_t pixelIndex = GetData(device)->framePixelsFilled++;
 
 		for (size_t ch = 0; ch < numChannels; ++ch)
 		{
 			size_t rawChannelStart = rawPixelStart + ch;
 
-			// TODO Aside from the fact that simply averaging consecutive
-			// samples is not the correct opeartion (see signal processing
-			// theory), this is probably not the best place to do data
-			// processing.
-			double sum = 0.0;
-			for (size_t s = 0; s < binFactor; ++s)
-				sum += rawDataBuffer[rawChannelStart + s * numChannels];
-			double avgVolts = sum / binFactor;
+			double volts = rawDataBuffer[rawChannelStart];
 
 			// TODO We need a positive offset so as not to clip the background
 			// noise
 			double offsetVolts = 1.0; // Temporary
 
-			double dpixel = 65535.0 * (avgVolts + offsetVolts) / inputVoltageRange;
+			double dpixel = 65535.0 * (volts + offsetVolts) / inputVoltageRange;
 			if (dpixel < 0) {
 				dpixel = 0.0;
 			}
