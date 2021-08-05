@@ -316,7 +316,7 @@ static OScDev_SettingImpl SettingImpl_Offset = {
 };
 
 
-OScDev_RichError *NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings)
+OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings)
 {
 	OScDev_RichError *err;
 	*settings = OScDev_PtrArray_Create();
@@ -370,7 +370,7 @@ OScDev_RichError *NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **set
 		goto error;
 	OScDev_PtrArray_Append(*settings, scannerOnly); // TODO Remove when supported by OpenScanLib
 
-	return OScDev_RichError_OK;
+	return OScDev_OK;
 
 error:
 	for (size_t i = 0; i < OScDev_PtrArray_Size(*settings); ++i) {
@@ -378,7 +378,7 @@ error:
 	}
 	OScDev_PtrArray_Destroy(*settings);
 	*settings = NULL;
-	return err;
+	return OScDev_Error_ReturnAsCode(err);
 }
 
 static OScDev_RichError *GetSelectedDispChannels(OScDev_Device *device)

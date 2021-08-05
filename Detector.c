@@ -420,7 +420,7 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
 	if (errCode == DAQmxErrorTimeoutExceeded)
 	{
 		OScDev_Log_Error(device, "Error: DAQ read data timeout");
-		return OScDev_RichError_OK;
+		return OScDev_OK;
 	}
 
 	if (errCode)

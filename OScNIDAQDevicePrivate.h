@@ -130,7 +130,7 @@ static inline struct OScNIDAQPrivateData *GetData(OScDev_Device *device)
 
 
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl);
-OScDev_RichError *NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings);
+OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings);
 OScDev_RichError *GetSelectedDispChannels(OScDev_Device *device);
 
 
