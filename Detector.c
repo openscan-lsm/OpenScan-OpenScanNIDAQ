@@ -182,18 +182,9 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct Detect
 		return err;
 	}
 
-	char aiPorts[1024] = "";
-	for (size_t i = 0; i < GetData(device)->channelCount; ++i)
-	{
-		char port[256];
-		sm_get(GetData(device)->channelMap_,
-			GetData(device)->selectedDispChan_[i],
-			port, sizeof(port));
-
-		if (strlen(aiPorts) > 0)
-			strncat(aiPorts, ",", sizeof(aiPorts) - strlen(aiPorts) - 1);
-		strncat(aiPorts, port, sizeof(aiPorts) - strlen(aiPorts) - 1);
-	}
+	int nChans = GetNumberOfEnabledChannels(device);
+	char aiPhysChans[128];
+	GetEnabledChannels(device, aiPhysChans, sizeof(aiPhysChans));
 
 	double minVolts, maxVolts;
 	err = CreateDAQmxError(GetAIVoltageRange(device, &minVolts, &maxVolts));
@@ -201,20 +192,13 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct Detect
 		goto error;
 
 	err = CreateDAQmxError(DAQmxCreateAIVoltageChan(config->aiTask,
-		aiPorts, "",
+		aiPhysChans, "",
 		DAQmx_Val_Cfg_Default,
 		minVolts, maxVolts,
 		DAQmx_Val_Volts, NULL));
 	if (err)
 	{
 		err = OScDev_Error_Wrap(err, "Failed to create ai channel for detector");
-		goto error;
-	}
-
-	err = CreateDAQmxError(DAQmxGetReadNumChans(config->aiTask, &GetData(device)->numAIChannels));
-	if (err)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to get number of ai channels for detector");
 		goto error;
 	}
 
@@ -318,7 +302,7 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 	uint32_t pixelsPerLine = width;
 	uint32_t pixelsPerFrame = pixelsPerLine * height;
 	uint32_t samplesPerChanPerLine = pixelsPerLine;
-	uint32_t numChannels = GetData(device)->numAIChannels;
+	uint32_t numChannels = GetNumberOfEnabledChannels(device);
 	size_t bufferSize = GetData(device)->numLinesToBuffer *
 		samplesPerChanPerLine *
 		numChannels;
@@ -349,7 +333,7 @@ static OScDev_RichError *ConfigureDetectorCallback(OScDev_Device *device, struct
 			sizeof(uint16_t) * pixelsPerFrame);
 	}
 	// Free the frame buffers for unused channels
-	for (uint32_t ch = numChannels; ch < OSc_Total_Channel_Num; ++ch)
+	for (uint32_t ch = numChannels; ch < MAX_PHYSICAL_CHANS; ++ch)
 	{
 		free(GetData(device)->frameBuffers[ch]);
 		GetData(device)->frameBuffers[ch] = NULL;
@@ -398,7 +382,7 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
 	snprintf(msg, sizeof(msg) - 1, "Detector callback (%d samples)", nSamples);
 	OScDev_Log_Debug(device, msg);
 
-	uint32_t numChannels = GetData(device)->numAIChannels;
+	uint32_t numChannels = GetNumberOfEnabledChannels(device);
 
 	OScDev_RichError *err;
 
@@ -461,7 +445,7 @@ static int32 HandleRawData(OScDev_Device *device)
 	// can be handled when more data is available.
 
 	size_t availableSamples = GetData(device)->rawDataSize;
-	uint32_t numChannels = GetData(device)->numAIChannels;
+	uint32_t numChannels = GetNumberOfEnabledChannels(device);
 	size_t leftoverSamples = availableSamples % numChannels;
 	size_t samplesToProcess = availableSamples - leftoverSamples;
 	size_t pixelsToProducePerChan = samplesToProcess / numChannels;

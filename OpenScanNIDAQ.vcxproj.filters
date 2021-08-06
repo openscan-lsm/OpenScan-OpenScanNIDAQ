@@ -24,9 +24,6 @@
     <ClInclude Include="Waveform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="strmap\strmap.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="OScNIDAQ.c">
@@ -48,9 +45,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Clock.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="strmap\strmap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
