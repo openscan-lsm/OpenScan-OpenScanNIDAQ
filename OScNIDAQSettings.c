@@ -1,13 +1,7 @@
 #include "OScNIDAQDevicePrivate.h"
 
+#include <stdio.h>
 #include <string.h>
-
-const char* const PROPERTY_VALUE_Channel1 = "Channel1";
-const char* const PROPERTY_VALUE_Channel2 = "Channel2";
-const char* const PROPERTY_VALUE_Channel3 = "Channel3";
-const char* const PROPERTY_VALUE_Channel1and2 = "Channel1and2";
-const char* const PROPERTY_VALUE_Channel1and3 = "Channel1and3";
-const char* const PROPERTY_VALUE_Channel1and2and3 = "Channels1-3";
 
 
 // For most settings, we set the setting's implData to the device.
@@ -151,98 +145,42 @@ static OScDev_SettingImpl SettingImpl_InputVoltageRange = {
 };
 
 
-static OScDev_Error GetChannels(OScDev_Setting *setting, uint32_t *value)
+struct EnableChannelData {
+	OScDev_Device *device;
+	int hwChannel;
+};
+
+static void ReleaseEnableChannel(OScDev_Setting *setting)
 {
-	*value = GetSettingDeviceData(setting)->channels;
+	free(OScDev_Setting_GetImplData(setting));
+}
+
+static OScDev_Error GetEnableChannel(OScDev_Setting *setting, bool *value)
+{
+	struct EnableChannelData *settingData = OScDev_Setting_GetImplData(setting);
+	struct OScNIDAQPrivateData *devData = GetData(settingData->device);
+	*value = devData->channelEnabled[settingData->hwChannel];
 	return OScDev_OK;
 }
 
-
-static OScDev_Error SetChannels(OScDev_Setting *setting, uint32_t value)
+static OScDev_Error SetEnableChannel(OScDev_Setting *setting, bool value)
 {
-	GetSettingDeviceData(setting)->channels = value;
+	struct EnableChannelData *settingData = OScDev_Setting_GetImplData(setting);
+	struct OScNIDAQPrivateData *devData = GetData(settingData->device);
+	devData->channelEnabled[settingData->hwChannel] = value;
 
 	// Force recreation of detector task next time
-	OScDev_Device *device = (OScDev_Device *)OScDev_Setting_GetImplData(setting);
-	OScDev_RichError *err = ShutdownDetector(device,
-		&GetSettingDeviceData(setting)->detectorConfig);
-
+	OScDev_RichError *err = ShutdownDetector(settingData->device,
+		&devData->detectorConfig);
 	return OScDev_Error_ReturnAsCode(err);
 }
 
-
-static OScDev_Error GetChannelsNumValues(OScDev_Setting *setting, uint32_t *count)
-{
-	*count = CHANNELS_NUM_VALUES;
-	return OScDev_OK;
-}
-
-
-static OScDev_Error GetChannelsNameForValue(OScDev_Setting *setting, uint32_t value, char *name)
-{
-	switch (value)
-	{
-	case CHANNEL1:
-		strcpy(name, "Channel1");
-		break;
-	case CHANNEL2:
-		strcpy(name, "Channel2");
-		break;
-	case CHANNEL3:
-		strcpy(name, "Channel3");
-		break;
-		break;
-	case CHANNELS_1_AND_2:
-		strcpy(name, "Channel_1_and_2");
-		break;
-	case CHANNELS_1_AND_3:
-		strcpy(name, "Channel_1_and_3");
-		break;
-	case CHANNELS1_2_3:
-		strcpy(name, "Channel_1_2_3");
-		break;
-	default:
-		strcpy(name, "");
-		return OScDev_Error_ReturnAsCode(OScDev_Error_Create("Error Unknown"));
-	}
-
-	OScDev_Device *device = (OScDev_Device *)OScDev_Setting_GetImplData(setting);
-	OScDev_RichError *err;
-	err = GetSelectedDispChannels(device);
-	if (err) {
-		OScDev_Log_Error(device, "Fail to get selected disp channels");
-		return OScDev_Error_ReturnAsCode(err);
-	}
-	return OScDev_OK;
-}
-
-static OScDev_Error GetChannelsValueForName(OScDev_Setting *setting, uint32_t *value, const char *name)
-{
-	if (!strcmp(name, "Channel1"))
-		*value = CHANNEL1;
-	else if (!strcmp(name, "Channel2"))
-		*value = CHANNEL2;
-	else if (!strcmp(name, "Channel3"))
-		*value = CHANNEL3;
-	else if (!strcmp(name, "Channel_1_and_2"))
-		*value = CHANNELS_1_AND_2;
-	else if (!strcmp(name, "Channel_1_and_3"))
-		*value = CHANNELS_1_AND_3;
-	else if (!strcmp(name, "Channel_1_2_3"))
-		*value = CHANNELS1_2_3;
-	else
-		return OScDev_Error_Unknown;
-	return OScDev_OK;
-}
-
-
-static OScDev_SettingImpl SettingImpl_Channels = {
-	.GetEnum = GetChannels,
-	.SetEnum = SetChannels,
-	.GetEnumNumValues = GetChannelsNumValues,
-	.GetEnumNameForValue = GetChannelsNameForValue,
-	.GetEnumValueForName = GetChannelsValueForName,
+static OScDev_SettingImpl SettingImpl_EnableChannel = {
+	.Release = ReleaseEnableChannel,
+	.GetBool = GetEnableChannel,
+	.SetBool = SetEnableChannel,
 };
+
 
 static OScDev_Error GetScannerOnly(OScDev_Setting *setting, bool *value)
 {
@@ -319,6 +257,12 @@ static OScDev_SettingImpl SettingImpl_Offset = {
 OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings)
 {
 	OScDev_RichError *err;
+
+	err = EnumerateAIPhysChans(device);
+	if (err)
+		OScDev_Error_ReturnAsCode(err);
+
+
 	*settings = OScDev_PtrArray_Create();
 
 	OScDev_Setting *lineDelay;
@@ -349,12 +293,21 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings
 		goto error;
 	OScDev_PtrArray_Append(*settings, numLinesToBuffer);
 
-	OScDev_Setting *channels;
-	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&channels, "Channels", OScDev_ValueType_Enum,
-		&SettingImpl_Channels, device));
-	if (err)
-		goto error;
-	OScDev_PtrArray_Append(*settings, channels);
+	int nPhysChans = GetNumberOfAIPhysChans(device);
+	for (int i = 0; i < nPhysChans; ++i)
+	{
+		struct EnableChannelData *data = malloc(sizeof(struct EnableChannelData));
+		data->device = device;
+		data->hwChannel = i;
+		char name[64];
+		snprintf(name, sizeof(name), "EnableChannel%d", i);
+		OScDev_Setting *enableChannel;
+		err = OScDev_Error_AsRichError(OScDev_Setting_Create(&enableChannel,
+			name, OScDev_ValueType_Bool, &SettingImpl_EnableChannel, data));
+		if (err)
+			goto error;
+		OScDev_PtrArray_Append(*settings, enableChannel);
+	}
 
 	OScDev_Setting *inputVoltageRange;
 	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&inputVoltageRange, "Input Voltage Range", OScDev_ValueType_Float64,
@@ -379,44 +332,4 @@ error:
 	OScDev_PtrArray_Destroy(*settings);
 	*settings = NULL;
 	return OScDev_Error_ReturnAsCode(err);
-}
-
-static OScDev_RichError *GetSelectedDispChannels(OScDev_Device *device)
-{
-	// clear selectedDispChan
-	GetData(device)->selectedDispChan_ = calloc(OSc_Total_Channel_Num * (OScDev_MAX_STR_LEN + 1), sizeof(char));
-
-	switch (GetData(device)->channels)
-	{
-	case CHANNEL1:
-		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel1;
-		GetData(device)->channelCount = 1;
-		break;
-	case CHANNEL2:
-		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel2;
-		GetData(device)->channelCount = 1;
-		break;
-	case CHANNEL3:
-		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel3;
-		GetData(device)->channelCount = 1;
-		break;
-	case CHANNELS_1_AND_2:
-		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel1;
-		GetData(device)->selectedDispChan_[1] = PROPERTY_VALUE_Channel2;
-		GetData(device)->channelCount = 2;
-		break;
-	case CHANNELS_1_AND_3:
-		GetData(device)->selectedDispChan_[0] =  PROPERTY_VALUE_Channel1;
-		GetData(device)->selectedDispChan_[1] = PROPERTY_VALUE_Channel3;
-		GetData(device)->channelCount = 2;
-		break;
-	case CHANNELS1_2_3:
-		GetData(device)->selectedDispChan_[0] = PROPERTY_VALUE_Channel1;
-		GetData(device)->selectedDispChan_[1] = PROPERTY_VALUE_Channel2;
-		GetData(device)->selectedDispChan_[2] = PROPERTY_VALUE_Channel3;
-		GetData(device)->channelCount = 3;
-		break;
-	}
-
-	return OScDev_RichError_OK;
 }

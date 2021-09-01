@@ -137,8 +137,7 @@ static OScDev_Error NIDAQIsROIScanSupported(OScDev_Device *device, bool *support
 // Same as OpenScanDAQ::GetNumberOfChannels()
 static OScDev_Error NIDAQGetNumberOfChannels(OScDev_Device *device, uint32_t *nChannels)
 {
-	*nChannels = (GetData(device)->channels) == CHANNELS1_2_3 ? 3 :
-		((GetData(device)->channels) == CHANNELS_1_AND_2 || (GetData(device)->channels) == CHANNELS_1_AND_3) ? 2 : 1;
+	*nChannels = GetNumberOfEnabledChannels(device);
 	return OScDev_OK;
 }
 

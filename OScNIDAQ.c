@@ -1,15 +1,12 @@
-/* Device-specific scanner and/or detector implementations */
-/* Interact with physical hardware (NI DAQ) */
-/* and rely on specific device library (NIDAQmx) */
 
 #include "OScNIDAQ.h"
 #include "Waveform.h"
-#include "strmap/strmap.h"
+
+#include <Windows.h>
+
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-
-#include <Windows.h>
 
 
 // Must be called immediately after failed DAQmx function
@@ -54,102 +51,33 @@ OScDev_RichError *CreateDAQmxError(int32 nierr)
 }
 
 
-static inline uint16_t DoubleToFixed16(double d, int intBits)
+// Fill in non-zero defaults only
+static void InitializePrivateData(struct OScNIDAQPrivateData *data)
 {
-	int fracBits = 16 - intBits;
-	return (uint16_t)round(d * (1 << fracBits));
-}
-
-
-static void PopulateDefaultParameters(struct OScNIDAQPrivateData *data)
-{
-	data->detectorOnly = false;
-	data->scannerOnly = false;
-	data->channelMap_ = sm_new(32);
-	//Assume portList[256][32];
-	data->aiPorts_ = malloc(256 * (sizeof(char)*32));
-	for (int i = 0; i < 256; i++) {
-		data->aiPorts_[i] = malloc(32 * sizeof(char));
-	}
-	data->enabledAIPorts_ = malloc(sizeof(char) * 2048);
-	
-	// Assume 3 chanel at maximum, each 16 chars at most
-	data->selectedDispChan_ = malloc(3 * sizeof(char*));
-	for (int i = 0; i < 3; i++) {
-		data->selectedDispChan_[i] = malloc(sizeof(char) * 16);
-	}
-	data->selectedDispChan_[0] = "Channel1";
-	data->channelCount = 1;
-
-	memset(&data->clockConfig, 0, sizeof(struct ClockConfig));
-	memset(&data->scannerConfig, 0, sizeof(struct ScannerConfig));
-	memset(&data->detectorConfig, 0, sizeof(struct DetectorConfig));
-
-	data->oneFrameScanDone = false;
-	data->framePixelsFilled = 0;
-
 	data->lineDelay = 50;
 	data->numLinesToBuffer = 8;
 	data->inputVoltageRange = 10.0;
-	data->channels = CHANNEL1;
-	data->numAIChannels = 1;
-	data->numDOChannels = 1;
-	data->offsetXY[0] = 0.0;
-	data->offsetXY[1] = 0.0;
 	data->minVolts_ = -10.0;
 	data->maxVolts_ = 10.0;
+
+	data->channelEnabled[0] = true;
 	
 	InitializeCriticalSection(&(data->acquisition.mutex));
-	data->acquisition.thread = NULL;
 	InitializeConditionVariable(&(data->acquisition.acquisitionFinishCondition));
-	data->acquisition.running = false;
-	data->acquisition.armed = false;
-	data->acquisition.started = false;
-	data->acquisition.stopRequested = false;
-	data->acquisition.acquisition = NULL;
-}
-
-// convert comma comma - delimited device list to a 2D string array
-// each row contains the name of one ai port
-static OScDev_Error ParseAIPortList(char *names,
-	// assume there are maximum 256 port 
-	char deviceNames[MAX_NUM_PORTS][32], int *deviceCount)
-{
-	const char s[3] = ", ";
-	int count = 0;
-
-	// token is a static pointer to the input string
-	// input string will be modified between iterations
-	for (char *token = strtok(names, s); token != NULL; token = strtok(NULL, s))
-	{
-		if (count < 256)
-		{
-			strcpy(deviceNames[count], token);
-			count++;
-		}
-		else
-			return OScDev_Error_Unknown;  //TODO
-	}
-
-	*deviceCount = (size_t)count;
-
-	return OScDev_OK;
 }
 
 
-
-// automatically detect deviceName using DAQmxGetSysDevNames()
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl)
 {
 	OScDev_RichError *err;
 
-	// get a comma - delimited list of all of the devices installed in the system
+	// get a comma-delimited list of all of the devices installed in the system
 	char deviceNames[4096];
 	err = CreateDAQmxError(DAQmxGetSysDevNames(deviceNames, sizeof(deviceNames)));
 	if (err)
 		return err;
 
-	char deviceList[NUM_SLOTS_IN_CHASSIS][OScDev_MAX_STR_LEN + 1];
+	char deviceList[MAX_NUM_DEVICES][OScDev_MAX_STR_LEN + 1];
 
 	size_t deviceCount;
 	err = ParseDeviceNameList(deviceNames, deviceList, &deviceCount);
@@ -173,41 +101,12 @@ OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImp
 			return err;
 		}
 
-		PopulateDefaultParameters(GetData(device));
+		InitializePrivateData(GetData(device));
 
 		OScDev_PtrArray_Append(*devices, device);
 	}
 	
 	return OScDev_RichError_OK;
-}
-
-
-OScDev_Error GetAIPortsForDevice(char* devices, int* deviceCount, char** result) {
-	char ports[4096];
-	int32 nierr = DAQmxGetDevAIPhysicalChans(devices, ports, sizeof(ports));
-	if (nierr != 0)
-	{
-		return OScDev_Error_Unknown;  //TODO
-	}
-
-	// TODO: Max number of AI ports
-	char portList[256][32];
-
-	OScDev_Error err;
-	if (OScDev_CHECK(err, ParseAIPortList(ports, portList, deviceCount)))
-	{
-		return err;
-	}
-
-	// Return char** result from portlist[256][32]
-	for (int i = 0; i < *deviceCount; i++) {
-		for (int j = 0; j < 32; j++) {
-			result[i][j] = portList[i][j];
-			if (portList[i][j] == '\0')
-				break;
-		}
-	}
-	return OScDev_OK;
 }
 
 
@@ -247,32 +146,93 @@ OScDev_Error GetVoltageRangeForDevice(OScDev_Device* device, double* minVolts, d
 }
 
 
-OScDev_Error GetEnabledAIPorts(OScDev_Device *device) {
-	char* portList = malloc(1);
-	struct OScNIDAQPrivateData* debug = GetData(device);
-	// Assume three channels at most
-	int channelNum = GetData(device)->channelCount;
-	for (int i = 0; i < channelNum; i++) {
-		char mappedStr[255]; // Assume string len is less than 255 char
-		sm_get(GetData(device)->channelMap_, GetData(device)->selectedDispChan_[i],  mappedStr, sizeof(mappedStr));
-		// Append comma
-		// port0, port1, port3...
-		if (i == 0) {
-			portList = realloc(portList, strlen(mappedStr) * sizeof(char));
-			strcpy(portList, mappedStr);
+OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device)
+{
+	char *buf = malloc(1024);
+	int32 nierr = DAQmxGetDevAIPhysicalChans(GetData(device)->deviceName, buf, 1024);
+	if (nierr < 0)
+		return CreateDAQmxError(nierr);
+	if (strlen(buf) == 0)
+		return OScDev_Error_Create("Device has no AI physical channels");
+
+	buf = realloc(buf, strlen(buf) + 1); // Shrink-wrap
+	GetData(device)->aiPhysChans = buf;
+	return OScDev_RichError_OK;
+}
+
+
+int GetNumberOfEnabledChannels(OScDev_Device *device)
+{
+	int ret = 0;
+	for (int i = 0; i < MAX_PHYSICAL_CHANS; ++i) {
+		if (GetData(device)->channelEnabled[i]) {
+			++ret;
 		}
-		else {
-			char* buffer = realloc(portList, (strlen(portList) + strlen(mappedStr) + 1) * sizeof(char));
-			strcpy(buffer, portList);
-			strcat(buffer, ",");
-			strcat(buffer, mappedStr);
-			portList = buffer;
-		}
-	
 	}
-	GetData(device)->enabledAIPorts_ = portList;
-	free(portList);
-	return OScDev_OK;
+	return ret;
+}
+
+
+void GetEnabledChannels(OScDev_Device *device, char *buf, size_t bufsiz)
+{
+	if (bufsiz == 0)
+		return;
+	buf[0] = '\0';
+	char *p = buf;
+	char *bufend = buf + bufsiz;
+
+	for (int i = 0; i < MAX_PHYSICAL_CHANS; ++i) {
+		if (GetData(device)->channelEnabled[i]) {
+			char chan[64];
+			GetAIPhysChan(device, i, chan, sizeof(chan));
+			if (p != buf)
+				p += snprintf(p, bufend - p, "%s", ", ");
+			p += snprintf(p, bufend - p, "%s", chan);
+		}
+	}
+}
+
+
+int GetNumberOfAIPhysChans(OScDev_Device *device)
+{
+	for (int i = 0; i < MAX_PHYSICAL_CHANS; ++i) {
+		char buf[64];
+		GetAIPhysChan(device, i, buf, sizeof(buf));
+		if (strlen(buf) == 0) {
+			return i;
+		}
+	}
+	return MAX_PHYSICAL_CHANS;
+}
+
+
+// Return the index-th physical channel, or empty string if no such channel
+void GetAIPhysChan(OScDev_Device *device, int index, char *buf, size_t bufsiz)
+{
+	if (bufsiz == 0)
+		return;
+	buf[0] = '\0';
+
+	// Make p point to start of the channel at desired index
+	char *p = GetData(device)->aiPhysChans;
+	for (int i = 0; i < index; ++i) {
+		char *pp = strchr(p, ',');
+		if (!pp)
+			return;
+		while (*++pp == ' ')
+			;
+		p = pp;
+	}
+
+	// Now make q point to beyond the end of the channel
+	char *q = strchr(p, ',');
+	if (!q)
+		q = strchr(p, '\0');
+
+	size_t siz = q - p + 1;
+	if (siz > bufsiz)
+		siz = bufsiz;
+	snprintf(buf, siz, "%s", p);
 }
 
 
@@ -288,7 +248,7 @@ static OScDev_RichError *ParseDeviceNameList(char *names,
 	// input string will be modified between iterations
 	for (char *token = strtok(names, s); token != NULL; token = strtok(NULL, s))
 	{
-		if (count < NUM_SLOTS_IN_CHASSIS)
+		if (count < MAX_NUM_DEVICES)
 		{
 			strcpy(deviceNames[count], token);
 			count++;
@@ -303,41 +263,9 @@ static OScDev_RichError *ParseDeviceNameList(char *names,
 }
 
 
-OScDev_RichError *MapDispChanToAIPorts(OScDev_Device* device)
-{
-	struct OScNIDAQPrivateData* debug = GetData(device);
-	char dispChannels[3][512] = {
-		{"Channel1"},
-		{"Channel2"},
-		{"Channel3"}
-	};
-
-	int numDispChannels = 3;
-	int numAIPorts = 1;
-	GetAIPortsForDevice(GetData(device)->deviceName, &numAIPorts, GetData(device)->aiPorts_);
-
-	int numChannels = (numDispChannels > numAIPorts) ? numAIPorts : numDispChannels;
-	struct OScNIDAQPrivateData* dData = GetData(device);
-	for (int i = 0; i < numChannels; ++i)
-	{
-		sm_put(GetData(device)->channelMap_, dispChannels[i], GetData(device)->aiPorts_[i]);
-	}
-
-	return OScDev_RichError_OK;
-}
-
-
-// same to Initialize() in old OpenScan format
 OScDev_RichError *OpenDAQ(OScDev_Device *device)
 {
 	OScDev_Log_Debug(device, "Start initializing DAQ");
-	OScDev_RichError *err;
-	err = MapDispChanToAIPorts(device);
-	if (err)
-		return OScDev_Error_Wrap(err, "Fail to init hash table");
-
-	struct OScNIDAQPrivateData* debug = GetData(device);
-	// TODO: allow user to select these channels -- probably need a Hub structure
 
 	// TODO BUG The string manipulation below has buffer overflows and also
 	// leaks memory.
@@ -365,7 +293,6 @@ OScDev_RichError *OpenDAQ(OScDev_Device *device)
 	strcat(buffer, noSlash);
 	strcpy(GetData(device)->acqTrigPort_,  buffer);
 
-	// ???
 	return OScDev_RichError_OK;
 }
 
@@ -554,14 +481,12 @@ static OScDev_RichError *ReadImage(OScDev_Device *device, OScDev_Acquisition *ac
 	if (err)
 		return err;
 
-	// SplitChannels
-	// skik if set to scanner only mode
 	if (!GetData(device)->scannerOnly)
 	{
-		bool shouldContinue;
-		for (uint32_t ch = 0; ch < GetData(device)->numAIChannels; ++ch)
+		int nChans = GetNumberOfEnabledChannels(device);
+		for (int ch = 0; ch < nChans; ++ch)
 		{
-			shouldContinue = OScDev_Acquisition_CallFrameCallback(acq,
+			bool shouldContinue = OScDev_Acquisition_CallFrameCallback(acq,
 				ch, GetData(device)->frameBuffers[ch]);
 			if (!shouldContinue)
 			{

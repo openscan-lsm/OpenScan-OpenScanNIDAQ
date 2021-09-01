@@ -1,5 +1,4 @@
 #pragma once
-#include "strmap/strmap.h"
 
 #include "OpenScanDeviceLib.h"
 
@@ -7,9 +6,7 @@
 
 #include <Windows.h>
 
-#define OSc_DEFAULT_RESOLUTION 512
-#define OSc_DEFAULT_ZOOM 1.0
-#define OSc_Total_Channel_Num 3
+#define MAX_PHYSICAL_CHANS 8
 
 
 // DAQmx tasks and flags to track invalidated configurations for clock
@@ -60,41 +57,28 @@ struct OScNIDAQPrivateData
 	uint32_t configuredRasterWidth, configuredRasterHeight;
 
 	bool oneFrameScanDone;
-	// Flags for scanner and detector
-	bool detectorOnly;
 	bool scannerOnly;
 
 	// counted as number of pixels. 
 	// to adjust for the lag between the mirror control signal and the actual position of the mirror
 	// scan phase (uSec) = line delay / scan rate
 	uint32_t lineDelay; 
+
 	uint32_t numLinesToBuffer;
 	double inputVoltageRange;
-	uInt32 numAIChannels;
-	uInt32 numDOChannels; // reserved for multiple line and frame clocks
+	uInt32 numDOChannels; // Number of DO lines under current clock configuration
 	double offsetXY[2];
 	double minVolts_; // min possible for device
 	double maxVolts_; // max possible for device
-	uint32_t channelCount;
 	
-	char** aiPorts_;
 	char* aoChanList_; 
 	char* doChanList_; 
 	char* coChanList_; 
 	char* acqTrigPort_;
-	const char** selectedDispChan_; 
-	char* enabledAIPorts_;
-	StrMap* channelMap_;
 
-	enum {
-		CHANNEL1,
-		CHANNEL2,
-		CHANNEL3,
-		CHANNELS_1_AND_2,
-		CHANNELS_1_AND_3,
-		CHANNELS1_2_3,
-		CHANNELS_NUM_VALUES
-	} channels;
+	int numAIPhysChans; // Not to exceed MAX_PHYSICAL_CHANS
+	char *aiPhysChans; // ", "-delimited string; at least numAIPhysChans elements
+	bool channelEnabled[MAX_PHYSICAL_CHANS];
 
 	// Read, but unprocessed, raw samples; channels interleaved
 	// Leftover data from the previous read, if any, is at the start of the
@@ -106,7 +90,7 @@ struct OScNIDAQPrivateData
 	// Per-channel frame buffers that we fill in and pass to OpenScanLib
 	// Index is order among currently enabled channels.
 	// Buffers for unused channels may not be allocated.
-	uint16_t *frameBuffers[OSc_Total_Channel_Num];
+	uint16_t *frameBuffers[MAX_PHYSICAL_CHANS];
 	size_t framePixelsFilled;
 
 	struct
@@ -130,9 +114,12 @@ static inline struct OScNIDAQPrivateData *GetData(OScDev_Device *device)
 
 
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl);
+OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device);
+int GetNumberOfEnabledChannels(OScDev_Device *device);
+void GetEnabledChannels(OScDev_Device *device, char *buf, size_t bufsiz);
+int GetNumberOfAIPhysChans(OScDev_Device *device);
+void GetAIPhysChan(OScDev_Device *device, int index, char *buf, size_t bufsiz);
 OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings);
-OScDev_RichError *GetSelectedDispChannels(OScDev_Device *device);
-
 
 OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq);
 OScDev_RichError *ShutdownClock(OScDev_Device *device, struct ClockConfig *config);
@@ -146,7 +133,6 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *co
 OScDev_RichError *ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config);
 OScDev_RichError *StartDetector(OScDev_Device *device, struct DetectorConfig *config);
 OScDev_RichError *StopDetector(OScDev_Device *device, struct DetectorConfig *config);
-
 
 
 // Must be called immediately after failed DAQmx function

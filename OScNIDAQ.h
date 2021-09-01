@@ -2,7 +2,7 @@
 
 #include "OScNIDAQDevicePrivate.h"
 
-#define NUM_SLOTS_IN_CHASSIS 4
+#define MAX_NUM_DEVICES 4
 #define MAX_NUM_PORTS 256
 
 
