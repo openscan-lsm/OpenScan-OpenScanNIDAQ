@@ -157,19 +157,21 @@ static void ReleaseEnableChannel(OScDev_Setting *setting)
 
 static OScDev_Error GetEnableChannel(OScDev_Setting *setting, bool *value)
 {
-	struct EnableChannelData *data = OScDev_Setting_GetImplData(setting);
-	*value = GetSettingDeviceData(setting)->channelEnabled[data->hwChannel];
+	struct EnableChannelData *settingData = OScDev_Setting_GetImplData(setting);
+	struct OScNIDAQPrivateData *devData = GetData(settingData->device);
+	*value = devData->channelEnabled[settingData->hwChannel];
 	return OScDev_OK;
 }
 
 static OScDev_Error SetEnableChannel(OScDev_Setting *setting, bool value)
 {
-	struct EnableChannelData *data = OScDev_Setting_GetImplData(setting);
-	GetSettingDeviceData(setting)->channelEnabled[data->hwChannel] = value;
+	struct EnableChannelData *settingData = OScDev_Setting_GetImplData(setting);
+	struct OScNIDAQPrivateData *devData = GetData(settingData->device);
+	devData->channelEnabled[settingData->hwChannel] = value;
 
 	// Force recreation of detector task next time
-	OScDev_RichError *err = ShutdownDetector(data->device,
-		&GetSettingDeviceData(setting)->detectorConfig);
+	OScDev_RichError *err = ShutdownDetector(settingData->device,
+		&devData->detectorConfig);
 	return OScDev_Error_ReturnAsCode(err);
 }
 

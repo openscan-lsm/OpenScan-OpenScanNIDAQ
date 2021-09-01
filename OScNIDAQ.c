@@ -149,7 +149,7 @@ OScDev_Error GetVoltageRangeForDevice(OScDev_Device* device, double* minVolts, d
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device)
 {
 	char *buf = malloc(1024);
-	int32 nierr = DAQmxGetDevAIPhysicalChans(GetData(device)->deviceName, buf, sizeof(buf));
+	int32 nierr = DAQmxGetDevAIPhysicalChans(GetData(device)->deviceName, buf, 1024);
 	if (nierr < 0)
 		return CreateDAQmxError(nierr);
 	if (strlen(buf) == 0)
@@ -185,7 +185,7 @@ void GetEnabledChannels(OScDev_Device *device, char *buf, size_t bufsiz)
 		if (GetData(device)->channelEnabled[i]) {
 			char chan[64];
 			GetAIPhysChan(device, i, chan, sizeof(chan));
-			if (p == buf)
+			if (p != buf)
 				p += snprintf(p, bufend - p, "%s", ", ");
 			p += snprintf(p, bufend - p, "%s", chan);
 		}

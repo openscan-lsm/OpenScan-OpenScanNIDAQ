@@ -183,7 +183,7 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device, struct Detect
 	}
 
 	int nChans = GetNumberOfEnabledChannels(device);
-	char aiPhysChans[128];
+	char aiPhysChans[1024];
 	GetEnabledChannels(device, aiPhysChans, sizeof(aiPhysChans));
 
 	double minVolts, maxVolts;
