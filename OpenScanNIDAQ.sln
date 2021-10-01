@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31702.278
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenScanNIDAQ", "OpenScanNIDAQ.vcxproj", "{3A1C08D0-539A-4949-82E1-7DFA4E3D4490}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DumpWaveform", "DumpWaveform\DumpWaveform.vcxproj", "{F3990504-8D7B-45EA-B01E-C1DB1204C67B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,8 +23,19 @@ Global
 		{3A1C08D0-539A-4949-82E1-7DFA4E3D4490}.Release|x64.Build.0 = Release|x64
 		{3A1C08D0-539A-4949-82E1-7DFA4E3D4490}.Release|x86.ActiveCfg = Release|Win32
 		{3A1C08D0-539A-4949-82E1-7DFA4E3D4490}.Release|x86.Build.0 = Release|Win32
+		{F3990504-8D7B-45EA-B01E-C1DB1204C67B}.Debug|x64.ActiveCfg = Debug|x64
+		{F3990504-8D7B-45EA-B01E-C1DB1204C67B}.Debug|x64.Build.0 = Debug|x64
+		{F3990504-8D7B-45EA-B01E-C1DB1204C67B}.Debug|x86.ActiveCfg = Debug|Win32
+		{F3990504-8D7B-45EA-B01E-C1DB1204C67B}.Debug|x86.Build.0 = Debug|Win32
+		{F3990504-8D7B-45EA-B01E-C1DB1204C67B}.Release|x64.ActiveCfg = Release|x64
+		{F3990504-8D7B-45EA-B01E-C1DB1204C67B}.Release|x64.Build.0 = Release|x64
+		{F3990504-8D7B-45EA-B01E-C1DB1204C67B}.Release|x86.ActiveCfg = Release|Win32
+		{F3990504-8D7B-45EA-B01E-C1DB1204C67B}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B5D8741D-3C99-48BE-89E8-43672E31F12A}
 	EndGlobalSection
 EndGlobal
