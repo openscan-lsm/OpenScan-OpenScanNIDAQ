@@ -112,7 +112,7 @@ static inline struct OScNIDAQPrivateData *GetData(OScDev_Device *device)
 	return (struct OScNIDAQPrivateData *)OScDev_Device_GetImplData(device);
 }
 
-
+void SetWaveformParamsFromDevice(OScDev_Device* device, struct WaveformParams* parameters, OScDev_Acquisition* acq);
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl);
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device);
 int GetNumberOfEnabledChannels(OScDev_Device *device);
@@ -120,6 +120,7 @@ void GetEnabledChannels(OScDev_Device *device, char *buf, size_t bufsiz);
 int GetNumberOfAIPhysChans(OScDev_Device *device);
 void GetAIPhysChan(OScDev_Device *device, int index, char *buf, size_t bufsiz);
 OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings);
+
 
 OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq);
 OScDev_RichError *ShutdownClock(OScDev_Device *device, struct ClockConfig *config);
