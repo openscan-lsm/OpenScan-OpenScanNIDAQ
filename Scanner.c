@@ -160,7 +160,7 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device, struct Scanne
 
 	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
 	uint32_t yLen = height + Y_RETRACE_LEN;
-	int32 elementsPerFramePerChan = elementsPerLine * height;  // without y retrace portion
+	//int32 elementsPerFramePerChan = elementsPerLine * height;  // without y retrace portion
 	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
 
 	double *xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);

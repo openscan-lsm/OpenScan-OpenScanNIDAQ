@@ -50,8 +50,12 @@ void SplineInterpolate(int32_t n, double yFirst, double yLast,
 
 
 /* Line clock pattern for NI DAQ to output from one of its digital IOs */
-OScDev_RichError *GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * lineClock)
+OScDev_RichError *GenerateLineClock(const struct WaveformParams *parameters, uint8_t* lineClock)
 {
+	uint32_t lineDelay = parameters->lineDelay;
+	uint32_t x_resolution = parameters->pixelsPerLine;
+	uint32_t numScanLines = parameters->numScanLines;
+
 	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
 	for (uint32_t j = 0; j < numScanLines; j++)
 		for (uint32_t i = 0; i < x_length; i++)
@@ -64,8 +68,12 @@ OScDev_RichError *GenerateLineClock(uint32_t x_resolution, uint32_t numScanLines
 // High voltage right after a line acquisition is done
 // like a line clock of reversed polarity
 // specially for B&H FLIM application
-OScDev_RichError *GenerateFLIMLineClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * lineClockFLIM)
+OScDev_RichError *GenerateFLIMLineClock(const struct WaveformParams* parameters, uint8_t* lineClockFLIM)
 {
+	uint32_t lineDelay = parameters->lineDelay;
+	uint32_t x_resolution = parameters->pixelsPerLine;
+	uint32_t numScanLines = parameters->numScanLines;
+
 	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
 	for (uint32_t j = 0; j < numScanLines; j++)
 		for (uint32_t i = 0; i < x_length; i++)
@@ -76,8 +84,12 @@ OScDev_RichError *GenerateFLIMLineClock(uint32_t x_resolution, uint32_t numScanL
 
 // Frame clock for B&H FLIM
 // High voltage at the end of the frame
-OScDev_RichError *GenerateFLIMFrameClock(uint32_t x_resolution, uint32_t numScanLines, uint32_t lineDelay, uint8_t * frameClockFLIM)
+OScDev_RichError *GenerateFLIMFrameClock(const struct WaveformParams* parameters, uint8_t* frameClockFLIM)
 {
+	uint32_t lineDelay = parameters->lineDelay;
+	uint32_t x_resolution = parameters->pixelsPerLine;
+	uint32_t numScanLines = parameters->numScanLines;
+
 	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
 	uint32_t y_length = numScanLines;
 
@@ -87,6 +99,25 @@ OScDev_RichError *GenerateFLIMFrameClock(uint32_t x_resolution, uint32_t numScan
 			((j == numScanLines - 1) && (i > lineDelay + x_resolution)) ? 1 : 0;
 
 	return OScDev_RichError_OK;
+}
+
+int32_t GetClockWaveformSize(const struct WaveformParams* parameters)
+{
+	uint32_t elementsPerLine = parameters->lineDelay + parameters->pixelsPerLine + X_RETRACE_LEN;
+	uint32_t height = parameters->numScanLines;
+	int32_t elementsPerFramePerChan = elementsPerLine * height;
+
+	return elementsPerFramePerChan;
+}
+
+int32_t GetScannerWaveformSize(const struct WaveformParams* parameters)
+{
+	uint32_t elementsPerLine = parameters->lineDelay + parameters->pixelsPerLine + X_RETRACE_LEN;
+	uint32_t height = parameters->numScanLines;
+	uint32_t yLen = height + Y_RETRACE_LEN;
+	int32_t totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
+
+	return totalElementsPerFramePerChan;
 }
 
 
