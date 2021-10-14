@@ -52,15 +52,15 @@ void SplineInterpolate(int32_t n, double yFirst, double yLast,
 /* Line clock pattern for NI DAQ to output from one of its digital IOs */
 OScDev_RichError *GenerateLineClock(const struct WaveformParams *parameters, uint8_t* lineClock)
 {
-	uint32_t lineDelay = parameters->lineDelay;
-	uint32_t x_resolution = parameters->pixelsPerLine;
-	uint32_t numScanLines = parameters->numScanLines;
+	uint32_t lineDelay = parameters->undershoot;
+	uint32_t width = parameters->width;
+	uint32_t height = parameters->height;
 
-	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
-	for (uint32_t j = 0; j < numScanLines; j++)
+	uint32_t x_length = lineDelay + width + X_RETRACE_LEN;
+	for (uint32_t j = 0; j < height; j++)
 		for (uint32_t i = 0; i < x_length; i++)
 			lineClock[i + j*x_length] =
-			((i >= lineDelay) && (i < lineDelay + x_resolution)) ? 1 : 0;
+			((i >= lineDelay) && (i < lineDelay + width)) ? 1 : 0;
 
 	return OScDev_RichError_OK;
 }
@@ -70,14 +70,14 @@ OScDev_RichError *GenerateLineClock(const struct WaveformParams *parameters, uin
 // specially for B&H FLIM application
 OScDev_RichError *GenerateFLIMLineClock(const struct WaveformParams* parameters, uint8_t* lineClockFLIM)
 {
-	uint32_t lineDelay = parameters->lineDelay;
-	uint32_t x_resolution = parameters->pixelsPerLine;
-	uint32_t numScanLines = parameters->numScanLines;
+	uint32_t lineDelay = parameters->undershoot;
+	uint32_t width = parameters->width;
+	uint32_t height = parameters->height;
 
-	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
-	for (uint32_t j = 0; j < numScanLines; j++)
+	uint32_t x_length = lineDelay + width + X_RETRACE_LEN;
+	for (uint32_t j = 0; j < height; j++)
 		for (uint32_t i = 0; i < x_length; i++)
-			lineClockFLIM[i + j*x_length] = (i >= lineDelay + x_resolution) ? 1 : 0;
+			lineClockFLIM[i + j*x_length] = (i >= lineDelay + width) ? 1 : 0;
 
 	return OScDev_RichError_OK;
 }
@@ -86,25 +86,24 @@ OScDev_RichError *GenerateFLIMLineClock(const struct WaveformParams* parameters,
 // High voltage at the end of the frame
 OScDev_RichError *GenerateFLIMFrameClock(const struct WaveformParams* parameters, uint8_t* frameClockFLIM)
 {
-	uint32_t lineDelay = parameters->lineDelay;
-	uint32_t x_resolution = parameters->pixelsPerLine;
-	uint32_t numScanLines = parameters->numScanLines;
+	uint32_t lineDelay = parameters->undershoot;
+	uint32_t width = parameters->width;
+	uint32_t height = parameters->height;
 
-	uint32_t x_length = lineDelay + x_resolution + X_RETRACE_LEN;
-	uint32_t y_length = numScanLines;
+	uint32_t x_length = lineDelay + width + X_RETRACE_LEN;
 
-	for (uint32_t j = 0; j < y_length; ++j)
+	for (uint32_t j = 0; j < height; ++j)
 		for (uint32_t i = 0; i < x_length; ++i)
 			frameClockFLIM[i + j * x_length] =
-			((j == numScanLines - 1) && (i > lineDelay + x_resolution)) ? 1 : 0;
+			((j == height - 1) && (i > lineDelay + width)) ? 1 : 0;
 
 	return OScDev_RichError_OK;
 }
 
 int32_t GetClockWaveformSize(const struct WaveformParams* parameters)
 {
-	uint32_t elementsPerLine = parameters->lineDelay + parameters->pixelsPerLine + X_RETRACE_LEN;
-	uint32_t height = parameters->numScanLines;
+	uint32_t elementsPerLine = parameters->undershoot + parameters->width + X_RETRACE_LEN;
+	uint32_t height = parameters->height;
 	int32_t elementsPerFramePerChan = elementsPerLine * height;
 
 	return elementsPerFramePerChan;
@@ -112,8 +111,8 @@ int32_t GetClockWaveformSize(const struct WaveformParams* parameters)
 
 int32_t GetScannerWaveformSize(const struct WaveformParams* parameters)
 {
-	uint32_t elementsPerLine = parameters->lineDelay + parameters->pixelsPerLine + X_RETRACE_LEN;
-	uint32_t height = parameters->numScanLines;
+	uint32_t elementsPerLine = parameters->undershoot + parameters->width + X_RETRACE_LEN;
+	uint32_t height = parameters->height;
 	uint32_t yLen = height + Y_RETRACE_LEN;
 	int32_t totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
 
@@ -128,12 +127,18 @@ Analog voltage range (-0.5V, 0.5V) at zoom 1
 Including Y retrace waveform that moves the slow galvo back to its starting position
 */
 OScDev_RichError
-*GenerateGalvoWaveformFrame(uint32_t resolution, double zoom, uint32_t undershoot,
-	uint32_t xOffset, uint32_t yOffset, // ROI offset
-	uint32_t pixelsPerLine, uint32_t linesPerFrame, // ROI size
-	double galvoOffsetX, double galvoOffsetY, // Adjustment offset
-	double *xyWaveformFrame)
+*GenerateGalvoWaveformFrame(const struct WaveformParams* parameters, double *xyWaveformFrame)
 {
+	uint32_t pixelsPerLine = parameters->width; // ROI size
+	uint32_t linesPerFrame = parameters->height;
+	uint32_t resolution = parameters->resolution;
+	uint32_t zoom = parameters->zoom;
+	uint32_t undershoot = parameters->undershoot;
+	uint32_t xOffset = parameters->xOffset; // ROI offset
+	uint32_t yOffset = parameters->yOffset;
+	uint32_t galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
+	uint32_t galvoOffsetY = parameters->galvoOffsetY;
+
 	// Voltage ranges of the ROI
 	double xStart = (-0.5 * resolution + xOffset) / (zoom * resolution);
 	double yStart = (-0.5 * resolution + yOffset) / (zoom * resolution);

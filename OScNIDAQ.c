@@ -66,6 +66,15 @@ static void InitializePrivateData(struct OScNIDAQPrivateData *data)
 	InitializeConditionVariable(&(data->acquisition.acquisitionFinishCondition));
 }
 
+void SetWaveformParamsFromDevice(OScDev_Device *device, struct WaveformParams* parameters, OScDev_Acquisition* acq) {
+	parameters->resolution = OScDev_Acquisition_GetResolution(acq);
+	parameters->zoom = OScDev_Acquisition_GetZoomFactor(acq);
+	OScDev_Acquisition_GetROI(acq, &parameters->xOffset, &parameters->yOffset,
+		&parameters->width, &parameters->height);
+	parameters->undershoot = GetData(device)->lineDelay;
+	parameters->galvoOffsetX = GetData(device)->offsetXY[0];
+	parameters->galvoOffsetY = GetData(device)->offsetXY[1];
+}
 
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl)
 {

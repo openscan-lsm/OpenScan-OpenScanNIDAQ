@@ -6,17 +6,19 @@
 
 // write results to binary file
 void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
-	double zoom = 1;
-	uint32_t xOffset = 0;
-	uint32_t yOffset = 0;
-	uint32_t width = resolution;
-	uint32_t height = resolution;
-	double galvoOffsetX = 0;
-	double galvoOffsetY = 0;
 
-	uint32_t elementsPerLine = undershoot + width + X_RETRACE_LEN;
-	uint32_t yLen = height + Y_RETRACE_LEN;
-	uint32_t totalElementsPerFrame = elementsPerLine * yLen;
+	struct WaveformParams WaveformParameters;
+	WaveformParameters.width = resolution;
+	WaveformParameters.height = resolution;
+	WaveformParameters.resolution = resolution;
+	WaveformParameters.zoom = 1;
+	WaveformParameters.undershoot = undershoot;
+	WaveformParameters.xOffset = 0;
+	WaveformParameters.yOffset = 0;
+	WaveformParameters.galvoOffsetX = 0;
+	WaveformParameters.galvoOffsetY = 0;
+
+	uint32_t totalElementsPerFrame = GetScannerWaveformSize(WaveformParameters);
 
 	uint32_t bufferSize = totalElementsPerFrame * 2;
 	double* xyWaveform = malloc(sizeof(double) * bufferSize);
@@ -25,8 +27,7 @@ void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
 		exit(EXIT_FAILURE);
 	}
 
-	GenerateGalvoWaveformFrame(resolution, zoom, undershoot, xOffset, yOffset,
-		width, height, galvoOffsetX, galvoOffsetY, xyWaveform);
+	GenerateGalvoWaveformFrame(&WaveformParameters, xyWaveform);
 
 	FILE* testFile = fopen("WaveformTest.raw", "wb");
 	fwrite(xyWaveform, sizeof(double), bufferSize, testFile);
@@ -38,9 +39,9 @@ void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
 
 void DumpClockWaveform(uint32_t resolution, uint32_t lineDelay) {
 	struct WaveformParams WaveformParameters;
-	WaveformParameters.pixelsPerLine = resolution;
-	WaveformParameters.numScanLines = resolution;
-	WaveformParameters.lineDelay = lineDelay;
+	WaveformParameters.width = resolution;
+	WaveformParameters.height = resolution;
+	WaveformParameters.undershoot = lineDelay;
 	WaveformParameters.xOffset = 0;
 	WaveformParameters.yOffset = 0;
 

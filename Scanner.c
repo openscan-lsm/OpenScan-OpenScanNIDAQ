@@ -153,24 +153,13 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device, struct Sc
 static OScDev_RichError *WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
 {
 	OScDev_RichError *err;
-	uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
-	double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
-	uint32_t xOffset, yOffset, width, height;
-	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+	struct WaveformParams WaveformParameters;
+	SetWaveformParamsFromDevice(device, &WaveformParameters, acq);
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
-	uint32_t yLen = height + Y_RETRACE_LEN;
-	//int32 elementsPerFramePerChan = elementsPerLine * height;  // without y retrace portion
-	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
-
+	int32 totalElementsPerFramePerChan = GetScannerWaveformSize(WaveformParameters);
 	double *xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-	err = GenerateGalvoWaveformFrame(resolution, zoomFactor,
-		GetData(device)->lineDelay,
-		xOffset, yOffset, width, height,
-		GetData(device)->offsetXY[0],
-		GetData(device)->offsetXY[1],
-		xyWaveformFrame);
+	err = GenerateGalvoWaveformFrame(&WaveformParameters, xyWaveformFrame);
 	if (err)
 		return err;
 

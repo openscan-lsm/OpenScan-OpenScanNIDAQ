@@ -338,10 +338,8 @@ static OScDev_RichError *WriteClockOutput(OScDev_Device *device, struct ClockCon
 {
 	OScDev_RichError *err;
 	struct WaveformParams WaveformParameters;
-	OScDev_Acquisition_GetROI(acq, &WaveformParameters.xOffset, &WaveformParameters.yOffset, 
-		&WaveformParameters.pixelsPerLine, &WaveformParameters.numScanLines);
+	SetWaveformParamsFromDevice(device, &WaveformParameters, acq);
 
-	WaveformParameters.lineDelay = GetData(device)->lineDelay;
 	int32 elementsPerFramePerChan = GetClockWaveformSize(WaveformParameters);
 
 	// Q: Why do we use elementsPerFramePerChan, not totalElementsPerFramePerChan?
