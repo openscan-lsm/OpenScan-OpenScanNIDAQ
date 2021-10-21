@@ -3,6 +3,10 @@
 #include <math.h>
 #include <stdlib.h>
 
+// TODO We should probably scale the retrace length according to
+// zoomFactor * width_or_height
+static const uint32_t X_RETRACE_LEN = 128;
+static const uint32_t Y_RETRACE_LEN = 12;
 
 // Generate 1D (undershoot + trace + retrace).
 // The trace part spans voltage scanStart to scanEnd.
@@ -100,25 +104,31 @@ OScDev_RichError *GenerateFLIMFrameClock(const struct WaveformParams* parameters
 	return OScDev_RichError_OK;
 }
 
+int32_t GetLineWaveformSize(const struct WaveformParams* parameters)
+{
+	return parameters->undershoot + parameters->width + X_RETRACE_LEN;
+}
+
 int32_t GetClockWaveformSize(const struct WaveformParams* parameters)
 {
-	uint32_t elementsPerLine = parameters->undershoot + parameters->width + X_RETRACE_LEN;
+	uint32_t elementsPerLine = GetLineWaveformSize(parameters);
 	uint32_t height = parameters->height;
-	int32_t elementsPerFramePerChan = elementsPerLine * height;
-
-	return elementsPerFramePerChan;
+	return elementsPerLine * height;
 }
 
 int32_t GetScannerWaveformSize(const struct WaveformParams* parameters)
 {
-	uint32_t elementsPerLine = parameters->undershoot + parameters->width + X_RETRACE_LEN;
+	uint32_t elementsPerLine = GetLineWaveformSize(parameters);
 	uint32_t height = parameters->height;
 	uint32_t yLen = height + Y_RETRACE_LEN;
-	int32_t totalElementsPerFramePerChan = elementsPerLine * yLen;   // including y retrace portion
-
-	return totalElementsPerFramePerChan;
+	return elementsPerLine * yLen;   // including y retrace portion
 }
 
+int32_t GetScannerWaveformSizeAfterLastPixel(const struct WaveformParams* parameters)
+{
+	uint32_t elementsPerLine = GetLineWaveformSize(parameters);
+	return X_RETRACE_LEN + elementsPerLine * Y_RETRACE_LEN;
+}
 
 /*
 Generate X and Y waveforms in analog format (voltage) for a whole frame scan
@@ -132,12 +142,12 @@ OScDev_RichError
 	uint32_t pixelsPerLine = parameters->width; // ROI size
 	uint32_t linesPerFrame = parameters->height;
 	uint32_t resolution = parameters->resolution;
-	uint32_t zoom = parameters->zoom;
+	double zoom = parameters->zoom;
 	uint32_t undershoot = parameters->undershoot;
 	uint32_t xOffset = parameters->xOffset; // ROI offset
 	uint32_t yOffset = parameters->yOffset;
-	uint32_t galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
-	uint32_t galvoOffsetY = parameters->galvoOffsetY;
+	double galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
+	double galvoOffsetY = parameters->galvoOffsetY;
 
 	// Voltage ranges of the ROI
 	double xStart = (-0.5 * resolution + xOffset) / (zoom * resolution);
