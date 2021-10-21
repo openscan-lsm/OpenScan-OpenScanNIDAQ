@@ -214,8 +214,9 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device, struct ClockCon
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
 	uint32_t xOffset, yOffset, width, height;
 	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
-
-	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
+	struct WaveformParams params;
+	SetWaveformParamsFromDevice(device, &params, acq);
+	uint32_t elementsPerLine = GetLineWaveformSize(&params);
 	double effectiveScanPortion = (double)width / elementsPerLine;
 	double lineFreqHz = pixelRateHz / elementsPerLine;
 	double scanPhase = 1.0 / pixelRateHz * GetData(device)->lineDelay;
@@ -241,13 +242,13 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device, struct Cloc
 	OScDev_RichError *err;
 
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+	struct WaveformParams params;
+	SetWaveformParamsFromDevice(device, &params, acq);
 	uint32_t xOffset, yOffset, width, height;
 	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
-	uint32_t yLen = height + Y_RETRACE_LEN;
-	int32 elementsPerFramePerChan = elementsPerLine * height;
-	//int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
+	uint32_t elementsPerLine = GetLineWaveformSize(&params);
+	int32 elementsPerFramePerChan = GetClockWaveformSize(&params);
 
 	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->doTask, "", pixelRateHz,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, elementsPerFramePerChan));
@@ -337,10 +338,10 @@ static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device, struct Cl
 static OScDev_RichError *WriteClockOutput(OScDev_Device *device, struct ClockConfig *config, OScDev_Acquisition *acq)
 {
 	OScDev_RichError *err;
-	struct WaveformParams WaveformParameters;
-	SetWaveformParamsFromDevice(device, &WaveformParameters, acq);
+	struct WaveformParams params;
+	SetWaveformParamsFromDevice(device, &params, acq);
 
-	int32 elementsPerFramePerChan = GetClockWaveformSize(WaveformParameters);
+	int32 elementsPerFramePerChan = GetClockWaveformSize(&params);
 
 	// Q: Why do we use elementsPerFramePerChan, not totalElementsPerFramePerChan?
 
@@ -355,13 +356,13 @@ static OScDev_RichError *WriteClockOutput(OScDev_Device *device, struct ClockCon
 		elementsPerFramePerChan * GetData(device)->numDOChannels);
 
 	// TODO: why use elementsPerLine instead of elementsPerFramePerChan?
-	err = GenerateLineClock(&WaveformParameters, lineClockPattern);
+	err = GenerateLineClock(&params, lineClockPattern);
 	if (err)
 		return OScDev_Error_Create("Waveform Out Of Range");
-	err = GenerateFLIMLineClock(&WaveformParameters, lineClockFLIM);
+	err = GenerateFLIMLineClock(&params, lineClockFLIM);
 	if (err)
 		return OScDev_Error_Create("Waveform Out Of Range");
-	err = GenerateFLIMFrameClock(&WaveformParameters, frameClockFLIM);
+	err = GenerateFLIMFrameClock(&params, frameClockFLIM);
 	if (err)
 		return OScDev_Error_Create("Waveform Out Of Range");
 

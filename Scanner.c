@@ -130,13 +130,10 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device, struct Sc
 {
 	OScDev_RichError *err;
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	uint32_t xOffset, yOffset, width, height;
-	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+	struct WaveformParams params;
+	SetWaveformParamsFromDevice(device, &params, acq);
 
-	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
-	uint32_t yLen = height + Y_RETRACE_LEN;
-	int32 elementsPerFramePerChan = elementsPerLine * height;
-	int32 totalElementsPerFramePerChan = elementsPerLine * yLen;
+	int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
 
 	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "", pixelRateHz,
 		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
@@ -153,13 +150,13 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device, struct Sc
 static OScDev_RichError *WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq)
 {
 	OScDev_RichError *err;
-	struct WaveformParams WaveformParameters;
-	SetWaveformParamsFromDevice(device, &WaveformParameters, acq);
+	struct WaveformParams params;
+	SetWaveformParamsFromDevice(device, &params, acq);
 
-	int32 totalElementsPerFramePerChan = GetScannerWaveformSize(WaveformParameters);
+	int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
 	double *xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-	err = GenerateGalvoWaveformFrame(&WaveformParameters, xyWaveformFrame);
+	err = GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
 	if (err)
 		return err;
 

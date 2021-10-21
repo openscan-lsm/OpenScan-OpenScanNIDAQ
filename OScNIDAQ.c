@@ -373,8 +373,8 @@ static OScDev_RichError *StartScan(OScDev_Device *device)
 static OScDev_RichError *WaitScanToFinish(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	uint32_t xOffset, yOffset, width, height;
-	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+	struct WaveformParams parameters;
+	SetWaveformParamsFromDevice(device, &parameters, acq);
 
 	// When scanRate is low, it takes longer to finish generating scan waveform.
 	// Since acquisition only takes a portion of the total scan time,
@@ -383,16 +383,13 @@ static OScDev_RichError *WaitScanToFinish(OScDev_Device *device, OScDev_Acquisit
 	// "Finite acquisition or generation has been stopped before the requested number
 	// of samples were acquired or generated."
 	// So need to wait some miliseconds till waveform generation is done before stop the task.
-	uint32_t xLen = GetData(device)->lineDelay + width + X_RETRACE_LEN;
-	uint32_t yLen = height + Y_RETRACE_LEN;
-	uint32_t yRetraceTime = (uint32_t)(1e3 * xLen * Y_RETRACE_LEN / pixelRateHz);
-	uint32_t estFrameTime = (uint32_t)(1e3 * xLen * yLen / pixelRateHz);
-	// TODO: casting
-	uint32_t waitScanToFinish = GetData(device)->scannerOnly ? estFrameTime : yRetraceTime;  // wait longer if no real acquisition;
+	double yRetraceTime = GetScannerWaveformSizeAfterLastPixel(&parameters) / pixelRateHz;
+	double estFrameTime = GetScannerWaveformSize(&parameters) / pixelRateHz;
+	double secondsToWait = GetData(device)->scannerOnly ? estFrameTime : yRetraceTime;
 	char msg[OScDev_MAX_STR_LEN + 1];
-	snprintf(msg, OScDev_MAX_STR_LEN, "Wait %d ms for scan to finish...", waitScanToFinish);
+	snprintf(msg, OScDev_MAX_STR_LEN, "Wait %f s for scan to finish...", secondsToWait);
 	OScDev_Log_Debug(device, msg);
-	Sleep(waitScanToFinish);
+	Sleep((DWORD)ceil(secondsToWait * 1000));
 
 	return OScDev_RichError_OK;
 }
@@ -441,19 +438,13 @@ static OScDev_RichError *StopScan(OScDev_Device *device, OScDev_Acquisition *acq
 static OScDev_RichError *ReadImage(OScDev_Device *device, OScDev_Acquisition *acq)
 {
 	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	uint32_t xOffset, yOffset, width, height;
-	OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
-
-	uint32_t elementsPerLine = GetData(device)->lineDelay + width + X_RETRACE_LEN;
-	uint32_t scanLines = height;
-	int32 elementsPerFramePerChan = elementsPerLine * scanLines;
-	size_t nPixels = width * height;
-
+	struct WaveformParams params;
+	SetWaveformParamsFromDevice(device, &params, acq);
 	GetData(device)->oneFrameScanDone = false;
 	GetData(device)->framePixelsFilled = 0;
 
-	uint32_t yLen = height + Y_RETRACE_LEN;
-	uint32_t estFrameTimeMs = (uint32_t)(1e3 * elementsPerLine * yLen / pixelRateHz);
+	uint32_t totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
+	uint32_t estFrameTimeMs = (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
 	uint32_t totalWaitTimeMs = 0;
 
 	OScDev_RichError *err;

@@ -3,22 +3,23 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // write results to binary file
 void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
 
-	struct WaveformParams WaveformParameters;
-	WaveformParameters.width = resolution;
-	WaveformParameters.height = resolution;
-	WaveformParameters.resolution = resolution;
-	WaveformParameters.zoom = 1;
-	WaveformParameters.undershoot = undershoot;
-	WaveformParameters.xOffset = 0;
-	WaveformParameters.yOffset = 0;
-	WaveformParameters.galvoOffsetX = 0;
-	WaveformParameters.galvoOffsetY = 0;
+	struct WaveformParams params;
+	params.width = resolution;
+	params.height = resolution;
+	params.resolution = resolution;
+	params.zoom = 1;
+	params.undershoot = undershoot;
+	params.xOffset = 0;
+	params.yOffset = 0;
+	params.galvoOffsetX = 0;
+	params.galvoOffsetY = 0;
 
-	uint32_t totalElementsPerFrame = GetScannerWaveformSize(WaveformParameters);
+	uint32_t totalElementsPerFrame = GetScannerWaveformSize(&params);
 
 	uint32_t bufferSize = totalElementsPerFrame * 2;
 	double* xyWaveform = malloc(sizeof(double) * bufferSize);
@@ -27,7 +28,7 @@ void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
 		exit(EXIT_FAILURE);
 	}
 
-	GenerateGalvoWaveformFrame(&WaveformParameters, xyWaveform);
+	GenerateGalvoWaveformFrame(&params, xyWaveform);
 
 	FILE* testFile = fopen("WaveformTest.raw", "wb");
 	fwrite(xyWaveform, sizeof(double), bufferSize, testFile);
