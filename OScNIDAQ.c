@@ -37,15 +37,16 @@ char* ErrorCodeDomain()
 // Must be called immediately after failed DAQmx function
 OScDev_RichError *CreateDAQmxError(int32 nierr)
 {
+	if (nierr == 0)
+		return OScDev_RichError_OK;
 
 	char buf[1024];
 	DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
 
-	if (nierr > 0)
+	if (nierr > 0) {
 		OScDev_Log_Warning(NULL, buf);
-
-	if (nierr >= 0)
 		return OScDev_RichError_OK;
+	}
 
 	return OScDev_Error_CreateWithCode(ErrorCodeDomain(), nierr, buf);
 }
