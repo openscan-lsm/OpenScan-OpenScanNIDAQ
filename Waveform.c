@@ -6,23 +6,22 @@
 // TODO We should probably scale the retrace length according to
 // zoomFactor * width_or_height
 static const uint32_t X_RETRACE_LEN = 128;
-static const uint32_t Y_RETRACE_LEN = 12;
 
 // Generate 1D (undershoot + trace + retrace).
 // The trace part spans voltage scanStart to scanEnd.
 void
-GenerateGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
+GenerateXGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
 	int32_t undershootLen, double scanStart, double scanEnd, double *waveform)
 {
 	double scanAmplitude = scanEnd - scanStart;
-	double step = scanAmplitude / (effectiveScanLen - 1);
+	double step = scanAmplitude / effectiveScanLen;
 	int32_t linearLen = undershootLen + effectiveScanLen;
 
 	// Generate the linear scan curve
 	double undershootStart = scanStart - undershootLen * step;
 	for (int i = 0; i < linearLen; ++i)
 	{
-		waveform[i] = undershootStart + scanAmplitude * ((double)i / (effectiveScanLen - 1));
+		waveform[i] = undershootStart + step * i;
 	}
 
 	// Generate the rescan curve
@@ -33,16 +32,44 @@ GenerateGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
 	}
 }
 
+// Generate Y waveform for one frame
+void
+GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen, size_t xLength, double scanStart, double scanEnd, double* waveform)
+{
+	double scanAmplitude = scanEnd - scanStart;
+	double step = scanAmplitude / linesPerFrame;
+
+	// Generate staircase for one frame
+	for (int j = 0; j < linesPerFrame; ++j)
+	{
+		for (unsigned i = 0; i < xLength; ++i) {
+			waveform[i + j * xLength] = scanStart + step * j;
+			// stop at last x retrace
+			if ((j >= linesPerFrame - 1) && (i >= xLength - X_RETRACE_LEN)) {
+				break;
+			}
+		}
+	}
+
+	// Generate the rescan curve at end of frame
+	if (X_RETRACE_LEN > 0)
+	{
+		SplineInterpolate(X_RETRACE_LEN, scanEnd, scanStart, 0, 0, waveform + (linesPerFrame * xLength) - X_RETRACE_LEN);
+	}
+}
 
 // n = number of elements
 // slope in units of per element
 void SplineInterpolate(int32_t n, double yFirst, double yLast,
 	double slopeFirst, double slopeLast, double *result)
 {
+	double m = n;
+	double mm = m * m;
+	double mmm = m * m * m;
 	double c[4];
 
-	c[0] = slopeFirst / (n*n) + 2.0 / (n*n*n)*yFirst + slopeLast / (n*n) - 2.0 / (n*n*n)*yLast;
-	c[1] = 3.0 / (n*n)*yLast - slopeLast / n - 2.0 / n*slopeFirst - 3.0 / (n*n)*yFirst;
+	c[0] = slopeFirst / mm + 2.0 * yFirst / mmm + slopeLast / mm - 2.0 * yLast / mmm;
+	c[1] = 3.0 * yLast / mm - slopeLast / m - 2.0 * slopeFirst / m - 3.0 * yFirst / mm;
 	c[2] = slopeFirst;
 	c[3] = yFirst;
 
@@ -120,14 +147,13 @@ int32_t GetScannerWaveformSize(const struct WaveformParams* parameters)
 {
 	uint32_t elementsPerLine = GetLineWaveformSize(parameters);
 	uint32_t height = parameters->height;
-	uint32_t yLen = height + Y_RETRACE_LEN;
+	uint32_t yLen = height;
 	return elementsPerLine * yLen;   // including y retrace portion
 }
 
 int32_t GetScannerWaveformSizeAfterLastPixel(const struct WaveformParams* parameters)
 {
-	uint32_t elementsPerLine = GetLineWaveformSize(parameters);
-	return X_RETRACE_LEN + elementsPerLine * Y_RETRACE_LEN;
+	return X_RETRACE_LEN;
 }
 
 /*
@@ -156,11 +182,12 @@ OScDev_RichError
 	double yEnd = yStart + linesPerFrame / (zoom * resolution);
 
 	size_t xLength = undershoot + pixelsPerLine + X_RETRACE_LEN;
-	size_t yLength = linesPerFrame + Y_RETRACE_LEN;
+	size_t yLength = linesPerFrame;
+
 	double *xWaveform = (double *)malloc(sizeof(double) * xLength);
-	double *yWaveform = (double *)malloc(sizeof(double) * yLength);
-	GenerateGalvoWaveform(pixelsPerLine, X_RETRACE_LEN, undershoot, xStart, xEnd, xWaveform);
-	GenerateGalvoWaveform(linesPerFrame, Y_RETRACE_LEN, 0, yStart, yEnd, yWaveform);
+	double *yWaveform = (double *)malloc(sizeof(double) * (yLength * xLength)); // change size
+	GenerateXGalvoWaveform(pixelsPerLine, X_RETRACE_LEN, undershoot, xStart, xEnd, xWaveform);
+	GenerateYGalvoWaveform(linesPerFrame, X_RETRACE_LEN, xLength, yStart, yEnd, yWaveform);
 
 	// convert to optical degree assuming 10V equal to 30 optical degree
 	// TODO We shouldn't make such an assumption! Also I think the variable
@@ -176,15 +203,16 @@ OScDev_RichError
 			// first half is X waveform,
 			// x line scan repeated yLength times (sawteeth) 
 			// galvo x stays at starting position after one frame is scanned
-			xyWaveformFrame[i + j*xLength] = (j < linesPerFrame) ?
-				(xWaveform[i] + offsetXinDegree) : (xWaveform[0] + offsetXinDegree);
+			xyWaveformFrame[i + j * xLength] = xWaveform[i] + offsetXinDegree;
+
 			//xyWaveformFrame[i + j*xLength] = xWaveform[i];
 			// second half is Y waveform
 			// at each x (fast) scan line, y value is constant
 			// effectively y retrace takes (Y_RETRACE_LENGTH * xLength) steps
-			xyWaveformFrame[i + j*xLength + yLength*xLength] = (yWaveform[j] + offsetYinDegree);
+			xyWaveformFrame[i + j * xLength + yLength * xLength] = yWaveform[i + j * xLength] + offsetYinDegree;
 		}
 	}
+
 	// TODO When we are scanning multiple frames, the Y retrace can be
 	// simultaneous with the last line's X retrace. (Spline interpolate
 	// with zero slope at each end of retrace.)
