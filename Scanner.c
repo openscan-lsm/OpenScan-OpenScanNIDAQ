@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-
 static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
 static OScDev_RichError *WriteScannerOutput(OScDev_Device *device, struct ScannerConfig *config, OScDev_Acquisition *acq);
 
@@ -43,23 +42,20 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device, struct ScannerConfig *conf
 		mustCommit = true;
 	}
 
-	if (config->mustReconfigureTiming)
-	{
-		err = ConfigureScannerTiming(device, config, acq);
-		if (err)
-			goto error;
-		config->mustReconfigureTiming = false;
-		mustCommit = true;
-	}
 
-	if (config->mustRewriteOutput)
-	{
-		err = WriteScannerOutput(device, config, acq);
-		if (err)
-			goto error;
-		config->mustRewriteOutput = false;
-		mustCommit = true;
-	}
+	err = ConfigureScannerTiming(device, config, acq);
+	if (err)
+		goto error;
+	config->mustReconfigureTiming = false;
+	mustCommit = true;
+
+
+	err = WriteScannerOutput(device, config, acq);
+	if (err)
+		goto error;
+	config->mustRewriteOutput = false;
+	mustCommit = true;
+
 
 	if (mustCommit)
 	{
@@ -77,6 +73,7 @@ error:
 	if (ShutdownScanner(device, config))
 		OScDev_Log_Error(device, "Failed to clean up scanner task after error");
 	return err;
+
 }
 
 
@@ -178,4 +175,37 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device, struct Scanne
 cleanup:
 	free(xyWaveformFrame);
 	return err;
+}
+
+OScDev_RichError* CreateScannerTask(OScDev_Device* device, struct ScannerConfig* config)
+{
+	if (!(config)->aoTask)
+	{
+		OScDev_RichError* err;
+		err = CreateDAQmxError(DAQmxCreateTask("Scanner", &config->aoTask));
+		if (err)
+		{
+			err = OScDev_Error_Wrap(err, "Failed to create scanner task");
+			return err;
+		}
+
+		char aoTerminals[256];
+		strncpy(aoTerminals, GetData(device)->deviceName, sizeof(aoTerminals) - 1);
+		strncat(aoTerminals, "/ao0:1", sizeof(aoTerminals) - strlen(aoTerminals) - 1);
+
+		err = CreateDAQmxError(DAQmxCreateAOVoltageChan(config->aoTask, aoTerminals,
+			"Galvos", -10.0, 10.0, DAQmx_Val_Volts, NULL));
+		if (err)
+		{
+			err = OScDev_Error_Wrap(err, "Failed to create ao channels for scanner");
+			goto error;
+		}
+
+	return OScDev_RichError_OK;
+
+	error:
+		if (ShutdownScanner(device, config))
+			OScDev_Log_Error(device, "Failed to clean up scanner task after error");
+		return err;
+	}
 }

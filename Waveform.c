@@ -34,7 +34,8 @@ GenerateXGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
 
 // Generate Y waveform for one frame
 void
-GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen, size_t xLength, double scanStart, double scanEnd, double* waveform)
+GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
+	 size_t xLength, double scanStart, double scanEnd, double* waveform)
 {
 	double scanAmplitude = scanEnd - scanStart;
 	double step = scanAmplitude / linesPerFrame;
@@ -57,6 +58,7 @@ GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen, size_t xLength
 		SplineInterpolate(X_RETRACE_LEN, scanEnd, scanStart, 0, 0, waveform + (linesPerFrame * xLength) - X_RETRACE_LEN);
 	}
 }
+
 
 // n = number of elements
 // slope in units of per element
@@ -156,6 +158,12 @@ int32_t GetScannerWaveformSizeAfterLastPixel(const struct WaveformParams* parame
 	return X_RETRACE_LEN;
 }
 
+int32_t GetParkWaveformSize(const struct WaveformParams* parameters)
+{
+	uint32_t elementsPerLine = X_RETRACE_LEN;
+	return elementsPerLine;
+}
+
 /*
 Generate X and Y waveforms in analog format (voltage) for a whole frame scan
 Format: X|Y in a 1D array for NI DAQ to simultaneously output in two channels
@@ -217,6 +225,100 @@ OScDev_RichError
 	// simultaneous with the last line's X retrace. (Spline interpolate
 	// with zero slope at each end of retrace.)
 	// TODO Simpler to use interleaved x,y format?
+
+	free(xWaveform);
+	free(yWaveform);
+
+	return OScDev_RichError_OK;
+}
+
+
+// Generate waveform from parking to start before one frame
+OScDev_RichError *GenerateGalvoUnparkWaveform(const struct WaveformParams* parameters, double* xyWaveformFrame)
+{
+	uint32_t resolution = parameters->resolution;
+	double zoom = parameters->zoom;
+	uint32_t xOffset = parameters->xOffset; // ROI offset
+	uint32_t yOffset = parameters->yOffset;
+	double galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
+	double galvoOffsetY = parameters->galvoOffsetY;
+	int32_t xPark = parameters->xPark;
+	int32_t yPark = parameters->yPark;
+
+	// Voltage ranges of the ROI
+	double xStart = (-0.5 * resolution + xPark) / (zoom * resolution);
+	double yStart = (-0.5 * resolution + yPark) / (zoom * resolution);
+	double xEnd = (-0.5 * resolution + xOffset) / (zoom * resolution);
+	double yEnd = (-0.5 * resolution + yOffset) / (zoom * resolution);
+
+	size_t length = X_RETRACE_LEN;
+	double* xWaveform = (double*)malloc(sizeof(double) * length);
+	double* yWaveform = (double*)malloc(sizeof(double) * length);
+
+	SplineInterpolate(length, xStart, xEnd, 0, 0, xWaveform);
+	SplineInterpolate(length, yStart, yEnd, 0, 0, yWaveform);
+
+	double offsetXinDegree = galvoOffsetX / 3.0;
+	double offsetYinDegree = galvoOffsetY / 3.0;
+
+	// effective scan waveform for a whole frame
+	for (unsigned i = 0; i < length; ++i)
+	{
+		// first half is X waveform,
+		// x line scan repeated yLength times (sawteeth) 
+		xyWaveformFrame[i] = xWaveform[i] + offsetXinDegree;
+
+		// second half is Y waveform
+		xyWaveformFrame[i + length] = yWaveform[i] + offsetYinDegree;
+	}
+
+	free(xWaveform);
+	free(yWaveform);
+
+	return OScDev_RichError_OK;
+}
+
+
+// Generate waveform from start to parking after one frame
+OScDev_RichError *GenerateGalvoParkWaveform(const struct WaveformParams* parameters, double* xyWaveformFrame)
+{
+	uint32_t resolution = parameters->resolution;
+	double zoom = parameters->zoom;
+	uint32_t xOffset = parameters->xOffset; // ROI offset
+	uint32_t yOffset = parameters->yOffset;
+	double galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
+	double galvoOffsetY = parameters->galvoOffsetY;
+	int32_t xPark = parameters->xPark;
+	int32_t yPark = parameters->yPark;
+
+	// Voltage ranges of the ROI
+	double xStart = (-0.5 * resolution + xOffset) / (zoom * resolution);
+	double yStart = (-0.5 * resolution + yOffset) / (zoom * resolution);
+	double xEnd = (-0.5 * resolution + xPark) / (zoom * resolution);
+	double yEnd = (-0.5 * resolution + yPark) / (zoom * resolution);
+
+	size_t length = X_RETRACE_LEN;
+	double* xWaveform = (double*)malloc(sizeof(double) * length);
+	double* yWaveform = (double*)malloc(sizeof(double) * length);
+
+	SplineInterpolate(length, xStart, xEnd, 0, 0, xWaveform);
+	SplineInterpolate(length, yStart, yEnd, 0, 0, yWaveform);
+
+	double offsetXinDegree = galvoOffsetX / 3.0;
+	double offsetYinDegree = galvoOffsetY / 3.0;
+
+	// effective scan waveform for a whole frame
+	for (unsigned i = 0; i < length; ++i)
+	{
+		// first half is X waveform,
+		// x line scan repeated yLength times (sawteeth) 
+		// galvo x stays at starting position after one frame is scanned
+		xyWaveformFrame[i] = xWaveform[i] + offsetXinDegree;
+
+		//xyWaveformFrame[i + j*xLength] = xWaveform[i];
+		// second half is Y waveform
+		xyWaveformFrame[i + length] = yWaveform[i] + offsetYinDegree; 
+	}
 
 	free(xWaveform);
 	free(yWaveform);

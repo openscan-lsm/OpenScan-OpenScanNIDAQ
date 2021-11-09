@@ -14,10 +14,14 @@ const struct WaveformParams {
 	uint32_t yOffset;
 	double galvoOffsetX;
 	double galvoOffsetY;
+	int32_t xPark;
+	int32_t yPark;
 };
 
-void GenerateGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
-	int32_t undershootLen, double scanStart, double scanEnd, double *waveform);
+void GenerateXGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
+	int32_t undershootLen, double scanStart, double scanEnd, double* waveform);
+void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
+	size_t xLength, double scanStart, double scanEnd, double* waveform);
 void SplineInterpolate(int32_t n, double yFirst, double yLast,
 	double slopeFirst, double slopeLast, double *result);
 OScDev_RichError *GenerateLineClock(const struct WaveformParams* parameters, uint8_t * lineClock);
@@ -27,4 +31,7 @@ int32_t GetLineWaveformSize(const struct WaveformParams* parameters);
 int32_t GetClockWaveformSize(const struct WaveformParams* parameters);
 int32_t GetScannerWaveformSize(const struct WaveformParams* parameters);
 int32_t GetScannerWaveformSizeAfterLastPixel(const struct WaveformParams* parameters);
+int32_t GetParkWaveformSize(const struct WaveformParams* parameters);
 OScDev_RichError *GenerateGalvoWaveformFrame(const struct WaveformParams* parameters, double* xyWaveformFrame);
+OScDev_RichError* GenerateGalvoUnparkWaveform(const struct WaveformParams* parameters, double* xyWaveformFrame);
+OScDev_RichError* GenerateGalvoParkWaveform(const struct WaveformParams* parameters, double* xyWaveformFrame);

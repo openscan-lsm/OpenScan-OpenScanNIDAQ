@@ -74,6 +74,8 @@ void SetWaveformParamsFromDevice(OScDev_Device *device, struct WaveformParams* p
 	parameters->undershoot = GetData(device)->lineDelay;
 	parameters->galvoOffsetX = GetData(device)->offsetXY[0];
 	parameters->galvoOffsetY = GetData(device)->offsetXY[1];
+	parameters->xPark = 100;
+	parameters->yPark = 100;
 }
 
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl)
@@ -519,6 +521,15 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 
 	uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
 
+	// insert from parking to start here
+	CreateScannerTask(device, &GetData(device)->scannerConfig);
+	ConfigureUnparkTiming(device, &GetData(device)->scannerConfig, acq);
+	WriteUnparkOutput(device, &GetData(device)->scannerConfig, acq);
+	GenerateUnparkOutput(device, &GetData(device)->scannerConfig, acq);
+
+	// prepare raster waveform
+	SetUpScanner(device, &GetData(device)->scannerConfig, acq);
+
 	for (uint32_t frame = 0; frame < totalFrames; ++frame)
 	{
 		bool stopRequested;
@@ -543,6 +554,11 @@ static DWORD WINAPI AcquisitionLoop(void *param)
 			break;
 		}
 	}
+
+	// insert from start to parking here
+	ConfigureParkTiming(device, &GetData(device)->scannerConfig, acq);
+	WriteParkOutput(device, &GetData(device)->scannerConfig, acq);
+	GenerateParkOutput(device, &GetData(device)->scannerConfig, acq);
 
 	EnterCriticalSection(&(GetData(device)->acquisition.mutex));
 	GetData(device)->acquisition.running = false;
@@ -650,9 +666,6 @@ OScDev_RichError *ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq)
 	OScDev_RichError *err;
 
 	err = SetUpClock(device, &GetData(device)->clockConfig, acq);
-	if (err)
-		return err;
-	err = SetUpScanner(device, &GetData(device)->scannerConfig, acq);
 	if (err)
 		return err;
 	if (!GetData(device)->scannerOnly)
