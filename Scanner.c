@@ -198,14 +198,10 @@ OScDev_RichError* CreateScannerTask(OScDev_Device* device, struct ScannerConfig*
 		if (err)
 		{
 			err = OScDev_Error_Wrap(err, "Failed to create ao channels for scanner");
-			goto error;
+			if (ShutdownScanner(device, config))
+				OScDev_Log_Error(device, "Failed to clean up scanner task after error");
+			return err;
 		}
-
-	return OScDev_RichError_OK;
-
-	error:
-		if (ShutdownScanner(device, config))
-			OScDev_Log_Error(device, "Failed to clean up scanner task after error");
-		return err;
 	}
+	return OScDev_RichError_OK;
 }
