@@ -74,8 +74,10 @@ void SetWaveformParamsFromDevice(OScDev_Device *device, struct WaveformParams* p
 	parameters->undershoot = GetData(device)->lineDelay;
 	parameters->galvoOffsetX = GetData(device)->offsetXY[0];
 	parameters->galvoOffsetY = GetData(device)->offsetXY[1];
-	parameters->xPark = 100;
-	parameters->yPark = 100;
+	parameters->xPark = GetData(device)->xPark;
+	parameters->yPark = GetData(device)->yPark;
+	parameters->prevXParkVoltage = GetData(device)->prevXParkVoltage;
+	parameters->prevYParkVoltage = GetData(device)->prevYParkVoltage;
 }
 
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices, OScDev_DeviceImpl *impl)

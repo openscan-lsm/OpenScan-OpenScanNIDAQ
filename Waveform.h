@@ -16,6 +16,8 @@ const struct WaveformParams {
 	double galvoOffsetY;
 	int32_t xPark;
 	int32_t yPark;
+	double prevXParkVoltage;
+	double prevYParkVoltage;
 };
 
 void GenerateXGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,

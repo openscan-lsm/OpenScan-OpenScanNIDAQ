@@ -244,10 +244,14 @@ OScDev_RichError *GenerateGalvoUnparkWaveform(const struct WaveformParams* param
 	double galvoOffsetY = parameters->galvoOffsetY;
 	int32_t xPark = parameters->xPark;
 	int32_t yPark = parameters->yPark;
+	double xParkVoltage = parameters->prevXParkVoltage;
+	double yParkVoltage = parameters->prevYParkVoltage;
 
 	// Voltage ranges of the ROI
-	double xStart = (-0.5 * resolution + xPark) / (zoom * resolution);
-	double yStart = (-0.5 * resolution + yPark) / (zoom * resolution);
+	//double xStart = (-0.5 * resolution + xPark) / (zoom * resolution);
+	//double yStart = (-0.5 * resolution + yPark) / (zoom * resolution);
+	double xStart = xParkVoltage;
+	double yStart = yParkVoltage;
 	double xEnd = (-0.5 * resolution + xOffset) / (zoom * resolution);
 	double yEnd = (-0.5 * resolution + yOffset) / (zoom * resolution);
 
@@ -255,8 +259,8 @@ OScDev_RichError *GenerateGalvoUnparkWaveform(const struct WaveformParams* param
 	double* xWaveform = (double*)malloc(sizeof(double) * length);
 	double* yWaveform = (double*)malloc(sizeof(double) * length);
 
-	SplineInterpolate(length, xStart, xEnd, 0, 0, xWaveform);
-	SplineInterpolate(length, yStart, yEnd, 0, 0, yWaveform);
+	SplineInterpolate((int32_t)length, xStart, xEnd, 0, 0, xWaveform);
+	SplineInterpolate((int32_t)length, yStart, yEnd, 0, 0, yWaveform);
 
 	double offsetXinDegree = galvoOffsetX / 3.0;
 	double offsetYinDegree = galvoOffsetY / 3.0;
@@ -301,8 +305,8 @@ OScDev_RichError *GenerateGalvoParkWaveform(const struct WaveformParams* paramet
 	double* xWaveform = (double*)malloc(sizeof(double) * length);
 	double* yWaveform = (double*)malloc(sizeof(double) * length);
 
-	SplineInterpolate(length, xStart, xEnd, 0, 0, xWaveform);
-	SplineInterpolate(length, yStart, yEnd, 0, 0, yWaveform);
+	SplineInterpolate((int32_t)length, xStart, xEnd, 0, 0, xWaveform);
+	SplineInterpolate((int32_t)length, yStart, yEnd, 0, 0, yWaveform);
 
 	double offsetXinDegree = galvoOffsetX / 3.0;
 	double offsetYinDegree = galvoOffsetY / 3.0;

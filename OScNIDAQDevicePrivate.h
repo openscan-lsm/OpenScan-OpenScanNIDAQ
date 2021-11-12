@@ -64,6 +64,11 @@ struct OScNIDAQPrivateData
 	// scan phase (uSec) = line delay / scan rate
 	uint32_t lineDelay; 
 
+	int32_t xPark;
+	int32_t yPark;
+	double prevXParkVoltage;
+	double prevYParkVoltage;
+
 	uint32_t numLinesToBuffer;
 	double inputVoltageRange;
 	uInt32 numDOChannels; // Number of DO lines under current clock configuration
@@ -134,12 +139,13 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device, struct DetectorConfig *co
 OScDev_RichError *ShutdownDetector(OScDev_Device *device, struct DetectorConfig *config);
 OScDev_RichError *StartDetector(OScDev_Device *device, struct DetectorConfig *config);
 OScDev_RichError *StopDetector(OScDev_Device *device, struct DetectorConfig *config);
-OScDev_RichError* ConfigureUnparkTiming(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
-OScDev_RichError* ConfigureParkTiming(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
-OScDev_RichError* WriteUnparkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
-OScDev_RichError* WriteParkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
-OScDev_RichError* GenerateUnparkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
-OScDev_RichError* GenerateParkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
+OScDev_RichError *CreateScannerTask(OScDev_Device* device, struct ScannerConfig* config);
+OScDev_RichError *ConfigureUnparkTiming(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
+OScDev_RichError *ConfigureParkTiming(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
+OScDev_RichError *WriteUnparkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
+OScDev_RichError *WriteParkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
+OScDev_RichError *GenerateUnparkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
+OScDev_RichError *GenerateParkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
 
 // Must be called immediately after failed DAQmx function
 void LogNiError(OScDev_Device *device, int32 nierr, const char *when);

@@ -7,11 +7,6 @@
 #include <string.h>
 
 
-//static OScDev_RichError* ConfigureParkTiming(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
-//static OScDev_RichError* WriteUnparkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
-//static OScDev_RichError* WriteParkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq);
-
-
 OScDev_RichError* ConfigureUnparkTiming(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq)
 {
 	OScDev_RichError* err;
@@ -96,6 +91,8 @@ OScDev_RichError* WriteParkOutput(OScDev_Device* device, struct ScannerConfig* c
 	double* xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
 	err = GenerateGalvoParkWaveform(&params, xyWaveformFrame);
+	GetData(device)->prevXParkVoltage = xyWaveformFrame[totalElementsPerFramePerChan - 1];
+	GetData(device)->prevYParkVoltage = xyWaveformFrame[(totalElementsPerFramePerChan * 2) - 1];
 	if (err)
 		return err;
 
