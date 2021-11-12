@@ -242,17 +242,16 @@ OScDev_RichError *GenerateGalvoUnparkWaveform(const struct WaveformParams* param
 	uint32_t yOffset = parameters->yOffset;
 	double galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
 	double galvoOffsetY = parameters->galvoOffsetY;
+	int32_t undershoot = parameters->undershoot;
 	int32_t xPark = parameters->xPark;
 	int32_t yPark = parameters->yPark;
 	double xParkVoltage = parameters->prevXParkVoltage;
 	double yParkVoltage = parameters->prevYParkVoltage;
 
 	// Voltage ranges of the ROI
-	//double xStart = (-0.5 * resolution + xPark) / (zoom * resolution);
-	//double yStart = (-0.5 * resolution + yPark) / (zoom * resolution);
 	double xStart = xParkVoltage;
 	double yStart = yParkVoltage;
-	double xEnd = (-0.5 * resolution + xOffset) / (zoom * resolution);
+	double xEnd = (-0.5 * resolution + xOffset - undershoot) / (zoom * resolution);
 	double yEnd = (-0.5 * resolution + yOffset) / (zoom * resolution);
 
 	size_t length = X_RETRACE_LEN;
@@ -292,11 +291,12 @@ OScDev_RichError *GenerateGalvoParkWaveform(const struct WaveformParams* paramet
 	uint32_t yOffset = parameters->yOffset;
 	double galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
 	double galvoOffsetY = parameters->galvoOffsetY;
+	int32_t undershoot = parameters->undershoot;
 	int32_t xPark = parameters->xPark;
 	int32_t yPark = parameters->yPark;
 
 	// Voltage ranges of the ROI
-	double xStart = (-0.5 * resolution + xOffset) / (zoom * resolution);
+	double xStart = (-0.5 * resolution + xOffset - undershoot) / (zoom * resolution);
 	double yStart = (-0.5 * resolution + yOffset) / (zoom * resolution);
 	double xEnd = (-0.5 * resolution + xPark) / (zoom * resolution);
 	double yEnd = (-0.5 * resolution + yPark) / (zoom * resolution);
