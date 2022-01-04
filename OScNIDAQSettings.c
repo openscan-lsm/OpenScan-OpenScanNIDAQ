@@ -62,6 +62,44 @@ OScDev_SettingImpl SettingImpl_LineDelay = {
 	.GetInt32Range = GetLineDelayRange,
 };
 
+static OScDev_Error GetParkingPositionX(OScDev_Setting* setting, int32_t* xPark) 
+{
+	*xPark = GetSettingDeviceData(setting)->xPark;
+
+	return OScDev_OK;
+}
+
+static OScDev_Error SetParkingPositionX(OScDev_Setting* setting, int32_t xPark)
+{
+	GetSettingDeviceData(setting)->xPark = xPark;
+
+	return OScDev_OK;
+}
+
+OScDev_SettingImpl SettingImpl_ParkingPositionX = {
+	.GetInt32 = GetParkingPositionX,
+	.SetInt32 = SetParkingPositionX,
+};
+
+static OScDev_Error GetParkingPositionY(OScDev_Setting* setting, int32_t* yPark)
+{
+	*yPark = GetSettingDeviceData(setting)->yPark;
+
+	return OScDev_OK;
+}
+
+static OScDev_Error SetParkingPositionY(OScDev_Setting* setting, int32_t yPark)
+{
+	GetSettingDeviceData(setting)->yPark = yPark;
+
+	return OScDev_OK;
+}
+
+OScDev_SettingImpl SettingImpl_ParkingPositionY = {
+	.GetInt32 = GetParkingPositionY,
+	.SetInt32 = SetParkingPositionY,
+};
+
 
 static OScDev_Error GetAcqBufferSize(OScDev_Setting *setting, int32_t *value)
 {
@@ -271,6 +309,20 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device, OScDev_PtrArray **settings
 	if (err)
 		goto error;
 	OScDev_PtrArray_Append(*settings, lineDelay);
+
+	OScDev_Setting* parkingPositionX;
+	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&parkingPositionX, "Parking Position X (pixels)", OScDev_ValueType_Int32,
+		&SettingImpl_ParkingPositionX, device));
+	if (err)
+		goto error;
+	OScDev_PtrArray_Append(*settings, parkingPositionX);
+
+	OScDev_Setting* parkingPositionY;
+	err = OScDev_Error_AsRichError(OScDev_Setting_Create(&parkingPositionY, "Parking Position Y (pixels)", OScDev_ValueType_Int32,
+		&SettingImpl_ParkingPositionY, device));
+	if (err)
+		goto error;
+	OScDev_PtrArray_Append(*settings, parkingPositionY);
 
 	for (int i = 0; i < 2; ++i)
 	{

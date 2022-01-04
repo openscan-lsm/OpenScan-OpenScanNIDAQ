@@ -172,6 +172,7 @@
     <ClCompile Include="OScNIDAQ.c" />
     <ClCompile Include="OScNIDAQDevice.c" />
     <ClCompile Include="OScNIDAQSettings.c" />
+    <ClCompile Include="ParkUnpark.c" />
     <ClCompile Include="Scanner.c" />
     <ClCompile Include="Waveform.c" />
   </ItemGroup>
