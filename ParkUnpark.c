@@ -1,200 +1,204 @@
 #include "OScNIDAQDevicePrivate.h"
 #include "Waveform.h"
 
-#include <OpenScanDeviceLib.h>
 #include <NIDAQmx.h>
+#include <OpenScanDeviceLib.h>
 #include <stdbool.h>
 #include <string.h>
 
+OScDev_RichError *ConfigureUnparkTiming(OScDev_Device *device,
+                                        struct ScannerConfig *config,
+                                        OScDev_Acquisition *acq) {
+    OScDev_RichError *err;
+    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
 
-OScDev_RichError* ConfigureUnparkTiming(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq)
-{
-	OScDev_RichError* err;
-	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	struct WaveformParams params;
-	SetWaveformParamsFromDevice(device, &params, acq);
+    int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
 
-	int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params); 
+    err = CreateDAQmxError(DAQmxCfgSampClkTiming(
+        config->aoTask, "", pixelRateHz, DAQmx_Val_Rising,
+        DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to configure timing for unpark");
+        return err;
+    }
 
-	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "", pixelRateHz,
-		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
-	if (err)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to configure timing for unpark");
-		return err;
-	}
-
-	return OScDev_RichError_OK;
+    return OScDev_RichError_OK;
 }
 
-OScDev_RichError* ConfigureParkTiming(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq)
-{
-	OScDev_RichError* err;
-	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	struct WaveformParams params;
-	SetWaveformParamsFromDevice(device, &params, acq);
+OScDev_RichError *ConfigureParkTiming(OScDev_Device *device,
+                                      struct ScannerConfig *config,
+                                      OScDev_Acquisition *acq) {
+    OScDev_RichError *err;
+    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
 
-	int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
+    int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
 
-	err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "", pixelRateHz,
-		DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
-	if (err)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to configure timing for park");
-		return err;
-	}
+    err = CreateDAQmxError(DAQmxCfgSampClkTiming(
+        config->aoTask, "", pixelRateHz, DAQmx_Val_Rising,
+        DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to configure timing for park");
+        return err;
+    }
 
-	return OScDev_RichError_OK;
+    return OScDev_RichError_OK;
 }
 
-OScDev_RichError* WriteUnparkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq)
-{
-	OScDev_RichError* err;
-	struct WaveformParams params;
-	SetWaveformParamsFromDevice(device, &params, acq);
+OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
+                                    struct ScannerConfig *config,
+                                    OScDev_Acquisition *acq) {
+    OScDev_RichError *err;
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
 
-	int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
-	double* xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
+    int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
+    double *xyWaveformFrame =
+        (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-	err = GenerateGalvoUnparkWaveform(&params, xyWaveformFrame);
-	if (err)
-		return err;
+    err = GenerateGalvoUnparkWaveform(&params, xyWaveformFrame);
+    if (err)
+        return err;
 
-	int32 numWritten = 0;
-	err = CreateDAQmxError(DAQmxWriteAnalogF64(config->aoTask,
-		totalElementsPerFramePerChan, FALSE, 10.0,
-		DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
-	if (err)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to write unpark waveforms");
-		goto cleanup;
-	}
-	if (numWritten != totalElementsPerFramePerChan)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to write complete unpark waveform");
-		goto cleanup;
-	}
+    int32 numWritten = 0;
+    err = CreateDAQmxError(DAQmxWriteAnalogF64(
+        config->aoTask, totalElementsPerFramePerChan, FALSE, 10.0,
+        DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to write unpark waveforms");
+        goto cleanup;
+    }
+    if (numWritten != totalElementsPerFramePerChan) {
+        err =
+            OScDev_Error_Wrap(err, "Failed to write complete unpark waveform");
+        goto cleanup;
+    }
 
 cleanup:
-	free(xyWaveformFrame);
-	return err;
+    free(xyWaveformFrame);
+    return err;
 }
 
+OScDev_RichError *WriteParkOutput(OScDev_Device *device,
+                                  struct ScannerConfig *config,
+                                  OScDev_Acquisition *acq) {
+    OScDev_RichError *err;
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
 
-OScDev_RichError* WriteParkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq)
-{
-	OScDev_RichError* err;
-	struct WaveformParams params;
-	SetWaveformParamsFromDevice(device, &params, acq);
+    int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
+    double *xyWaveformFrame =
+        (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-	int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
-	double* xyWaveformFrame = (double*)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
+    err = GenerateGalvoParkWaveform(&params, xyWaveformFrame);
+    GetData(device)->prevXParkVoltage =
+        xyWaveformFrame[totalElementsPerFramePerChan - 1];
+    GetData(device)->prevYParkVoltage =
+        xyWaveformFrame[(totalElementsPerFramePerChan * 2) - 1];
+    if (err)
+        return err;
 
-	err = GenerateGalvoParkWaveform(&params, xyWaveformFrame);
-	GetData(device)->prevXParkVoltage = xyWaveformFrame[totalElementsPerFramePerChan - 1];
-	GetData(device)->prevYParkVoltage = xyWaveformFrame[(totalElementsPerFramePerChan * 2) - 1];
-	if (err)
-		return err;
-
-	int32 numWritten = 0;
-	err = CreateDAQmxError(DAQmxWriteAnalogF64(config->aoTask,
-		totalElementsPerFramePerChan, FALSE, 10.0,
-		DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
-	if (err)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to write park waveforms");
-		goto cleanup;
-	}
-	if (numWritten != totalElementsPerFramePerChan)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to write complete park waveform");
-		goto cleanup;
-	}
+    int32 numWritten = 0;
+    err = CreateDAQmxError(DAQmxWriteAnalogF64(
+        config->aoTask, totalElementsPerFramePerChan, FALSE, 10.0,
+        DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to write park waveforms");
+        goto cleanup;
+    }
+    if (numWritten != totalElementsPerFramePerChan) {
+        err = OScDev_Error_Wrap(err, "Failed to write complete park waveform");
+        goto cleanup;
+    }
 
 cleanup:
-	free(xyWaveformFrame);
-	return err;
+    free(xyWaveformFrame);
+    return err;
 }
 
-OScDev_RichError* GenerateUnparkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq)
-{
-	OScDev_RichError* err;
-	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	struct WaveformParams params;
-	SetWaveformParamsFromDevice(device, &params, acq);
-	uint32_t totalElementsPerFramePerChan = GetParkWaveformSize(&params);
-	//changed from 1e3 to 1e4 - works but does not reconfigure timing
-	uint32_t estFrameTimeMs = (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
-	uint32_t maxWaitTimeMs = 2 * estFrameTimeMs;
-	if (maxWaitTimeMs < 1000) {
-		maxWaitTimeMs = 1000;
-	}
+OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
+                                       struct ScannerConfig *config,
+                                       OScDev_Acquisition *acq) {
+    OScDev_RichError *err;
+    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
+    uint32_t totalElementsPerFramePerChan = GetParkWaveformSize(&params);
+    // changed from 1e3 to 1e4 - works but does not reconfigure timing
+    uint32_t estFrameTimeMs =
+        (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
+    uint32_t maxWaitTimeMs = 2 * estFrameTimeMs;
+    if (maxWaitTimeMs < 1000) {
+        maxWaitTimeMs = 1000;
+    }
 
-	// start task
-	err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
-	if (err)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to start unpark task");
-		ShutdownScanner(device, config); // Force re-setup next time
-		return err;
-	}
+    // start task
+    err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to start unpark task");
+        ShutdownScanner(device, config); // Force re-setup next time
+        return err;
+    }
 
-	// Wait for scan to complete
-	err = CreateDAQmxError(DAQmxWaitUntilTaskDone(GetData(device)->scannerConfig.aoTask,
-		maxWaitTimeMs * 1e-3));
-	if (err) {
-		err = OScDev_Error_Wrap(err, "Failed to wait for unpark task to finish");
-		return err;
-	}
+    // Wait for scan to complete
+    err = CreateDAQmxError(DAQmxWaitUntilTaskDone(
+        GetData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
+    if (err) {
+        err =
+            OScDev_Error_Wrap(err, "Failed to wait for unpark task to finish");
+        return err;
+    }
 
-	err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
-	if (err)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to stop unpark task");
-		ShutdownScanner(device, config); // Force re-setup next time
-		return err;
-	}
+    err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to stop unpark task");
+        ShutdownScanner(device, config); // Force re-setup next time
+        return err;
+    }
 
-	return OScDev_RichError_OK;
+    return OScDev_RichError_OK;
 }
 
-OScDev_RichError* GenerateParkOutput(OScDev_Device* device, struct ScannerConfig* config, OScDev_Acquisition* acq)
-{
-	OScDev_RichError* err;
-	double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-	struct WaveformParams params;
-	SetWaveformParamsFromDevice(device, &params, acq);
-	uint32_t totalElementsPerFramePerChan = GetParkWaveformSize(&params);
-	uint32_t estFrameTimeMs = (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
-	uint32_t maxWaitTimeMs = 2 * estFrameTimeMs;
-	if (maxWaitTimeMs < 1000) {
-		maxWaitTimeMs = 1000;
-	}
+OScDev_RichError *GenerateParkOutput(OScDev_Device *device,
+                                     struct ScannerConfig *config,
+                                     OScDev_Acquisition *acq) {
+    OScDev_RichError *err;
+    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
+    uint32_t totalElementsPerFramePerChan = GetParkWaveformSize(&params);
+    uint32_t estFrameTimeMs =
+        (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
+    uint32_t maxWaitTimeMs = 2 * estFrameTimeMs;
+    if (maxWaitTimeMs < 1000) {
+        maxWaitTimeMs = 1000;
+    }
 
-	// start task
-	err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
-	if (err)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to start park task");
-		ShutdownScanner(device, config); // Force re-setup next time
-		return err;
-	}
+    // start task
+    err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to start park task");
+        ShutdownScanner(device, config); // Force re-setup next time
+        return err;
+    }
 
-	// Wait for scan to complete
-	err = CreateDAQmxError(DAQmxWaitUntilTaskDone(GetData(device)->scannerConfig.aoTask,
-		maxWaitTimeMs * 1e-3));
-	if (err) {
-		err = OScDev_Error_Wrap(err, "Failed to wait for park task to finish");
-		return err;
-	}
+    // Wait for scan to complete
+    err = CreateDAQmxError(DAQmxWaitUntilTaskDone(
+        GetData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to wait for park task to finish");
+        return err;
+    }
 
-	err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
-	if (err)
-	{
-		err = OScDev_Error_Wrap(err, "Failed to stop park task");
-		ShutdownScanner(device, config); // Force re-setup next time
-		return err;
-	}
+    err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to stop park task");
+        ShutdownScanner(device, config); // Force re-setup next time
+        return err;
+    }
 
-	return OScDev_RichError_OK;
+    return OScDev_RichError_OK;
 }
