@@ -69,11 +69,6 @@ struct OScNIDAQPrivateData {
     double minVolts_; // min possible for device
     double maxVolts_; // max possible for device
 
-    char *aoChanList_;
-    char *doChanList_;
-    char *coChanList_;
-    char *acqTrigPort_;
-
     int numAIPhysChans; // Not to exceed MAX_PHYSICAL_CHANS
     char *
         aiPhysChans; // ", "-delimited string; at least numAIPhysChans elements

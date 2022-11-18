@@ -260,34 +260,6 @@ ParseDeviceNameList(char *names, char (*deviceNames)[OScDev_MAX_STR_LEN + 1],
 }
 
 OScDev_RichError *OpenDAQ(OScDev_Device *device) {
-    OScDev_Log_Debug(device, "Start initializing DAQ");
-
-    // TODO BUG The string manipulation below has buffer overflows and also
-    // leaks memory.
-
-    char *deviceName = malloc(strlen(GetData(device)->deviceName));
-
-    strcpy(deviceName, GetData(device)->deviceName);
-    GetData(device)->aoChanList_ = malloc(sizeof(char) * 512);
-    strcpy(GetData(device)->aoChanList_, strcat(deviceName, "/ao0:1"));
-
-    strcpy(deviceName, GetData(device)->deviceName);
-    GetData(device)->doChanList_ = malloc(sizeof(char) * 512);
-    strcpy(GetData(device)->doChanList_, strcat(deviceName, "/port0/line5:7"));
-
-    strcpy(deviceName, GetData(device)->deviceName);
-    GetData(device)->coChanList_ = malloc(sizeof(char) * 512);
-    strcpy(GetData(device)->coChanList_, strcat(deviceName, "/ctr0"));
-
-    strcpy(deviceName, GetData(device)->deviceName);
-    GetData(device)->acqTrigPort_ = malloc(sizeof(char) * 512);
-    char *noSlash = strcat(deviceName, "/PFI12");
-    char *slash = "/";
-    char *buffer = malloc((strlen(noSlash) + strlen(slash)) * sizeof(char));
-    strcpy(buffer, slash);
-    strcat(buffer, noSlash);
-    strcpy(GetData(device)->acqTrigPort_, buffer);
-
     return OScDev_RichError_OK;
 }
 
