@@ -259,17 +259,6 @@ bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
     return !notFound;
 }
 
-OScDev_RichError *OpenDAQ(OScDev_Device *device) {
-    return OScDev_RichError_OK;
-}
-
-OScDev_RichError *CloseDAQ(OScDev_Device *device) {
-    // TODO
-    // StopAcquisitionAndWait(device, acq);
-
-    return OScDev_RichError_OK;
-}
-
 // DAQ version; start all tasks
 // Arm acquisition task first. Then make sure the (digital) line clock output
 // is armed before the (analog) waveform output.

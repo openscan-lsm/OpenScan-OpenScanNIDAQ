@@ -47,13 +47,12 @@ static OScDev_Error NIDAQOpen(OScDev_Device *device) {
         ss8_destroy(&msg);
         return OScDev_Error_ReturnAsCode(rerr);
     }
-
-    return OScDev_Error_ReturnAsCode(OpenDAQ(device));
+    return OScDev_OK;
 }
 
 static OScDev_Error NIDAQClose(OScDev_Device *device) {
     StopAcquisitionAndWait(device);
-    return OScDev_Error_ReturnAsCode(CloseDAQ(device));
+    return OScDev_OK;
 }
 
 static OScDev_Error NIDAQHasClock(OScDev_Device *device, bool *hasClock) {
