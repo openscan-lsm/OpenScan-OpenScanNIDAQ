@@ -134,8 +134,9 @@ static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts,
 
     // TODO How does this relate to the setting "Input Voltage Range"?
     // BUG: This should be AIVoltageRngs, but keeping existing behavior for now
-    int32 nierr = DAQmxGetDevAOVoltageRngs(GetData(device)->deviceName, ranges,
-                                           sizeof(ranges) / sizeof(float64));
+    int32 nierr =
+        DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetData(device)->deviceName),
+                                 ranges, sizeof(ranges) / sizeof(float64));
     if (nierr) {
         LogNiError(device, nierr, "Failed to get voltage range for detector");
         return nierr;
@@ -172,18 +173,18 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device,
         return err;
     }
 
-    int nChans = GetNumberOfEnabledChannels(device);
-    char aiPhysChans[1024];
-    GetEnabledChannels(device, aiPhysChans, sizeof(aiPhysChans));
-
     double minVolts, maxVolts;
     err = CreateDAQmxError(GetAIVoltageRange(device, &minVolts, &maxVolts));
     if (err)
         goto error;
 
+    ss8str aiChans;
+    ss8_init(&aiChans);
+    GetEnabledChannels(device, &aiChans);
     err = CreateDAQmxError(DAQmxCreateAIVoltageChan(
-        config->aiTask, aiPhysChans, "", DAQmx_Val_Cfg_Default, minVolts,
-        maxVolts, DAQmx_Val_Volts, NULL));
+        config->aiTask, ss8_cstr(&aiChans), "", DAQmx_Val_Cfg_Default,
+        minVolts, maxVolts, DAQmx_Val_Volts, NULL));
+    ss8_destroy(&aiChans);
     if (err) {
         err =
             OScDev_Error_Wrap(err, "Failed to create ai channel for detector");
@@ -232,14 +233,13 @@ ConfigureDetectorTrigger(OScDev_Device *device,
     // DAQmx_Val_Rising);
     OScDev_RichError *err;
 
-    char triggerSource[256] = "/";
-    strncat(triggerSource, GetData(device)->deviceName,
-            sizeof(triggerSource) - strlen(triggerSource) - 1);
-    strncat(triggerSource, "/PFI12",
-            sizeof(triggerSource) - strlen(triggerSource) - 1);
-
+    ss8str trigSrc;
+    ss8_init_copy_ch(&trigSrc, '/');
+    ss8_cat(&trigSrc, &GetData(device)->deviceName);
+    ss8_cat_cstr(&trigSrc, "/PFI12");
     err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(
-        config->aiTask, triggerSource, DAQmx_Val_Rising));
+        config->aiTask, ss8_cstr(&trigSrc), DAQmx_Val_Rising));
+    ss8_destroy(&trigSrc);
     if (err) {
         err = OScDev_Error_Wrap(
             err, "Failed to set start trigger for detector task");

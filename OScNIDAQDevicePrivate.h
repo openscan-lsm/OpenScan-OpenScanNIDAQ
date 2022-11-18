@@ -4,6 +4,8 @@
 
 #include <NIDAQmx.h>
 
+#include <ss8str.h>
+
 #include <Windows.h>
 
 #define MAX_PHYSICAL_CHANS 8
@@ -37,7 +39,7 @@ struct DetectorConfig {
 
 struct OScNIDAQPrivateData {
     // The DAQmx name for the DAQ card
-    char deviceName[OScDev_MAX_STR_LEN + 1];
+    ss8str deviceName;
 
     struct ClockConfig clockConfig;
     struct ScannerConfig scannerConfig;
@@ -69,14 +71,8 @@ struct OScNIDAQPrivateData {
     double minVolts_; // min possible for device
     double maxVolts_; // max possible for device
 
-    char *aoChanList_;
-    char *doChanList_;
-    char *coChanList_;
-    char *acqTrigPort_;
-
     int numAIPhysChans; // Not to exceed MAX_PHYSICAL_CHANS
-    char *
-        aiPhysChans; // ", "-delimited string; at least numAIPhysChans elements
+    ss8str aiPhysChans; // at least numAIPhysChans elements separated by ", "
     bool channelEnabled[MAX_PHYSICAL_CHANS];
 
     // Read, but unprocessed, raw samples; channels interleaved
@@ -115,9 +111,9 @@ OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
                                      OScDev_DeviceImpl *impl);
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device);
 int GetNumberOfEnabledChannels(OScDev_Device *device);
-void GetEnabledChannels(OScDev_Device *device, char *buf, size_t bufsiz);
+void GetEnabledChannels(OScDev_Device *device, ss8str *chans);
 int GetNumberOfAIPhysChans(OScDev_Device *device);
-void GetAIPhysChan(OScDev_Device *device, int index, char *buf, size_t bufsiz);
+bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan);
 OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
                                OScDev_PtrArray **settings);
 

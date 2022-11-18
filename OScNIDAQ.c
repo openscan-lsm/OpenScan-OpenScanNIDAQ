@@ -10,15 +10,17 @@
 
 // Must be called immediately after failed DAQmx function
 void LogNiError(OScDev_Device *device, int32 nierr, const char *when) {
-    char buf[1024];
-    strncpy(buf, "DAQmx error while ", sizeof(buf) - 1);
-    strncat(buf, when, sizeof(buf) - strlen(buf) - 1);
-    strncat(buf, "; extended error info follows",
-            sizeof(buf) - strlen(buf) - 1);
-    OScDev_Log_Error(device, buf);
+    ss8str msg;
+    ss8_init_copy_cstr(&msg, "DAQmx error while ");
+    ss8_cat_cstr(&msg, when);
+    ss8_cat_cstr(&msg, "; extended error info follows");
+    OScDev_Log_Error(device, ss8_cstr(&msg));
 
-    DAQmxGetExtendedErrorInfo(buf, sizeof(buf));
-    OScDev_Log_Error(device, buf);
+    ss8_set_len(&msg, 1024);
+    DAQmxGetExtendedErrorInfo(ss8_mutable_cstr(&msg), (uInt32)ss8_len(&msg));
+    ss8_set_len_to_cstrlen(&msg);
+    OScDev_Log_Error(device, ss8_cstr(&msg));
+    ss8_destroy(&msg);
 }
 
 char *ErrorCodeDomain() {
@@ -49,12 +51,13 @@ OScDev_RichError *CreateDAQmxError(int32 nierr) {
 
 // Fill in non-zero defaults only
 static void InitializePrivateData(struct OScNIDAQPrivateData *data) {
+    ss8_init(&data->deviceName);
     data->lineDelay = 50;
     data->numLinesToBuffer = 8;
     data->inputVoltageRange = 10.0;
     data->minVolts_ = -10.0;
     data->maxVolts_ = 10.0;
-
+    ss8_init(&data->aiPhysChans);
     data->channelEnabled[0] = true;
 
     InitializeCriticalSection(&(data->acquisition.mutex));
@@ -80,45 +83,61 @@ void SetWaveformParamsFromDevice(OScDev_Device *device,
 
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
                                      OScDev_DeviceImpl *impl) {
-    OScDev_RichError *err;
+    OScDev_RichError *err = OScDev_RichError_OK;
 
-    // get a comma-delimited list of all of the devices installed in the system
-    char deviceNames[4096];
-    err = CreateDAQmxError(
-        DAQmxGetSysDevNames(deviceNames, sizeof(deviceNames)));
+    ss8str names; // Comma-separated device names
+    ss8_init(&names);
+    ss8_set_len(&names, 4096);
+    err = CreateDAQmxError(DAQmxGetSysDevNames(ss8_mutable_cstr(&names),
+                                               (uInt32)ss8_len(&names)));
     if (err)
-        return err;
-
-    char deviceList[MAX_NUM_DEVICES][OScDev_MAX_STR_LEN + 1];
-
-    size_t deviceCount;
-    err = ParseDeviceNameList(deviceNames, deviceList, &deviceCount);
-    if (err)
-        return err;
+        goto fail1;
+    ss8_set_len_to_cstrlen(&names);
 
     *devices = OScDev_PtrArray_Create();
 
-    for (size_t i = 0; i < deviceCount; ++i) {
+    ss8str name;
+    ss8_init(&name);
+    size_t p = 0;
+    for (;;) {
+        size_t q = ss8_find_ch(&names, p, ',');
+        ss8_copy_substr(&name, &names, p, q - p);
+        ss8_strip_ch(&name, ' ');
+
         struct OScNIDAQPrivateData *data =
             calloc(1, sizeof(struct OScNIDAQPrivateData));
-        strncpy(data->deviceName, deviceList[i], OScDev_MAX_STR_LEN);
+        InitializePrivateData(data);
+        ss8_copy(&data->deviceName, &name);
 
         OScDev_Device *device;
         err = OScDev_Error_AsRichError(
             OScDev_Device_Create(&device, impl, data));
         if (err) {
-            char msg[OScDev_MAX_STR_LEN + 1] = "Failed to create device ";
-            strcat(msg, data->deviceName);
-            err = OScDev_Error_Wrap(err, msg);
-            return err;
+            ss8str msg;
+            ss8_init_copy_cstr(&msg, "Failed to create device ");
+            ss8_cat(&msg, &name);
+            err = OScDev_Error_Wrap(err, ss8_cstr(&msg));
+            ss8_destroy(&msg);
+            goto fail2;
         }
 
-        InitializePrivateData(GetData(device));
-
         OScDev_PtrArray_Append(*devices, device);
+
+        if (q == SIZE_MAX)
+            break;
+        p = q + 1;
     }
 
-    return OScDev_RichError_OK;
+    goto succeed;
+
+fail2:
+    // TODO We have no way to destroy the already-created devices. Leaking.
+    OScDev_PtrArray_Destroy(*devices);
+succeed:
+    ss8_destroy(&name);
+fail1:
+    ss8_destroy(&names);
+    return err;
 }
 
 OScDev_Error GetVoltageRangeForDevice(OScDev_Device *device, double *minVolts,
@@ -131,8 +150,9 @@ OScDev_Error GetVoltageRangeForDevice(OScDev_Device *device, double *minVolts,
         ranges[2 * i + 1] = 0.0;
     }
 
-    int32 nierr = DAQmxGetDevAOVoltageRngs(GetData(device)->deviceName, ranges,
-                                           sizeof(ranges) / sizeof(float64));
+    int32 nierr =
+        DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetData(device)->deviceName),
+                                 ranges, sizeof(ranges) / sizeof(float64));
     if (nierr != 0) {
         OScDev_Log_Error(device, "Error getting analog voltage ranges");
     }
@@ -154,16 +174,18 @@ OScDev_Error GetVoltageRangeForDevice(OScDev_Device *device, double *minVolts,
 }
 
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device) {
-    char *buf = malloc(1024);
-    int32 nierr =
-        DAQmxGetDevAIPhysicalChans(GetData(device)->deviceName, buf, 1024);
+    ss8str *dest = &GetData(device)->aiPhysChans;
+    ss8_set_len(dest, 1024);
+    ss8_set_front(dest, '\0');
+    int32 nierr = DAQmxGetDevAIPhysicalChans(
+        ss8_cstr(&GetData(device)->deviceName), ss8_mutable_cstr(dest),
+        (uInt32)ss8_len(dest));
+    ss8_set_len_to_cstrlen(dest);
+    ss8_shrink_to_fit(dest);
     if (nierr < 0)
         return CreateDAQmxError(nierr);
-    if (strlen(buf) == 0)
+    if (ss8_is_empty(dest))
         return OScDev_Error_Create("Device has no AI physical channels");
-
-    buf = realloc(buf, strlen(buf) + 1); // Shrink-wrap
-    GetData(device)->aiPhysChans = buf;
     return OScDev_RichError_OK;
 }
 
@@ -177,156 +199,64 @@ int GetNumberOfEnabledChannels(OScDev_Device *device) {
     return ret;
 }
 
-void GetEnabledChannels(OScDev_Device *device, char *buf, size_t bufsiz) {
-    if (bufsiz == 0)
-        return;
-    buf[0] = '\0';
-    char *p = buf;
-    char *bufend = buf + bufsiz;
+void GetEnabledChannels(OScDev_Device *device, ss8str *chans) {
+    ss8str chan;
+    ss8_init(&chan);
 
     for (int i = 0; i < MAX_PHYSICAL_CHANS; ++i) {
         if (GetData(device)->channelEnabled[i]) {
-            char chan[64];
-            GetAIPhysChan(device, i, chan, sizeof(chan));
-            if (p != buf)
-                p += snprintf(p, bufend - p, "%s", ", ");
-            p += snprintf(p, bufend - p, "%s", chan);
+            GetAIPhysChan(device, i, &chan);
+            if (!ss8_is_empty(chans))
+                ss8_cat_cstr(chans, ", ");
+            ss8_cat(chans, &chan);
         }
     }
+
+    ss8_destroy(&chan);
 }
 
 int GetNumberOfAIPhysChans(OScDev_Device *device) {
     for (int i = 0; i < MAX_PHYSICAL_CHANS; ++i) {
-        char buf[64];
-        GetAIPhysChan(device, i, buf, sizeof(buf));
-        if (strlen(buf) == 0) {
+        if (!GetAIPhysChan(device, i, NULL))
             return i;
-        }
     }
     return MAX_PHYSICAL_CHANS;
 }
 
 // Return the index-th physical channel, or empty string if no such channel
-void GetAIPhysChan(OScDev_Device *device, int index, char *buf,
-                   size_t bufsiz) {
-    if (bufsiz == 0)
-        return;
-    buf[0] = '\0';
+bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
+    if (index < 0) {
+        if (chan)
+            ss8_clear(chan);
+        return false;
+    }
 
-    // Make p point to start of the channel at desired index
-    char *p = GetData(device)->aiPhysChans;
+    ss8str chans;
+    ss8_init_copy(&chans, &GetData(device)->aiPhysChans);
+
+    size_t p = 0;
+    bool notFound = false;
     for (int i = 0; i < index; ++i) {
-        char *pp = strchr(p, ',');
-        if (!pp)
-            return;
-        while (*++pp == ' ')
-            ;
-        p = pp;
-    }
-
-    // Now make q point to beyond the end of the channel
-    char *q = strchr(p, ',');
-    if (!q)
-        q = strchr(p, '\0');
-
-    size_t siz = q - p + 1;
-    if (siz > bufsiz)
-        siz = bufsiz;
-    snprintf(buf, siz, "%s", p);
-}
-
-// convert comma comma - delimited device list to a 2D string array
-// each row contains the name of one device
-static OScDev_RichError *
-ParseDeviceNameList(char *names, char (*deviceNames)[OScDev_MAX_STR_LEN + 1],
-                    size_t *deviceCount) {
-    const char s[3] = ", ";
-    int count = 0;
-
-    // token is a static pointer to the input string
-    // input string will be modified between iterations
-    for (char *token = strtok(names, s); token != NULL;
-         token = strtok(NULL, s)) {
-        if (count < MAX_NUM_DEVICES) {
-            strcpy(deviceNames[count], token);
-            count++;
-        } else
-            return OScDev_Error_Create("Error Unknown");
-    }
-
-    *deviceCount = (size_t)count;
-
-    return OScDev_RichError_OK;
-}
-
-OScDev_RichError *OpenDAQ(OScDev_Device *device) {
-    OScDev_Log_Debug(device, "Start initializing DAQ");
-
-    // TODO BUG The string manipulation below has buffer overflows and also
-    // leaks memory.
-
-    char *deviceName = malloc(strlen(GetData(device)->deviceName));
-
-    strcpy(deviceName, GetData(device)->deviceName);
-    GetData(device)->aoChanList_ = malloc(sizeof(char) * 512);
-    strcpy(GetData(device)->aoChanList_, strcat(deviceName, "/ao0:1"));
-
-    strcpy(deviceName, GetData(device)->deviceName);
-    GetData(device)->doChanList_ = malloc(sizeof(char) * 512);
-    strcpy(GetData(device)->doChanList_, strcat(deviceName, "/port0/line5:7"));
-
-    strcpy(deviceName, GetData(device)->deviceName);
-    GetData(device)->coChanList_ = malloc(sizeof(char) * 512);
-    strcpy(GetData(device)->coChanList_, strcat(deviceName, "/ctr0"));
-
-    strcpy(deviceName, GetData(device)->deviceName);
-    GetData(device)->acqTrigPort_ = malloc(sizeof(char) * 512);
-    char *noSlash = strcat(deviceName, "/PFI12");
-    char *slash = "/";
-    char *buffer = malloc((strlen(noSlash) + strlen(slash)) * sizeof(char));
-    strcpy(buffer, slash);
-    strcat(buffer, noSlash);
-    strcpy(GetData(device)->acqTrigPort_, buffer);
-
-    return OScDev_RichError_OK;
-}
-
-OScDev_RichError *CloseDAQ(OScDev_Device *device) {
-    // TODO
-    // StopAcquisitionAndWait(device, acq);
-
-    return OScDev_RichError_OK;
-}
-
-static OScDev_RichError *
-GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char terminalName[],
-                             char triggerName[]) {
-    int32 error = 0;
-    char device[256];
-    int32 productCategory;
-    uInt32 numDevices, i = 1;
-    OScDev_RichError *err;
-
-    err = CreateDAQmxError(DAQmxGetTaskNumDevices(taskHandle, &numDevices));
-    if (err)
-        return err;
-    while (i <= numDevices) {
-        err = CreateDAQmxError(
-            DAQmxGetNthTaskDevice(taskHandle, i++, device, 256));
-        if (err)
-            return err;
-        err = CreateDAQmxError(
-            DAQmxGetDevProductCategory(device, &productCategory));
-        if (err)
-            return err;
-        if (productCategory != DAQmx_Val_CSeriesModule &&
-            productCategory != DAQmx_Val_SCXIModule) {
-            *triggerName++ = '/';
-            strcat(strcat(strcpy(triggerName, device), "/"), terminalName);
+        size_t q = ss8_find_ch(&chans, p, ',');
+        if (q == SIZE_MAX) {
+            notFound = true;
             break;
         }
+        p = q + 1;
     }
-    return OScDev_RichError_OK;
+
+    if (chan) {
+        if (notFound) {
+            ss8_clear(chan);
+        } else {
+            size_t q = ss8_find_ch(&chans, p, ',');
+            ss8_copy_substr(chan, &chans, p, q - p);
+            ss8_strip_ch(chan, ' ');
+        }
+    }
+
+    ss8_destroy(&chans);
+    return !notFound;
 }
 
 // DAQ version; start all tasks
