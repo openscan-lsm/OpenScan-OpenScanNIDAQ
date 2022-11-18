@@ -11,9 +11,6 @@ ParseDeviceNameList(char *names, char (*deviceNames)[OScDev_MAX_STR_LEN + 1],
                     size_t *deviceCount);
 OScDev_RichError *OpenDAQ(OScDev_Device *device);
 OScDev_RichError *CloseDAQ(OScDev_Device *device);
-OScDev_RichError *GetTerminalNameWithDevPrefix(TaskHandle taskHandle,
-                                               const char terminalName[],
-                                               char triggerName[]);
 OScDev_RichError *ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq);
 OScDev_RichError *RunAcquisitionLoop(OScDev_Device *device);
 OScDev_RichError *StopAcquisitionAndWait(OScDev_Device *device);

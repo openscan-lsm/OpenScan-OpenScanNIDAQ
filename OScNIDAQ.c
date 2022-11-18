@@ -270,37 +270,6 @@ OScDev_RichError *CloseDAQ(OScDev_Device *device) {
     return OScDev_RichError_OK;
 }
 
-static OScDev_RichError *
-GetTerminalNameWithDevPrefix(TaskHandle taskHandle, const char terminalName[],
-                             char triggerName[]) {
-    int32 error = 0;
-    char device[256];
-    int32 productCategory;
-    uInt32 numDevices, i = 1;
-    OScDev_RichError *err;
-
-    err = CreateDAQmxError(DAQmxGetTaskNumDevices(taskHandle, &numDevices));
-    if (err)
-        return err;
-    while (i <= numDevices) {
-        err = CreateDAQmxError(
-            DAQmxGetNthTaskDevice(taskHandle, i++, device, 256));
-        if (err)
-            return err;
-        err = CreateDAQmxError(
-            DAQmxGetDevProductCategory(device, &productCategory));
-        if (err)
-            return err;
-        if (productCategory != DAQmx_Val_CSeriesModule &&
-            productCategory != DAQmx_Val_SCXIModule) {
-            *triggerName++ = '/';
-            strcat(strcat(strcpy(triggerName, device), "/"), terminalName);
-            break;
-        }
-    }
-    return OScDev_RichError_OK;
-}
-
 // DAQ version; start all tasks
 // Arm acquisition task first. Then make sure the (digital) line clock output
 // is armed before the (analog) waveform output.
