@@ -39,7 +39,7 @@ struct DetectorConfig {
 
 struct OScNIDAQPrivateData {
     // The DAQmx name for the DAQ card
-    char deviceName[OScDev_MAX_STR_LEN + 1];
+    ss8str deviceName;
 
     struct ClockConfig clockConfig;
     struct ScannerConfig scannerConfig;
@@ -72,8 +72,7 @@ struct OScNIDAQPrivateData {
     double maxVolts_; // max possible for device
 
     int numAIPhysChans; // Not to exceed MAX_PHYSICAL_CHANS
-    char *
-        aiPhysChans; // ", "-delimited string; at least numAIPhysChans elements
+    ss8str aiPhysChans; // at least numAIPhysChans elements separated by ", "
     bool channelEnabled[MAX_PHYSICAL_CHANS];
 
     // Read, but unprocessed, raw samples; channels interleaved

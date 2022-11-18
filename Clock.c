@@ -178,7 +178,7 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
     // This needs to be port0 to support buffered output
 
     ss8str doTerms;
-    ss8_init_copy_cstr(&doTerms, GetData(device)->deviceName);
+    ss8_init_copy(&doTerms, &GetData(device)->deviceName);
     ss8_cat_cstr(&doTerms, "/port0/line5:7");
     err = CreateDAQmxError(DAQmxCreateDOChan(
         config->doTask, ss8_cstr(&doTerms), "ClockDO", DAQmx_Val_ChanPerLine));
@@ -213,7 +213,7 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
     double scanPhase = 1.0 / pixelRateHz * GetData(device)->lineDelay;
 
     ss8str ctrTerms;
-    ss8_init_copy_cstr(&ctrTerms, GetData(device)->deviceName);
+    ss8_init_copy(&ctrTerms, &GetData(device)->deviceName);
     ss8_cat_cstr(&ctrTerms, "/ctr0");
     err = CreateDAQmxError(DAQmxCreateCOPulseChanFreq(
         config->lineCtrTask, ss8_cstr(&ctrTerms), "ClockLineCTR", DAQmx_Val_Hz,
@@ -295,7 +295,7 @@ static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device,
 
     ss8str trigSrc;
     ss8_init_copy_ch(&trigSrc, '/');
-    ss8_cat_cstr(&trigSrc, GetData(device)->deviceName);
+    ss8_cat(&trigSrc, &GetData(device)->deviceName);
     ss8_cat_cstr(&trigSrc, "/ao/StartTrigger");
     err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(
         config->doTask, ss8_cstr(&trigSrc), DAQmx_Val_Rising));

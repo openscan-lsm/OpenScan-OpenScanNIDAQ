@@ -51,12 +51,13 @@ OScDev_RichError *CreateDAQmxError(int32 nierr) {
 
 // Fill in non-zero defaults only
 static void InitializePrivateData(struct OScNIDAQPrivateData *data) {
+    ss8_init(&data->deviceName);
     data->lineDelay = 50;
     data->numLinesToBuffer = 8;
     data->inputVoltageRange = 10.0;
     data->minVolts_ = -10.0;
     data->maxVolts_ = 10.0;
-
+    ss8_init(&data->aiPhysChans);
     data->channelEnabled[0] = true;
 
     InitializeCriticalSection(&(data->acquisition.mutex));
@@ -105,7 +106,8 @@ OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
 
         struct OScNIDAQPrivateData *data =
             calloc(1, sizeof(struct OScNIDAQPrivateData));
-        ss8_copy_to_cstr(&name, data->deviceName, OScDev_MAX_STR_SIZE);
+        InitializePrivateData(data);
+        ss8_copy(&data->deviceName, &name);
 
         OScDev_Device *device;
         err = OScDev_Error_AsRichError(
@@ -119,7 +121,6 @@ OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
             goto fail2;
         }
 
-        InitializePrivateData(GetData(device));
         OScDev_PtrArray_Append(*devices, device);
 
         if (q == SIZE_MAX)
@@ -149,8 +150,9 @@ OScDev_Error GetVoltageRangeForDevice(OScDev_Device *device, double *minVolts,
         ranges[2 * i + 1] = 0.0;
     }
 
-    int32 nierr = DAQmxGetDevAOVoltageRngs(GetData(device)->deviceName, ranges,
-                                           sizeof(ranges) / sizeof(float64));
+    int32 nierr =
+        DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetData(device)->deviceName),
+                                 ranges, sizeof(ranges) / sizeof(float64));
     if (nierr != 0) {
         OScDev_Log_Error(device, "Error getting analog voltage ranges");
     }
@@ -172,16 +174,18 @@ OScDev_Error GetVoltageRangeForDevice(OScDev_Device *device, double *minVolts,
 }
 
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device) {
-    char *buf = malloc(1024);
-    int32 nierr =
-        DAQmxGetDevAIPhysicalChans(GetData(device)->deviceName, buf, 1024);
+    ss8str *dest = &GetData(device)->aiPhysChans;
+    ss8_set_len(dest, 1024);
+    ss8_set_front(dest, '\0');
+    int32 nierr = DAQmxGetDevAIPhysicalChans(
+        ss8_cstr(&GetData(device)->deviceName), ss8_mutable_cstr(dest),
+        (uInt32)ss8_len(dest));
+    ss8_set_len_to_cstrlen(dest);
+    ss8_shrink_to_fit(dest);
     if (nierr < 0)
         return CreateDAQmxError(nierr);
-    if (strlen(buf) == 0)
+    if (ss8_is_empty(dest))
         return OScDev_Error_Create("Device has no AI physical channels");
-
-    buf = realloc(buf, strlen(buf) + 1); // Shrink-wrap
-    GetData(device)->aiPhysChans = buf;
     return OScDev_RichError_OK;
 }
 
@@ -228,7 +232,7 @@ bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
     }
 
     ss8str chans;
-    ss8_init_copy_cstr(&chans, GetData(device)->aiPhysChans);
+    ss8_init_copy(&chans, &GetData(device)->aiPhysChans);
 
     size_t p = 0;
     bool notFound = false;

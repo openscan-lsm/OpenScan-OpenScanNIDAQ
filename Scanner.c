@@ -28,7 +28,7 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device,
         }
 
         ss8str aoTerms;
-        ss8_init_copy_cstr(&aoTerms, GetData(device)->deviceName);
+        ss8_init_copy(&aoTerms, &GetData(device)->deviceName);
         ss8_cat_cstr(&aoTerms, "/ao0:1");
         err = CreateDAQmxError(DAQmxCreateAOVoltageChan(
             config->aoTask, ss8_cstr(&aoTerms), "Galvos", -10.0, 10.0,
@@ -179,7 +179,7 @@ OScDev_RichError *CreateScannerTask(OScDev_Device *device,
         }
 
         ss8str aoTerms;
-        ss8_init_copy_cstr(&aoTerms, GetData(device)->deviceName);
+        ss8_init_copy(&aoTerms, &GetData(device)->deviceName);
         ss8_cat_cstr(&aoTerms, "/ao0:1");
         err = CreateDAQmxError(DAQmxCreateAOVoltageChan(
             config->aoTask, ss8_cstr(&aoTerms), "Galvos", -10.0, 10.0,

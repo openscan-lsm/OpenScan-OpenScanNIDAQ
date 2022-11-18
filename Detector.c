@@ -134,8 +134,9 @@ static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts,
 
     // TODO How does this relate to the setting "Input Voltage Range"?
     // BUG: This should be AIVoltageRngs, but keeping existing behavior for now
-    int32 nierr = DAQmxGetDevAOVoltageRngs(GetData(device)->deviceName, ranges,
-                                           sizeof(ranges) / sizeof(float64));
+    int32 nierr =
+        DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetData(device)->deviceName),
+                                 ranges, sizeof(ranges) / sizeof(float64));
     if (nierr) {
         LogNiError(device, nierr, "Failed to get voltage range for detector");
         return nierr;
@@ -234,7 +235,7 @@ ConfigureDetectorTrigger(OScDev_Device *device,
 
     ss8str trigSrc;
     ss8_init_copy_ch(&trigSrc, '/');
-    ss8_cat_cstr(&trigSrc, GetData(device)->deviceName);
+    ss8_cat(&trigSrc, &GetData(device)->deviceName);
     ss8_cat_cstr(&trigSrc, "/PFI12");
     err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(
         config->aiTask, ss8_cstr(&trigSrc), DAQmx_Val_Rising));

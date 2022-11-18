@@ -23,24 +23,26 @@ static OScDev_Error NIDAQEnumerateInstances(OScDev_PtrArray **devices) {
 }
 
 static OScDev_Error NIDAQReleaseInstance(OScDev_Device *device) {
+    ss8_destroy(&GetData(device)->deviceName);
+    ss8_destroy(&GetData(device)->aiPhysChans);
     free(GetData(device));
     return OScDev_OK;
 }
 
 static OScDev_Error NIDAQGetName(OScDev_Device *device, char *name) {
-    snprintf(name, OScDev_MAX_STR_SIZE, "%s", GetData(device)->deviceName);
+    ss8_copy_to_cstr(&GetData(device)->deviceName, name, OScDev_MAX_STR_SIZE);
     return OScDev_OK;
 }
 
 static OScDev_Error NIDAQOpen(OScDev_Device *device) {
-    int32 nierr =
-        DAQmxResetDevice(GetData(device)->deviceName); // TODO wrong function
+    int32 nierr = DAQmxResetDevice(
+        ss8_cstr(&GetData(device)->deviceName)); // TODO wrong function
     if (nierr) {
         OScDev_RichError *err = CreateDAQmxError(nierr);
 
         ss8str msg;
         ss8_init_copy_cstr(&msg, "Cannot reset NI DAQ card ");
-        ss8_cat_cstr(&msg, GetData(device)->deviceName);
+        ss8_cat(&msg, &GetData(device)->deviceName);
         OScDev_RichError *rerr = OScDev_Error_Wrap(err, ss8_cstr(&msg));
         ss8_destroy(&msg);
         return OScDev_Error_ReturnAsCode(rerr);
