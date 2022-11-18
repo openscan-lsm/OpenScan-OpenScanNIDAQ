@@ -177,12 +177,12 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
     // P0.7 = frame clock
     // This needs to be port0 to support buffered output
 
-    char doTerminals[256];
-    strncpy(doTerminals, GetData(device)->deviceName, sizeof(doTerminals) - 1);
-    strncat(doTerminals, "/port0/line5:7",
-            sizeof(doTerminals) - strlen(doTerminals) - 1);
+    ss8str doTerms;
+    ss8_init_copy_cstr(&doTerms, GetData(device)->deviceName);
+    ss8_cat_cstr(&doTerms, "/port0/line5:7");
     err = CreateDAQmxError(DAQmxCreateDOChan(
-        config->doTask, doTerminals, "ClockDO", DAQmx_Val_ChanPerLine));
+        config->doTask, ss8_cstr(&doTerms), "ClockDO", DAQmx_Val_ChanPerLine));
+    ss8_destroy(&doTerms);
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to create clock do channel");
         return err;
@@ -212,14 +212,13 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
     double lineFreqHz = pixelRateHz / elementsPerLine;
     double scanPhase = 1.0 / pixelRateHz * GetData(device)->lineDelay;
 
-    char ctrTerminals[256];
-    strncpy(ctrTerminals, GetData(device)->deviceName,
-            sizeof(ctrTerminals) - 1);
-    strncat(ctrTerminals, "/ctr0",
-            sizeof(ctrTerminals) - strlen(ctrTerminals) - 1);
+    ss8str ctrTerms;
+    ss8_init_copy_cstr(&ctrTerms, GetData(device)->deviceName);
+    ss8_cat_cstr(&ctrTerms, "/ctr0");
     err = CreateDAQmxError(DAQmxCreateCOPulseChanFreq(
-        config->lineCtrTask, ctrTerminals, "ClockLineCTR", DAQmx_Val_Hz,
+        config->lineCtrTask, ss8_cstr(&ctrTerms), "ClockLineCTR", DAQmx_Val_Hz,
         DAQmx_Val_Low, scanPhase, lineFreqHz, effectiveScanPortion));
+    ss8_destroy(&ctrTerms);
     if (err) {
         err =
             OScDev_Error_Wrap(err, "Failed to create clock co pulse channel");
@@ -293,15 +292,15 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device,
 static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device,
                                                 struct ClockConfig *config) {
     OScDev_RichError *err;
-    char triggerSource[256] = "/";
-    strncat(triggerSource, GetData(device)->deviceName,
-            sizeof(triggerSource) - strlen(triggerSource) - 1);
-    strncat(triggerSource, "/ao/StartTrigger",
-            sizeof(triggerSource) - strlen(triggerSource) - 1);
 
+    ss8str trigSrc;
+    ss8_init_copy_ch(&trigSrc, '/');
+    ss8_cat_cstr(&trigSrc, GetData(device)->deviceName);
+    ss8_cat_cstr(&trigSrc, "/ao/StartTrigger");
     err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(
-        config->doTask, triggerSource, DAQmx_Val_Rising));
+        config->doTask, ss8_cstr(&trigSrc), DAQmx_Val_Rising));
     if (err) {
+        ss8_destroy(&trigSrc);
         err = OScDev_Error_Wrap(
             err, "Failed to configure trigger for clock do task");
         return err;
@@ -309,19 +308,22 @@ static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device,
 
     err = CreateDAQmxError(DAQmxSetStartTrigRetriggerable(config->doTask, 1));
     if (err) {
+        ss8_destroy(&trigSrc);
         err = OScDev_Error_Wrap(err,
                                 "Failed to set retriggerable clock do task");
         return err;
     }
 
     err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(
-        config->lineCtrTask, triggerSource, DAQmx_Val_Rising));
+        config->lineCtrTask, ss8_cstr(&trigSrc), DAQmx_Val_Rising));
     if (err) {
+        ss8_destroy(&trigSrc);
         err = OScDev_Error_Wrap(
             err, "Failed to configure trigger for clock lineCtr task");
         return err;
     }
 
+    ss8_destroy(&trigSrc);
     return OScDev_RichError_OK;
 }
 

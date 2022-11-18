@@ -28,7 +28,7 @@ static OScDev_Error NIDAQReleaseInstance(OScDev_Device *device) {
 }
 
 static OScDev_Error NIDAQGetName(OScDev_Device *device, char *name) {
-    strncpy(name, GetData(device)->deviceName, OScDev_MAX_STR_LEN);
+    snprintf(name, OScDev_MAX_STR_SIZE, "%s", GetData(device)->deviceName);
     return OScDev_OK;
 }
 
@@ -38,9 +38,12 @@ static OScDev_Error NIDAQOpen(OScDev_Device *device) {
     if (nierr) {
         OScDev_RichError *err = CreateDAQmxError(nierr);
 
-        char msg[OScDev_MAX_STR_LEN + 1] = "Cannot reset NI DAQ card ";
-        strcat(msg, GetData(device)->deviceName);
-        return OScDev_Error_ReturnAsCode(OScDev_Error_Wrap(err, msg));
+        ss8str msg;
+        ss8_init_copy_cstr(&msg, "Cannot reset NI DAQ card ");
+        ss8_cat_cstr(&msg, GetData(device)->deviceName);
+        OScDev_RichError *rerr = OScDev_Error_Wrap(err, ss8_cstr(&msg));
+        ss8_destroy(&msg);
+        return OScDev_Error_ReturnAsCode(rerr);
     }
 
     return OScDev_Error_ReturnAsCode(OpenDAQ(device));

@@ -27,15 +27,13 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device,
             return err;
         }
 
-        char aoTerminals[256];
-        strncpy(aoTerminals, GetData(device)->deviceName,
-                sizeof(aoTerminals) - 1);
-        strncat(aoTerminals, "/ao0:1",
-                sizeof(aoTerminals) - strlen(aoTerminals) - 1);
-
-        err = CreateDAQmxError(
-            DAQmxCreateAOVoltageChan(config->aoTask, aoTerminals, "Galvos",
-                                     -10.0, 10.0, DAQmx_Val_Volts, NULL));
+        ss8str aoTerms;
+        ss8_init_copy_cstr(&aoTerms, GetData(device)->deviceName);
+        ss8_cat_cstr(&aoTerms, "/ao0:1");
+        err = CreateDAQmxError(DAQmxCreateAOVoltageChan(
+            config->aoTask, ss8_cstr(&aoTerms), "Galvos", -10.0, 10.0,
+            DAQmx_Val_Volts, NULL));
+        ss8_destroy(&aoTerms);
         if (err) {
             err = OScDev_Error_Wrap(
                 err, "Failed to create ao channels for scanner");
@@ -180,15 +178,13 @@ OScDev_RichError *CreateScannerTask(OScDev_Device *device,
             return err;
         }
 
-        char aoTerminals[256];
-        strncpy(aoTerminals, GetData(device)->deviceName,
-                sizeof(aoTerminals) - 1);
-        strncat(aoTerminals, "/ao0:1",
-                sizeof(aoTerminals) - strlen(aoTerminals) - 1);
-
-        err = CreateDAQmxError(
-            DAQmxCreateAOVoltageChan(config->aoTask, aoTerminals, "Galvos",
-                                     -10.0, 10.0, DAQmx_Val_Volts, NULL));
+        ss8str aoTerms;
+        ss8_init_copy_cstr(&aoTerms, GetData(device)->deviceName);
+        ss8_cat_cstr(&aoTerms, "/ao0:1");
+        err = CreateDAQmxError(DAQmxCreateAOVoltageChan(
+            config->aoTask, ss8_cstr(&aoTerms), "Galvos", -10.0, 10.0,
+            DAQmx_Val_Volts, NULL));
+        ss8_destroy(&aoTerms);
         if (err) {
             err = OScDev_Error_Wrap(
                 err, "Failed to create ao channels for scanner");

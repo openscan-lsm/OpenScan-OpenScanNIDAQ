@@ -51,6 +51,11 @@ openscandevicelib_dep = dependency(
     ],
 )
 
+ssstr_dep = dependency(
+    'ssstr',
+    fallback: 'ssstr',
+)
+
 src = files(
     'Clock.c',
     'Detector.c',
@@ -66,12 +71,10 @@ osdev = shared_module(
     'OpenScanNIDAQ',
     src,
     name_suffix: 'osdev',
-    c_args: [
-        '-D_CRT_SECURE_NO_WARNINGS',
-    ],
     dependencies: [
         daqmx_dep,
         openscandevicelib_dep,
+        ssstr_dep,
     ],
 )
 

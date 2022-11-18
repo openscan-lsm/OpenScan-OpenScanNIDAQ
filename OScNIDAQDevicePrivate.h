@@ -4,6 +4,8 @@
 
 #include <NIDAQmx.h>
 
+#include <ss8str.h>
+
 #include <Windows.h>
 
 #define MAX_PHYSICAL_CHANS 8
@@ -110,9 +112,9 @@ OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
                                      OScDev_DeviceImpl *impl);
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device);
 int GetNumberOfEnabledChannels(OScDev_Device *device);
-void GetEnabledChannels(OScDev_Device *device, char *buf, size_t bufsiz);
+void GetEnabledChannels(OScDev_Device *device, ss8str *chans);
 int GetNumberOfAIPhysChans(OScDev_Device *device);
-void GetAIPhysChan(OScDev_Device *device, int index, char *buf, size_t bufsiz);
+bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan);
 OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
                                OScDev_PtrArray **settings);
 
