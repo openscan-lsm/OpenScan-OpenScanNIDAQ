@@ -13,160 +13,6 @@
 
 static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
                                           struct ClockConfig *config,
-                                          OScDev_Acquisition *acq);
-static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device,
-                                              struct ClockConfig *config,
-                                              OScDev_Acquisition *acq);
-static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device,
-                                                struct ClockConfig *config);
-static OScDev_RichError *WriteClockOutput(OScDev_Device *device,
-                                          struct ClockConfig *config,
-                                          OScDev_Acquisition *acq);
-
-// Initialize, configure, and arm the clock, whatever its current state
-OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config,
-                             OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
-
-    bool mustCommit = false;
-
-    if (!config->doTask || !config->lineCtrTask) {
-        // In case one of the two tasks exists
-        err = ShutdownClock(config);
-        if (err)
-            return err;
-
-        err = CreateClockTasks(device, config, acq);
-        if (err)
-            return err;
-        config->mustReconfigureTiming = true;
-        config->mustReconfigureTriggers = true;
-        config->mustRewriteOutput = true;
-    }
-
-    if (config->mustReconfigureTiming) {
-        err = ConfigureClockTiming(device, config, acq);
-        if (err)
-            goto error;
-
-        config->mustReconfigureTiming = false;
-        mustCommit = true;
-    }
-
-    if (config->mustReconfigureTriggers) {
-        err = ConfigureClockTriggers(device, config);
-        if (err)
-            goto error;
-
-        config->mustReconfigureTriggers = false;
-        mustCommit = true;
-    }
-
-    if (config->mustRewriteOutput) {
-        err = WriteClockOutput(device, config, acq);
-        if (err)
-            goto error;
-
-        config->mustRewriteOutput = false;
-        mustCommit = true;
-    }
-
-    if (mustCommit) {
-        err = CreateDAQmxError(
-            DAQmxTaskControl(config->doTask, DAQmx_Val_Task_Commit));
-        if (err) {
-            err = OScDev_Error_Wrap(err, "Failed to commit clock do task");
-            goto error;
-        }
-
-        err = CreateDAQmxError(
-            DAQmxTaskControl(config->lineCtrTask, DAQmx_Val_Task_Commit));
-        if (err) {
-            err =
-                OScDev_Error_Wrap(err, "Failed to commit clock lineCtr task");
-            goto error;
-        }
-    }
-
-    return OScDev_RichError_OK;
-
-error:
-    if (ShutdownClock(config))
-        err = OScDev_Error_Wrap(
-            err, "Failed to clean up clock task(s) after error");
-    return err;
-}
-
-// Remove all DAQmx configuration for the clock
-OScDev_RichError *ShutdownClock(struct ClockConfig *config) {
-    OScDev_RichError *err1 = NULL, *err2 = NULL;
-
-    if (config->doTask) {
-        err1 = CreateDAQmxError(DAQmxClearTask(config->doTask));
-        if (err1)
-            err1 = OScDev_Error_Wrap(err1, "Failed to clear clock do task");
-        config->doTask = 0;
-    }
-
-    if (config->lineCtrTask) {
-        err2 = CreateDAQmxError(DAQmxClearTask(config->lineCtrTask));
-        if (err2)
-            err2 =
-                OScDev_Error_Wrap(err2, "Failed to clear clock lineCtr task");
-        config->lineCtrTask = 0;
-    }
-
-    if (err1) {
-        OScDev_Error_Destroy(err2);
-        return err1;
-    } else {
-        OScDev_Error_Destroy(err1);
-        return err2;
-    }
-}
-
-OScDev_RichError *StartClock(struct ClockConfig *config) {
-    OScDev_RichError *err;
-
-    err = CreateDAQmxError(DAQmxStartTask(config->doTask));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to start clock do task");
-        ShutdownClock(config);
-        return err;
-    }
-
-    err = CreateDAQmxError(DAQmxStartTask(config->lineCtrTask));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to start clock lineCtr task");
-        ShutdownClock(config);
-        return err;
-    }
-
-    return OScDev_RichError_OK;
-}
-
-OScDev_RichError *StopClock(struct ClockConfig *config) {
-    OScDev_RichError *err;
-
-    err = CreateDAQmxError(DAQmxStopTask(config->doTask));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to stop clock do task");
-        ShutdownClock(config);
-        return err;
-    }
-
-    err = CreateDAQmxError(DAQmxStopTask(config->lineCtrTask));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to stop clock lineCtr task");
-        ShutdownClock(config);
-        return err;
-    }
-
-    return OScDev_RichError_OK;
-}
-
-static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
-                                          struct ClockConfig *config,
                                           OScDev_Acquisition *acq) {
     OScDev_RichError *err;
     err = CreateDAQmxError(DAQmxCreateTask("ClockDO", &config->doTask));
@@ -391,4 +237,146 @@ cleanup:
     free(frameClockFLIM);
     free(lineClockPatterns);
     return err;
+}
+
+// Initialize, configure, and arm the clock, whatever its current state
+OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config,
+                             OScDev_Acquisition *acq) {
+    OScDev_RichError *err;
+
+    bool mustCommit = false;
+
+    if (!config->doTask || !config->lineCtrTask) {
+        // In case one of the two tasks exists
+        err = ShutdownClock(config);
+        if (err)
+            return err;
+
+        err = CreateClockTasks(device, config, acq);
+        if (err)
+            return err;
+        config->mustReconfigureTiming = true;
+        config->mustReconfigureTriggers = true;
+        config->mustRewriteOutput = true;
+    }
+
+    if (config->mustReconfigureTiming) {
+        err = ConfigureClockTiming(device, config, acq);
+        if (err)
+            goto error;
+
+        config->mustReconfigureTiming = false;
+        mustCommit = true;
+    }
+
+    if (config->mustReconfigureTriggers) {
+        err = ConfigureClockTriggers(device, config);
+        if (err)
+            goto error;
+
+        config->mustReconfigureTriggers = false;
+        mustCommit = true;
+    }
+
+    if (config->mustRewriteOutput) {
+        err = WriteClockOutput(device, config, acq);
+        if (err)
+            goto error;
+
+        config->mustRewriteOutput = false;
+        mustCommit = true;
+    }
+
+    if (mustCommit) {
+        err = CreateDAQmxError(
+            DAQmxTaskControl(config->doTask, DAQmx_Val_Task_Commit));
+        if (err) {
+            err = OScDev_Error_Wrap(err, "Failed to commit clock do task");
+            goto error;
+        }
+
+        err = CreateDAQmxError(
+            DAQmxTaskControl(config->lineCtrTask, DAQmx_Val_Task_Commit));
+        if (err) {
+            err =
+                OScDev_Error_Wrap(err, "Failed to commit clock lineCtr task");
+            goto error;
+        }
+    }
+
+    return OScDev_RichError_OK;
+
+error:
+    if (ShutdownClock(config))
+        err = OScDev_Error_Wrap(
+            err, "Failed to clean up clock task(s) after error");
+    return err;
+}
+
+// Remove all DAQmx configuration for the clock
+OScDev_RichError *ShutdownClock(struct ClockConfig *config) {
+    OScDev_RichError *err1 = NULL, *err2 = NULL;
+
+    if (config->doTask) {
+        err1 = CreateDAQmxError(DAQmxClearTask(config->doTask));
+        if (err1)
+            err1 = OScDev_Error_Wrap(err1, "Failed to clear clock do task");
+        config->doTask = 0;
+    }
+
+    if (config->lineCtrTask) {
+        err2 = CreateDAQmxError(DAQmxClearTask(config->lineCtrTask));
+        if (err2)
+            err2 =
+                OScDev_Error_Wrap(err2, "Failed to clear clock lineCtr task");
+        config->lineCtrTask = 0;
+    }
+
+    if (err1) {
+        OScDev_Error_Destroy(err2);
+        return err1;
+    } else {
+        OScDev_Error_Destroy(err1);
+        return err2;
+    }
+}
+
+OScDev_RichError *StartClock(struct ClockConfig *config) {
+    OScDev_RichError *err;
+
+    err = CreateDAQmxError(DAQmxStartTask(config->doTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to start clock do task");
+        ShutdownClock(config);
+        return err;
+    }
+
+    err = CreateDAQmxError(DAQmxStartTask(config->lineCtrTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to start clock lineCtr task");
+        ShutdownClock(config);
+        return err;
+    }
+
+    return OScDev_RichError_OK;
+}
+
+OScDev_RichError *StopClock(struct ClockConfig *config) {
+    OScDev_RichError *err;
+
+    err = CreateDAQmxError(DAQmxStopTask(config->doTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to stop clock do task");
+        ShutdownClock(config);
+        return err;
+    }
+
+    err = CreateDAQmxError(DAQmxStopTask(config->lineCtrTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to stop clock lineCtr task");
+        ShutdownClock(config);
+        return err;
+    }
+
+    return OScDev_RichError_OK;
 }

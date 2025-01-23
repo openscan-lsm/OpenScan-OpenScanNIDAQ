@@ -14,10 +14,57 @@
 
 static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
                                                 struct ScannerConfig *config,
-                                                OScDev_Acquisition *acq);
+                                                OScDev_Acquisition *acq) {
+    OScDev_RichError *err;
+    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
+
+    int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
+
+    err = CreateDAQmxError(DAQmxCfgSampClkTiming(
+        config->aoTask, "", pixelRateHz, DAQmx_Val_Rising,
+        DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
+        return err;
+    }
+
+    return OScDev_RichError_OK;
+}
+
 static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
                                             struct ScannerConfig *config,
-                                            OScDev_Acquisition *acq);
+                                            OScDev_Acquisition *acq) {
+    OScDev_RichError *err;
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
+
+    int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
+    double *xyWaveformFrame =
+        (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
+
+    err = GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
+    if (err)
+        return err;
+
+    int32 numWritten = 0;
+    err = CreateDAQmxError(DAQmxWriteAnalogF64(
+        config->aoTask, totalElementsPerFramePerChan, FALSE, 10.0,
+        DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to write scanner waveforms");
+        goto cleanup;
+    }
+    if (numWritten != totalElementsPerFramePerChan) {
+        err = OScDev_Error_Wrap(err, "Failed to write complete scan waveform");
+        goto cleanup;
+    }
+
+cleanup:
+    free(xyWaveformFrame);
+    return err;
+}
 
 // Initialize, configure, and arm the scanner, whatever its current state
 OScDev_RichError *SetUpScanner(OScDev_Device *device,
@@ -115,60 +162,6 @@ OScDev_RichError *StopScanner(struct ScannerConfig *config) {
         return err;
     }
     return OScDev_RichError_OK;
-}
-
-static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
-                                                struct ScannerConfig *config,
-                                                OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-    struct WaveformParams params;
-    SetWaveformParamsFromDevice(device, &params, acq);
-
-    int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
-
-    err = CreateDAQmxError(DAQmxCfgSampClkTiming(
-        config->aoTask, "", pixelRateHz, DAQmx_Val_Rising,
-        DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
-        return err;
-    }
-
-    return OScDev_RichError_OK;
-}
-
-static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
-                                            struct ScannerConfig *config,
-                                            OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
-    struct WaveformParams params;
-    SetWaveformParamsFromDevice(device, &params, acq);
-
-    int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
-    double *xyWaveformFrame =
-        (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
-
-    err = GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
-    if (err)
-        return err;
-
-    int32 numWritten = 0;
-    err = CreateDAQmxError(DAQmxWriteAnalogF64(
-        config->aoTask, totalElementsPerFramePerChan, FALSE, 10.0,
-        DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to write scanner waveforms");
-        goto cleanup;
-    }
-    if (numWritten != totalElementsPerFramePerChan) {
-        err = OScDev_Error_Wrap(err, "Failed to write complete scan waveform");
-        goto cleanup;
-    }
-
-cleanup:
-    free(xyWaveformFrame);
-    return err;
 }
 
 OScDev_RichError *CreateScannerTask(OScDev_Device *device,

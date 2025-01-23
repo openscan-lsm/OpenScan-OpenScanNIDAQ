@@ -7,9 +7,27 @@
 // zoomFactor * width_or_height
 static const uint32_t X_RETRACE_LEN = 128;
 
+// n = number of elements
+// slope in units of per element
 static void SplineInterpolate(int32_t n, double yFirst, double yLast,
                               double slopeFirst, double slopeLast,
-                              double *result);
+                              double *result) {
+    double m = n;
+    double mm = m * m;
+    double mmm = m * m * m;
+    double c[4];
+
+    c[0] = slopeFirst / mm + 2.0 * yFirst / mmm + slopeLast / mm -
+           2.0 * yLast / mmm;
+    c[1] = 3.0 * yLast / mm - slopeLast / m - 2.0 * slopeFirst / m -
+           3.0 * yFirst / mm;
+    c[2] = slopeFirst;
+    c[3] = yFirst;
+
+    for (int32_t x = 0; x < n; x++) {
+        result[x] = c[0] * x * x * x + c[1] * x * x + c[2] * x + c[3];
+    }
+}
 
 // Generate 1D (undershoot + trace + retrace).
 // The trace part spans voltage scanStart to scanEnd.
@@ -60,28 +78,6 @@ static void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
         SplineInterpolate(X_RETRACE_LEN, scanEnd, scanStart, 0, 0,
                           waveform + (linesPerFrame * xLength) -
                               X_RETRACE_LEN);
-    }
-}
-
-// n = number of elements
-// slope in units of per element
-static void SplineInterpolate(int32_t n, double yFirst, double yLast,
-                              double slopeFirst, double slopeLast,
-                              double *result) {
-    double m = n;
-    double mm = m * m;
-    double mmm = m * m * m;
-    double c[4];
-
-    c[0] = slopeFirst / mm + 2.0 * yFirst / mmm + slopeLast / mm -
-           2.0 * yLast / mmm;
-    c[1] = 3.0 * yLast / mm - slopeLast / m - 2.0 * slopeFirst / m -
-           3.0 * yFirst / mm;
-    c[2] = slopeFirst;
-    c[3] = yFirst;
-
-    for (int32_t x = 0; x < n; x++) {
-        result[x] = c[0] * x * x * x + c[1] * x * x + c[2] * x + c[3];
     }
 }
 

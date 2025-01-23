@@ -14,7 +14,41 @@
 
 #include <Windows.h>
 
-static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan);
+// Return the index-th physical channel, or empty string if no such channel
+static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
+    if (index < 0) {
+        if (chan)
+            ss8_clear(chan);
+        return false;
+    }
+
+    ss8str chans;
+    ss8_init_copy(&chans, &GetData(device)->aiPhysChans);
+
+    size_t p = 0;
+    bool notFound = false;
+    for (int i = 0; i < index; ++i) {
+        size_t q = ss8_find_ch(&chans, p, ',');
+        if (q == SIZE_MAX) {
+            notFound = true;
+            break;
+        }
+        p = q + 1;
+    }
+
+    if (chan) {
+        if (notFound) {
+            ss8_clear(chan);
+        } else {
+            size_t q = ss8_find_ch(&chans, p, ',');
+            ss8_copy_substr(chan, &chans, p, q - p);
+            ss8_strip_ch(chan, ' ');
+        }
+    }
+
+    ss8_destroy(&chans);
+    return !notFound;
+}
 
 static char *ErrorCodeDomain() {
     static char *domainName = NULL;
@@ -181,42 +215,6 @@ int GetNumberOfAIPhysChans(OScDev_Device *device) {
             return i;
     }
     return MAX_PHYSICAL_CHANS;
-}
-
-// Return the index-th physical channel, or empty string if no such channel
-static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
-    if (index < 0) {
-        if (chan)
-            ss8_clear(chan);
-        return false;
-    }
-
-    ss8str chans;
-    ss8_init_copy(&chans, &GetData(device)->aiPhysChans);
-
-    size_t p = 0;
-    bool notFound = false;
-    for (int i = 0; i < index; ++i) {
-        size_t q = ss8_find_ch(&chans, p, ',');
-        if (q == SIZE_MAX) {
-            notFound = true;
-            break;
-        }
-        p = q + 1;
-    }
-
-    if (chan) {
-        if (notFound) {
-            ss8_clear(chan);
-        } else {
-            size_t q = ss8_find_ch(&chans, p, ',');
-            ss8_copy_substr(chan, &chans, p, q - p);
-            ss8_strip_ch(chan, ' ');
-        }
-    }
-
-    ss8_destroy(&chans);
-    return !notFound;
 }
 
 // DAQ version; start all tasks

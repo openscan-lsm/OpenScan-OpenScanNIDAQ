@@ -12,123 +12,6 @@
 #include <stdio.h>
 #include <string.h>
 
-static OScDev_RichError *CreateDetectorTask(OScDev_Device *device,
-                                            struct DetectorConfig *config);
-static OScDev_RichError *ConfigureDetectorTiming(struct DetectorConfig *config,
-                                                 OScDev_Acquisition *acq);
-static OScDev_RichError *
-ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConfig *config);
-static OScDev_RichError *
-ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
-                          OScDev_Acquisition *acq);
-static int32 CVICALLBACK DetectorDataCallback(TaskHandle taskHandle,
-                                              int32 everyNsamplesEventType,
-                                              uInt32 nSamples,
-                                              void *callbackData);
-static int32 HandleRawData(OScDev_Device *device);
-
-// Initialize, configure, and arm the detector, whatever its current state
-OScDev_RichError *SetUpDetector(OScDev_Device *device,
-                                struct DetectorConfig *config,
-                                OScDev_Acquisition *acq) {
-    OScDev_RichError *err = OScDev_RichError_OK;
-    bool mustCommit = false;
-
-    if (!config->aiTask) {
-        err = CreateDetectorTask(device, config);
-        if (err)
-            return err;
-
-        config->mustReconfigureTiming = true;
-        config->mustReconfigureTrigger = true;
-        config->mustReconfigureCallback = true;
-        mustCommit = true;
-    }
-
-    if (config->mustReconfigureTiming) {
-        err = ConfigureDetectorTiming(config, acq);
-        if (err)
-            goto error;
-        config->mustReconfigureTiming = false;
-        mustCommit = true;
-    }
-
-    if (config->mustReconfigureTrigger) {
-        err = ConfigureDetectorTrigger(device, config);
-        if (err)
-            goto error;
-        config->mustReconfigureTrigger = false;
-        mustCommit = true;
-    }
-
-    if (config->mustReconfigureCallback) {
-        err = ConfigureDetectorCallback(device, config, acq);
-        if (err)
-            goto error;
-        config->mustReconfigureCallback = false;
-        mustCommit = true;
-    }
-
-    if (mustCommit) {
-        err = CreateDAQmxError(
-            DAQmxTaskControl(config->aiTask, DAQmx_Val_Task_Commit));
-        if (err) {
-            err = OScDev_Error_Wrap(err, "Failed to commit task for detector");
-            goto error;
-        }
-    }
-
-    return OScDev_RichError_OK;
-
-error:
-    if (ShutdownDetector(config))
-        OScDev_Log_Error(device,
-                         "Failed to clean up detector task after error");
-    return err;
-}
-
-// Remove all DAQmx configuration for the detector
-// This can be called to force task recreation the next time the detector is
-// armed
-OScDev_RichError *ShutdownDetector(struct DetectorConfig *config) {
-    OScDev_RichError *err;
-    if (config->aiTask) {
-        err = CreateDAQmxError(DAQmxClearTask(config->aiTask));
-        if (err) {
-            err = OScDev_Error_Wrap(err, "Failed to clear detector task");
-            return err;
-        }
-        config->aiTask = 0;
-    }
-    return OScDev_RichError_OK;
-}
-
-OScDev_RichError *StartDetector(struct DetectorConfig *config) {
-    OScDev_RichError *err;
-    err = CreateDAQmxError(DAQmxStartTask(config->aiTask));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to start detector task");
-        ShutdownDetector(config); // Force re-setup next time
-        return err;
-    }
-    return OScDev_RichError_OK;
-}
-
-OScDev_RichError *StopDetector(struct DetectorConfig *config) {
-    OScDev_RichError *err;
-    // The task may have been cleared in the case of an error
-    if (!config->aiTask)
-        return OScDev_RichError_OK;
-
-    err = CreateDAQmxError(DAQmxStopTask(config->aiTask));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to stop detector task");
-        ShutdownDetector(config); // Force re-setup next time
-        return err;
-    }
-    return OScDev_RichError_OK;
-}
-
 static OScDev_RichError *
 GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *maxVolts) {
     OScDev_RichError *err = OScDev_RichError_OK;
@@ -166,6 +49,149 @@ GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *maxVolts) {
     }
 
     return err;
+}
+
+// Process data in rawDataBuffer and place the result into frameBuffers
+static int32 HandleRawData(OScDev_Device *device) {
+    // Some amount of data (rawDataSize samples) is in the rawDataBuffer.
+    // Since we have C channels and are binning every B samples per channel,
+    // we can only process a multiple of (C * B) samples at a time. We
+    // shift any remaining samples to the front of rawDataBuffer so that they
+    // can be handled when more data is available.
+
+    size_t availableSamples = GetData(device)->rawDataSize;
+    uint32_t numChannels = GetNumberOfEnabledChannels(device);
+    size_t leftoverSamples = availableSamples % numChannels;
+    size_t samplesToProcess = availableSamples - leftoverSamples;
+    size_t pixelsToProducePerChan = samplesToProcess / numChannels;
+
+    double inputVoltageRange = GetData(device)->inputVoltageRange;
+
+    float64 *rawDataBuffer = GetData(device)->rawDataBuffer;
+
+    // Given 2 channels and 2 samples per pixel per channel, rawDataBuffer
+    // contains data in the following order:
+    // | ch0_samp0 ch1_samp0 ch0_samp1 ch1_samp1 | ch0_samp0 ...
+    // We need to transfer this into per-channel frame buffers.
+
+    // Process raw data and fill in frame buffers
+    for (size_t p = 0; p < pixelsToProducePerChan; ++p) {
+        size_t rawPixelStart = p * numChannels;
+        size_t pixelIndex = GetData(device)->framePixelsFilled++;
+
+        for (size_t ch = 0; ch < numChannels; ++ch) {
+            size_t rawChannelStart = rawPixelStart + ch;
+
+            double volts = rawDataBuffer[rawChannelStart];
+
+            // TODO We need a positive offset so as not to clip the background
+            // noise
+            double offsetVolts = 1.0; // Temporary
+
+            double dpixel =
+                65535.0 * (volts + offsetVolts) / inputVoltageRange;
+            if (dpixel < 0) {
+                dpixel = 0.0;
+            }
+            if (dpixel > 65535.0) {
+                dpixel = 65535.0;
+            }
+            uint16_t pixel = (uint16_t)dpixel;
+
+            GetData(device)->frameBuffers[ch][pixelIndex] = pixel;
+        }
+    }
+
+    // Shift the leftover raw samples to the front of the buffer for future
+    // consumption
+    memmove(rawDataBuffer, rawDataBuffer + samplesToProcess,
+            sizeof(float64) * leftoverSamples);
+    GetData(device)->rawDataSize = leftoverSamples;
+
+    // TODO Cleaner to get raster size from the OScDev_Acquisition (a future
+    // OpenScanLib should allow getting the current device from the
+    // acquisition, so that we can pass the acquisition as callback data)
+    uint32_t pixelsPerLine = GetData(device)->configuredRasterWidth;
+    uint32_t linesPerFrame = GetData(device)->configuredRasterHeight;
+
+    size_t pixelsPerFrame = pixelsPerLine * linesPerFrame;
+    char msg[OScDev_MAX_STR_LEN + 1];
+    snprintf(msg, OScDev_MAX_STR_LEN, "Read %zd pixels",
+             GetData(device)->framePixelsFilled);
+    OScDev_Log_Debug(device, msg);
+
+    if (GetData(device)->framePixelsFilled == pixelsPerFrame) {
+        // TODO This method of communication is unreliable without a mutex
+        // TODO But we should use a condition variable in any case
+        GetData(device)->oneFrameScanDone = true;
+
+        // TODO This reset should occur at start of frame
+        GetData(device)->framePixelsFilled = 0;
+    }
+
+    return OScDev_OK;
+}
+
+static int32 DetectorDataCallback(TaskHandle taskHandle,
+                                  int32 everyNsamplesEventType,
+                                  uInt32 nSamples, void *callbackData) {
+    OScDev_Error errCode;
+    OScDev_Device *device = (OScDev_Device *)(callbackData);
+
+    if (taskHandle != GetData(device)->detectorConfig.aiTask)
+        return OScDev_OK;
+    if (everyNsamplesEventType != DAQmx_Val_Acquired_Into_Buffer)
+        return OScDev_OK;
+
+    char msg[1024];
+    snprintf(msg, sizeof(msg) - 1, "Detector callback (%d samples)", nSamples);
+    OScDev_Log_Debug(device, msg);
+
+    uint32_t numChannels = GetNumberOfEnabledChannels(device);
+
+    OScDev_RichError *err;
+
+    // TODO We should use DAQmxReadBinaryU16, so that users have access to raw
+    // ADC values. This is often critical for correct interpretation or
+    // processing of the data.
+
+    // Read all available samples without waiting (because we have set the
+    // Read All Available Samples property on the task)
+    int32 samplesPerChanRead;
+    errCode = DAQmxReadAnalogF64(
+        taskHandle, DAQmx_Val_Auto, 0.0, DAQmx_Val_GroupByScanNumber,
+        GetData(device)->rawDataBuffer + GetData(device)->rawDataSize,
+        (uInt32)(GetData(device)->rawDataCapacity -
+                 GetData(device)->rawDataSize),
+        &samplesPerChanRead, NULL);
+    if (errCode == DAQmxErrorTimeoutExceeded) {
+        OScDev_Log_Error(device, "Error: DAQ read data timeout");
+        return OScDev_OK;
+    }
+
+    if (errCode) {
+        err = CreateDAQmxError(errCode);
+        err = OScDev_Error_Wrap(err, "Failed to read detector samples");
+        goto error;
+    }
+
+    if (samplesPerChanRead == 0) {
+        OScDev_Log_Error(device, "Error: DAQ failed to read any sample");
+        return OScDev_OK;
+    }
+
+    GetData(device)->rawDataSize += samplesPerChanRead * numChannels;
+
+    errCode = HandleRawData(device);
+    if (errCode)
+        goto error;
+
+    return OScDev_OK;
+
+error:
+    if (GetData(device)->detectorConfig.aiTask)
+        ShutdownDetector(&GetData(device)->detectorConfig);
+    return errCode;
 }
 
 static OScDev_RichError *CreateDetectorTask(OScDev_Device *device,
@@ -357,145 +383,104 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
     return OScDev_RichError_OK;
 }
 
-static int32 DetectorDataCallback(TaskHandle taskHandle,
-                                  int32 everyNsamplesEventType,
-                                  uInt32 nSamples, void *callbackData) {
-    OScDev_Error errCode;
-    OScDev_Device *device = (OScDev_Device *)(callbackData);
+// Initialize, configure, and arm the detector, whatever its current state
+OScDev_RichError *SetUpDetector(OScDev_Device *device,
+                                struct DetectorConfig *config,
+                                OScDev_Acquisition *acq) {
+    OScDev_RichError *err = OScDev_RichError_OK;
+    bool mustCommit = false;
 
-    if (taskHandle != GetData(device)->detectorConfig.aiTask)
-        return OScDev_OK;
-    if (everyNsamplesEventType != DAQmx_Val_Acquired_Into_Buffer)
-        return OScDev_OK;
+    if (!config->aiTask) {
+        err = CreateDetectorTask(device, config);
+        if (err)
+            return err;
 
-    char msg[1024];
-    snprintf(msg, sizeof(msg) - 1, "Detector callback (%d samples)", nSamples);
-    OScDev_Log_Debug(device, msg);
-
-    uint32_t numChannels = GetNumberOfEnabledChannels(device);
-
-    OScDev_RichError *err;
-
-    // TODO We should use DAQmxReadBinaryU16, so that users have access to raw
-    // ADC values. This is often critical for correct interpretation or
-    // processing of the data.
-
-    // Read all available samples without waiting (because we have set the
-    // Read All Available Samples property on the task)
-    int32 samplesPerChanRead;
-    errCode = DAQmxReadAnalogF64(
-        taskHandle, DAQmx_Val_Auto, 0.0, DAQmx_Val_GroupByScanNumber,
-        GetData(device)->rawDataBuffer + GetData(device)->rawDataSize,
-        (uInt32)(GetData(device)->rawDataCapacity -
-                 GetData(device)->rawDataSize),
-        &samplesPerChanRead, NULL);
-    if (errCode == DAQmxErrorTimeoutExceeded) {
-        OScDev_Log_Error(device, "Error: DAQ read data timeout");
-        return OScDev_OK;
+        config->mustReconfigureTiming = true;
+        config->mustReconfigureTrigger = true;
+        config->mustReconfigureCallback = true;
+        mustCommit = true;
     }
 
-    if (errCode) {
-        err = CreateDAQmxError(errCode);
-        err = OScDev_Error_Wrap(err, "Failed to read detector samples");
-        goto error;
+    if (config->mustReconfigureTiming) {
+        err = ConfigureDetectorTiming(config, acq);
+        if (err)
+            goto error;
+        config->mustReconfigureTiming = false;
+        mustCommit = true;
     }
 
-    if (samplesPerChanRead == 0) {
-        OScDev_Log_Error(device, "Error: DAQ failed to read any sample");
-        return OScDev_OK;
+    if (config->mustReconfigureTrigger) {
+        err = ConfigureDetectorTrigger(device, config);
+        if (err)
+            goto error;
+        config->mustReconfigureTrigger = false;
+        mustCommit = true;
     }
 
-    GetData(device)->rawDataSize += samplesPerChanRead * numChannels;
+    if (config->mustReconfigureCallback) {
+        err = ConfigureDetectorCallback(device, config, acq);
+        if (err)
+            goto error;
+        config->mustReconfigureCallback = false;
+        mustCommit = true;
+    }
 
-    errCode = HandleRawData(device);
-    if (errCode)
-        goto error;
-
-    return OScDev_OK;
-
-error:
-    if (GetData(device)->detectorConfig.aiTask)
-        ShutdownDetector(&GetData(device)->detectorConfig);
-    return errCode;
-}
-
-// Process data in rawDataBuffer and place the result into frameBuffers
-static int32 HandleRawData(OScDev_Device *device) {
-    // Some amount of data (rawDataSize samples) is in the rawDataBuffer.
-    // Since we have C channels and are binning every B samples per channel,
-    // we can only process a multiple of (C * B) samples at a time. We
-    // shift any remaining samples to the front of rawDataBuffer so that they
-    // can be handled when more data is available.
-
-    size_t availableSamples = GetData(device)->rawDataSize;
-    uint32_t numChannels = GetNumberOfEnabledChannels(device);
-    size_t leftoverSamples = availableSamples % numChannels;
-    size_t samplesToProcess = availableSamples - leftoverSamples;
-    size_t pixelsToProducePerChan = samplesToProcess / numChannels;
-
-    double inputVoltageRange = GetData(device)->inputVoltageRange;
-
-    float64 *rawDataBuffer = GetData(device)->rawDataBuffer;
-
-    // Given 2 channels and 2 samples per pixel per channel, rawDataBuffer
-    // contains data in the following order:
-    // | ch0_samp0 ch1_samp0 ch0_samp1 ch1_samp1 | ch0_samp0 ...
-    // We need to transfer this into per-channel frame buffers.
-
-    // Process raw data and fill in frame buffers
-    for (size_t p = 0; p < pixelsToProducePerChan; ++p) {
-        size_t rawPixelStart = p * numChannels;
-        size_t pixelIndex = GetData(device)->framePixelsFilled++;
-
-        for (size_t ch = 0; ch < numChannels; ++ch) {
-            size_t rawChannelStart = rawPixelStart + ch;
-
-            double volts = rawDataBuffer[rawChannelStart];
-
-            // TODO We need a positive offset so as not to clip the background
-            // noise
-            double offsetVolts = 1.0; // Temporary
-
-            double dpixel =
-                65535.0 * (volts + offsetVolts) / inputVoltageRange;
-            if (dpixel < 0) {
-                dpixel = 0.0;
-            }
-            if (dpixel > 65535.0) {
-                dpixel = 65535.0;
-            }
-            uint16_t pixel = (uint16_t)dpixel;
-
-            GetData(device)->frameBuffers[ch][pixelIndex] = pixel;
+    if (mustCommit) {
+        err = CreateDAQmxError(
+            DAQmxTaskControl(config->aiTask, DAQmx_Val_Task_Commit));
+        if (err) {
+            err = OScDev_Error_Wrap(err, "Failed to commit task for detector");
+            goto error;
         }
     }
 
-    // Shift the leftover raw samples to the front of the buffer for future
-    // consumption
-    memmove(rawDataBuffer, rawDataBuffer + samplesToProcess,
-            sizeof(float64) * leftoverSamples);
-    GetData(device)->rawDataSize = leftoverSamples;
+    return OScDev_RichError_OK;
 
-    // TODO Cleaner to get raster size from the OScDev_Acquisition (a future
-    // OpenScanLib should allow getting the current device from the
-    // acquisition, so that we can pass the acquisition as callback data)
-    uint32_t pixelsPerLine = GetData(device)->configuredRasterWidth;
-    uint32_t linesPerFrame = GetData(device)->configuredRasterHeight;
+error:
+    if (ShutdownDetector(config))
+        OScDev_Log_Error(device,
+                         "Failed to clean up detector task after error");
+    return err;
+}
 
-    size_t pixelsPerFrame = pixelsPerLine * linesPerFrame;
-    char msg[OScDev_MAX_STR_LEN + 1];
-    snprintf(msg, OScDev_MAX_STR_LEN, "Read %zd pixels",
-             GetData(device)->framePixelsFilled);
-    OScDev_Log_Debug(device, msg);
-
-    if (GetData(device)->framePixelsFilled == pixelsPerFrame) {
-        // TODO This method of communication is unreliable without a mutex
-        // TODO But we should use a condition variable in any case
-        GetData(device)->oneFrameScanDone = true;
-
-        // TODO This reset should occur at start of frame
-        GetData(device)->framePixelsFilled = 0;
+// Remove all DAQmx configuration for the detector
+// This can be called to force task recreation the next time the detector is
+// armed
+OScDev_RichError *ShutdownDetector(struct DetectorConfig *config) {
+    OScDev_RichError *err;
+    if (config->aiTask) {
+        err = CreateDAQmxError(DAQmxClearTask(config->aiTask));
+        if (err) {
+            err = OScDev_Error_Wrap(err, "Failed to clear detector task");
+            return err;
+        }
+        config->aiTask = 0;
     }
+    return OScDev_RichError_OK;
+}
 
-    return OScDev_OK;
+OScDev_RichError *StartDetector(struct DetectorConfig *config) {
+    OScDev_RichError *err;
+    err = CreateDAQmxError(DAQmxStartTask(config->aiTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to start detector task");
+        ShutdownDetector(config); // Force re-setup next time
+        return err;
+    }
+    return OScDev_RichError_OK;
+}
+
+OScDev_RichError *StopDetector(struct DetectorConfig *config) {
+    OScDev_RichError *err;
+    // The task may have been cleared in the case of an error
+    if (!config->aiTask)
+        return OScDev_RichError_OK;
+
+    err = CreateDAQmxError(DAQmxStopTask(config->aiTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to stop detector task");
+        ShutdownDetector(config); // Force re-setup next time
+        return err;
+    }
+    return OScDev_RichError_OK;
 }
