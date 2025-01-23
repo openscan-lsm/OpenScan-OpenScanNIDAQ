@@ -55,7 +55,6 @@ OScDev_RichError *ConfigureParkTiming(OScDev_Device *device,
 OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
                                     struct ScannerConfig *config,
                                     OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
@@ -63,12 +62,10 @@ OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
     double *xyWaveformFrame =
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-    err = GenerateGalvoUnparkWaveform(&params, xyWaveformFrame);
-    if (err)
-        return err;
+    GenerateGalvoUnparkWaveform(&params, xyWaveformFrame);
 
     int32 numWritten = 0;
-    err = CreateDAQmxError(DAQmxWriteAnalogF64(
+    OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
         config->aoTask, totalElementsPerFramePerChan, FALSE, 10.0,
         DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
     if (err) {
@@ -89,7 +86,6 @@ cleanup:
 OScDev_RichError *WriteParkOutput(OScDev_Device *device,
                                   struct ScannerConfig *config,
                                   OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
@@ -97,16 +93,14 @@ OScDev_RichError *WriteParkOutput(OScDev_Device *device,
     double *xyWaveformFrame =
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-    err = GenerateGalvoParkWaveform(&params, xyWaveformFrame);
+    GenerateGalvoParkWaveform(&params, xyWaveformFrame);
     GetImplData(device)->prevXParkVoltage =
         xyWaveformFrame[totalElementsPerFramePerChan - 1];
     GetImplData(device)->prevYParkVoltage =
         xyWaveformFrame[(totalElementsPerFramePerChan * 2) - 1];
-    if (err)
-        return err;
 
     int32 numWritten = 0;
-    err = CreateDAQmxError(DAQmxWriteAnalogF64(
+    OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
         config->aoTask, totalElementsPerFramePerChan, FALSE, 10.0,
         DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
     if (err) {

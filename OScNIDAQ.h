@@ -3,6 +3,7 @@
 #include "Waveform.h"
 
 #include <NIDAQmx.h>
+#include <OpenScanDeviceLib.h>
 #include <ss8str.h>
 
 // Must be called immediately after failed DAQmx function

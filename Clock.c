@@ -179,7 +179,6 @@ static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device,
 static OScDev_RichError *WriteClockOutput(OScDev_Device *device,
                                           struct ClockConfig *config,
                                           OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
@@ -199,15 +198,9 @@ static OScDev_RichError *WriteClockOutput(OScDev_Device *device,
         elementsPerFramePerChan * GetImplData(device)->numDOChannels);
 
     // TODO: why use elementsPerLine instead of elementsPerFramePerChan?
-    err = GenerateLineClock(&params, lineClockPattern);
-    if (err)
-        return OScDev_Error_Create("Waveform Out Of Range");
-    err = GenerateFLIMLineClock(&params, lineClockFLIM);
-    if (err)
-        return OScDev_Error_Create("Waveform Out Of Range");
-    err = GenerateFLIMFrameClock(&params, frameClockFLIM);
-    if (err)
-        return OScDev_Error_Create("Waveform Out Of Range");
+    GenerateLineClock(&params, lineClockPattern);
+    GenerateFLIMLineClock(&params, lineClockFLIM);
+    GenerateFLIMFrameClock(&params, frameClockFLIM);
 
     // combine line, inverted line, and frame clocks
     // TODO: make it more generic
@@ -218,7 +211,7 @@ static OScDev_RichError *WriteClockOutput(OScDev_Device *device,
     }
 
     int32 numWritten = 0;
-    err = CreateDAQmxError(DAQmxWriteDigitalLines(
+    OScDev_RichError *err = CreateDAQmxError(DAQmxWriteDigitalLines(
         config->doTask, elementsPerFramePerChan, FALSE, 10.0,
         DAQmx_Val_GroupByChannel, lineClockPatterns, &numWritten, NULL));
     if (err) {

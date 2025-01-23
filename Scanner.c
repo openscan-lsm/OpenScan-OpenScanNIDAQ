@@ -36,7 +36,6 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
 static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
                                             struct ScannerConfig *config,
                                             OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
@@ -44,12 +43,10 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
     double *xyWaveformFrame =
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-    err = GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
-    if (err)
-        return err;
+    GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
 
     int32 numWritten = 0;
-    err = CreateDAQmxError(DAQmxWriteAnalogF64(
+    OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
         config->aoTask, totalElementsPerFramePerChan, FALSE, 10.0,
         DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
     if (err) {

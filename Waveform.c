@@ -1,6 +1,6 @@
 #include "Waveform.h"
 
-#include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 // TODO We should probably scale the retrace length according to
@@ -82,8 +82,8 @@ static void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
 }
 
 /* Line clock pattern for NI DAQ to output from one of its digital IOs */
-OScDev_RichError *GenerateLineClock(const struct WaveformParams *parameters,
-                                    uint8_t *lineClock) {
+void GenerateLineClock(const struct WaveformParams *parameters,
+                       uint8_t *lineClock) {
     uint32_t lineDelay = parameters->undershoot;
     uint32_t width = parameters->width;
     uint32_t height = parameters->height;
@@ -93,16 +93,13 @@ OScDev_RichError *GenerateLineClock(const struct WaveformParams *parameters,
         for (uint32_t i = 0; i < x_length; i++)
             lineClock[i + j * x_length] =
                 ((i >= lineDelay) && (i < lineDelay + width)) ? 1 : 0;
-
-    return OScDev_RichError_OK;
 }
 
 // High voltage right after a line acquisition is done
 // like a line clock of reversed polarity
 // specially for B&H FLIM application
-OScDev_RichError *
-GenerateFLIMLineClock(const struct WaveformParams *parameters,
-                      uint8_t *lineClockFLIM) {
+void GenerateFLIMLineClock(const struct WaveformParams *parameters,
+                           uint8_t *lineClockFLIM) {
     uint32_t lineDelay = parameters->undershoot;
     uint32_t width = parameters->width;
     uint32_t height = parameters->height;
@@ -111,15 +108,12 @@ GenerateFLIMLineClock(const struct WaveformParams *parameters,
     for (uint32_t j = 0; j < height; j++)
         for (uint32_t i = 0; i < x_length; i++)
             lineClockFLIM[i + j * x_length] = (i >= lineDelay + width) ? 1 : 0;
-
-    return OScDev_RichError_OK;
 }
 
 // Frame clock for B&H FLIM
 // High voltage at the end of the frame
-OScDev_RichError *
-GenerateFLIMFrameClock(const struct WaveformParams *parameters,
-                       uint8_t *frameClockFLIM) {
+void GenerateFLIMFrameClock(const struct WaveformParams *parameters,
+                            uint8_t *frameClockFLIM) {
     uint32_t lineDelay = parameters->undershoot;
     uint32_t width = parameters->width;
     uint32_t height = parameters->height;
@@ -130,8 +124,6 @@ GenerateFLIMFrameClock(const struct WaveformParams *parameters,
         for (uint32_t i = 0; i < x_length; ++i)
             frameClockFLIM[i + j * x_length] =
                 ((j == height - 1) && (i > lineDelay + width)) ? 1 : 0;
-
-    return OScDev_RichError_OK;
 }
 
 int32_t GetLineWaveformSize(const struct WaveformParams *parameters) {
@@ -170,9 +162,8 @@ Analog voltage range (-0.5V, 0.5V) at zoom 1
 Including Y retrace waveform that moves the slow galvo back to its starting
 position
 */
-OScDev_RichError *
-GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
-                           double *xyWaveformFrame) {
+void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
+                                double *xyWaveformFrame) {
     uint32_t pixelsPerLine = parameters->width; // ROI size
     uint32_t linesPerFrame = parameters->height;
     uint32_t resolution = parameters->resolution;
@@ -230,14 +221,11 @@ GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
 
     free(xWaveform);
     free(yWaveform);
-
-    return OScDev_RichError_OK;
 }
 
 // Generate waveform from parking to start before one frame
-OScDev_RichError *
-GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
-                            double *xyWaveformFrame) {
+void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
+                                 double *xyWaveformFrame) {
     uint32_t resolution = parameters->resolution;
     double zoom = parameters->zoom;
     uint32_t xOffset = parameters->xOffset; // ROI offset
@@ -277,14 +265,11 @@ GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
 
     free(xWaveform);
     free(yWaveform);
-
-    return OScDev_RichError_OK;
 }
 
 // Generate waveform from start to parking after one frame
-OScDev_RichError *
-GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
-                          double *xyWaveformFrame) {
+void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
+                               double *xyWaveformFrame) {
     uint32_t resolution = parameters->resolution;
     double zoom = parameters->zoom;
     uint32_t xOffset = parameters->xOffset; // ROI offset
@@ -326,6 +311,4 @@ GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
 
     free(xWaveform);
     free(yWaveform);
-
-    return OScDev_RichError_OK;
 }
