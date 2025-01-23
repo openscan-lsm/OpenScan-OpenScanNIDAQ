@@ -1,4 +1,4 @@
-#include "OScNIDAQSettings.h"
+#include "NIDAQ_OpenScanSettings.h"
 
 #include "OScNIDAQ.h"
 #include "OScNIDAQPrivateData.h"

@@ -1,8 +1,8 @@
 #include "NIDAQ_OpenScanDevice.h"
 
+#include "NIDAQ_OpenScanSettings.h"
 #include "OScNIDAQ.h"
 #include "OScNIDAQPrivateData.h"
-#include "OScNIDAQSettings.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
