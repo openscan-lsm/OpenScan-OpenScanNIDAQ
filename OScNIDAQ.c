@@ -77,7 +77,7 @@ OScDev_RichError *CreateDAQmxError(int32 nierr) {
 }
 
 // Fill in non-zero defaults only
-static void InitializePrivateData(struct OScNIDAQPrivateData *data) {
+static void InitializePrivateData(struct DeviceImplData *data) {
     ss8_init(&data->deviceName);
     data->lineDelay = 50;
     data->numLinesToBuffer = 8;
@@ -131,8 +131,7 @@ OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
         ss8_copy_substr(&name, &names, p, q - p);
         ss8_strip_ch(&name, ' ');
 
-        struct OScNIDAQPrivateData *data =
-            calloc(1, sizeof(struct OScNIDAQPrivateData));
+        struct DeviceImplData *data = calloc(1, sizeof(struct DeviceImplData));
         InitializePrivateData(data);
         ss8_copy(&data->deviceName, &name);
 

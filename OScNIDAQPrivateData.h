@@ -12,7 +12,9 @@
 
 #define MAX_PHYSICAL_CHANS 8
 
-struct OScNIDAQPrivateData {
+// This struct holds the NIDAQ-specific device state and is associated with the
+// OpenScan device through the "impl data" mechanism.
+struct DeviceImplData {
     // The DAQmx name for the DAQ card
     ss8str deviceName;
 
@@ -75,6 +77,6 @@ struct OScNIDAQPrivateData {
     } acquisition;
 };
 
-static inline struct OScNIDAQPrivateData *GetData(OScDev_Device *device) {
-    return (struct OScNIDAQPrivateData *)OScDev_Device_GetImplData(device);
+static inline struct DeviceImplData *GetData(OScDev_Device *device) {
+    return (struct DeviceImplData *)OScDev_Device_GetImplData(device);
 }

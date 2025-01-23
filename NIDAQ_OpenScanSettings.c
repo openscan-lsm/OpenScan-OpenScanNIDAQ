@@ -8,9 +8,9 @@
 
 // For most settings, we set the setting's implData to the device.
 // This function can then be used to retrieve the device implData.
-static inline struct OScNIDAQPrivateData *
+static inline struct DeviceImplData *
 GetSettingDeviceData(OScDev_Setting *setting) {
-    return (struct OScNIDAQPrivateData *)OScDev_Device_GetImplData(
+    return (struct DeviceImplData *)OScDev_Device_GetImplData(
         (OScDev_Device *)OScDev_Setting_GetImplData(setting));
 }
 
@@ -180,7 +180,7 @@ static void ReleaseEnableChannel(OScDev_Setting *setting) {
 static OScDev_Error GetEnableChannel(OScDev_Setting *setting, bool *value) {
     struct EnableChannelData *settingData =
         OScDev_Setting_GetImplData(setting);
-    struct OScNIDAQPrivateData *devData = GetData(settingData->device);
+    struct DeviceImplData *devData = GetData(settingData->device);
     *value = devData->channelEnabled[settingData->hwChannel];
     return OScDev_OK;
 }
@@ -188,7 +188,7 @@ static OScDev_Error GetEnableChannel(OScDev_Setting *setting, bool *value) {
 static OScDev_Error SetEnableChannel(OScDev_Setting *setting, bool value) {
     struct EnableChannelData *settingData =
         OScDev_Setting_GetImplData(setting);
-    struct OScNIDAQPrivateData *devData = GetData(settingData->device);
+    struct DeviceImplData *devData = GetData(settingData->device);
     devData->channelEnabled[settingData->hwChannel] = value;
 
     // Force recreation of detector task next time
