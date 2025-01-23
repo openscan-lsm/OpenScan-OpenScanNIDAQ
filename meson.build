@@ -61,6 +61,7 @@ src = files(
     'Acquisition.c',
     'Clock.c',
     'Detector.c',
+    'NIDAQ_DeviceImplData.c',
     'NIDAQ_OpenScanDevice.c',
     'NIDAQ_OpenScanModule.c',
     'NIDAQ_OpenScanSettings.c',

@@ -76,22 +76,6 @@ OScDev_RichError *CreateDAQmxError(int32 nierr) {
     return OScDev_Error_CreateWithCode(ErrorCodeDomain(), nierr, buf);
 }
 
-// Fill in non-zero defaults only
-static void InitializePrivateData(struct DeviceImplData *data) {
-    ss8_init(&data->deviceName);
-    data->lineDelay = 50;
-    data->numLinesToBuffer = 8;
-    data->inputVoltageRange = 10.0;
-    data->minVolts_ = -10.0;
-    data->maxVolts_ = 10.0;
-    ss8_init(&data->aiPhysChans);
-    data->channelEnabled[0] = true;
-
-    InitializeCriticalSection(&(data->acquisition.mutex));
-    InitializeConditionVariable(
-        &(data->acquisition.acquisitionFinishCondition));
-}
-
 void SetWaveformParamsFromDevice(OScDev_Device *device,
                                  struct WaveformParams *parameters,
                                  OScDev_Acquisition *acq) {
@@ -132,7 +116,7 @@ OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
         ss8_strip_ch(&name, ' ');
 
         struct DeviceImplData *data = calloc(1, sizeof(struct DeviceImplData));
-        InitializePrivateData(data);
+        InitializeImplData(data);
         ss8_copy(&data->deviceName, &name);
 
         OScDev_Device *device;

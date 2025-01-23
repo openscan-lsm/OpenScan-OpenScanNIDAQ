@@ -80,3 +80,5 @@ struct DeviceImplData {
 static inline struct DeviceImplData *GetImplData(OScDev_Device *device) {
     return (struct DeviceImplData *)OScDev_Device_GetImplData(device);
 }
+
+void InitializeImplData(struct DeviceImplData *data);
