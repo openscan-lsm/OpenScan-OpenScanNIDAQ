@@ -129,19 +129,20 @@ OScDev_RichError *StopDetector(struct DetectorConfig *config) {
     return OScDev_RichError_OK;
 }
 
-static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts,
-                               double *maxVolts) {
+static OScDev_RichError *
+GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *maxVolts) {
+    OScDev_RichError *err = OScDev_RichError_OK;
     float64 ranges[2 * 64];
     memset(ranges, 0, sizeof(ranges));
 
     // TODO How does this relate to the setting "Input Voltage Range"?
     // BUG: This should be AIVoltageRngs, but keeping existing behavior for now
-    int32 nierr =
+    err = CreateDAQmxError(
         DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetData(device)->deviceName),
-                                 ranges, sizeof(ranges) / sizeof(float64));
-    if (nierr) {
-        LogNiError(device, nierr, "Failed to get voltage range for detector");
-        return nierr;
+                                 ranges, sizeof(ranges) / sizeof(float64)));
+    if (err) {
+        OScDev_Log_Error(device, OScDev_Error_GetMessage(err));
+        return err;
     }
 
     *minVolts = INFINITY;
@@ -149,7 +150,8 @@ static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts,
     for (int i = 0; i < sizeof(ranges) / sizeof(float64) / 2; ++i) {
         if (ranges[2 * i] == 0.0 && ranges[2 * i + 1] == 0.0) {
             if (i == 0)
-                return -1; // Unlikely error
+                return OScDev_Error_Create(
+                    "AI channel voltage range appears to be empty");
             break;
         }
 
@@ -163,7 +165,7 @@ static int32 GetAIVoltageRange(OScDev_Device *device, double *minVolts,
         }
     }
 
-    return 0;
+    return err;
 }
 
 static OScDev_RichError *CreateDetectorTask(OScDev_Device *device,
@@ -176,7 +178,7 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device,
     }
 
     double minVolts, maxVolts;
-    err = CreateDAQmxError(GetAIVoltageRange(device, &minVolts, &maxVolts));
+    err = GetAIVoltageRange(device, &minVolts, &maxVolts);
     if (err)
         goto error;
 

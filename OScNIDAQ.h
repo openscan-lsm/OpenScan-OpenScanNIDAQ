@@ -6,8 +6,6 @@
 #include <ss8str.h>
 
 // Must be called immediately after failed DAQmx function
-void LogNiError(OScDev_Device *device, int32 nierr, const char *when);
-// Must be called immediately after failed DAQmx function
 OScDev_RichError *CreateDAQmxError(int32 nierr);
 
 void SetWaveformParamsFromDevice(OScDev_Device *device,

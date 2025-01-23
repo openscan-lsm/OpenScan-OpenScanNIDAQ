@@ -16,22 +16,6 @@
 
 static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan);
 
-// Must be called immediately after failed DAQmx function
-void LogNiError(OScDev_Device *device, int32 nierr, const char *when) {
-    (void)nierr; // Unused
-    ss8str msg;
-    ss8_init_copy_cstr(&msg, "DAQmx error while ");
-    ss8_cat_cstr(&msg, when);
-    ss8_cat_cstr(&msg, "; extended error info follows");
-    OScDev_Log_Error(device, ss8_cstr(&msg));
-
-    ss8_set_len(&msg, 1024);
-    DAQmxGetExtendedErrorInfo(ss8_mutable_cstr(&msg), (uInt32)ss8_len(&msg));
-    ss8_set_len_to_cstrlen(&msg);
-    OScDev_Log_Error(device, ss8_cstr(&msg));
-    ss8_destroy(&msg);
-}
-
 static char *ErrorCodeDomain() {
     static char *domainName = NULL;
     if (domainName == NULL) {
