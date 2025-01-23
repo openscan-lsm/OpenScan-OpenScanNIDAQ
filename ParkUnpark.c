@@ -1,8 +1,12 @@
-#include "OScNIDAQDevicePrivate.h"
+#include "ParkUnpark.h"
+
+#include "OScNIDAQ.h"
+#include "OScNIDAQPrivateData.h"
 #include "Waveform.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
+
 #include <stdbool.h>
 #include <string.h>
 

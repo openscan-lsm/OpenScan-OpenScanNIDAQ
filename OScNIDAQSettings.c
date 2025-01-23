@@ -1,4 +1,7 @@
-#include "OScNIDAQDevicePrivate.h"
+#include "OScNIDAQSettings.h"
+
+#include "OScNIDAQ.h"
+#include "OScNIDAQPrivateData.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -11,13 +14,13 @@ GetSettingDeviceData(OScDev_Setting *setting) {
         (OScDev_Device *)OScDev_Setting_GetImplData(setting));
 }
 
-OScDev_Error GetNumericConstraintTypeImpl_DiscreteValues(
+static OScDev_Error GetNumericConstraintTypeImpl_DiscreteValues(
     OScDev_Setting *setting, OScDev_ValueConstraint *constraintType) {
     *constraintType = OScDev_ValueConstraint_DiscreteValues;
     return OScDev_OK;
 }
 
-OScDev_Error
+static OScDev_Error
 GetNumericConstraintTypeImpl_Range(OScDev_Setting *setting,
                                    OScDev_ValueConstraint *constraintType) {
     *constraintType = OScDev_ValueConstraint_Range;
@@ -48,7 +51,7 @@ static OScDev_Error GetLineDelayRange(OScDev_Setting *setting, int32_t *min,
     return OScDev_OK;
 }
 
-OScDev_SettingImpl SettingImpl_LineDelay = {
+static OScDev_SettingImpl SettingImpl_LineDelay = {
     .GetInt32 = GetLineDelay,
     .SetInt32 = SetLineDelay,
     .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
@@ -69,7 +72,7 @@ static OScDev_Error SetParkingPositionX(OScDev_Setting *setting,
     return OScDev_OK;
 }
 
-OScDev_SettingImpl SettingImpl_ParkingPositionX = {
+static OScDev_SettingImpl SettingImpl_ParkingPositionX = {
     .GetInt32 = GetParkingPositionX,
     .SetInt32 = SetParkingPositionX,
 };
@@ -88,7 +91,7 @@ static OScDev_Error SetParkingPositionY(OScDev_Setting *setting,
     return OScDev_OK;
 }
 
-OScDev_SettingImpl SettingImpl_ParkingPositionY = {
+static OScDev_SettingImpl SettingImpl_ParkingPositionY = {
     .GetInt32 = GetParkingPositionY,
     .SetInt32 = SetParkingPositionY,
 };

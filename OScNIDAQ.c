@@ -1,12 +1,20 @@
-
 #include "OScNIDAQ.h"
+
+#include "OScNIDAQPrivateData.h"
+#include "ParkUnpark.h"
 #include "Waveform.h"
 
-#include <Windows.h>
+#include <NIDAQmx.h>
+#include <OpenScanDeviceLib.h>
+#include <ss8str.h>
 
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <Windows.h>
+
+static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan);
 
 // Must be called immediately after failed DAQmx function
 void LogNiError(OScDev_Device *device, int32 nierr, const char *when) {
@@ -23,7 +31,7 @@ void LogNiError(OScDev_Device *device, int32 nierr, const char *when) {
     ss8_destroy(&msg);
 }
 
-char *ErrorCodeDomain() {
+static char *ErrorCodeDomain() {
     static char *domainName = NULL;
     if (domainName == NULL) {
         domainName = "NI DAQmx";
@@ -140,39 +148,6 @@ fail1:
     return err;
 }
 
-OScDev_Error GetVoltageRangeForDevice(OScDev_Device *device, double *minVolts,
-                                      double *maxVolts) {
-    struct OScNIDAQPrivateData *debug = GetData(device);
-#define MAX_RANGES 64
-    float64 ranges[2 * MAX_RANGES];
-    for (int i = 0; i < MAX_RANGES; ++i) {
-        ranges[2 * i] = 0.0;
-        ranges[2 * i + 1] = 0.0;
-    }
-
-    int32 nierr =
-        DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetData(device)->deviceName),
-                                 ranges, sizeof(ranges) / sizeof(float64));
-    if (nierr != 0) {
-        OScDev_Log_Error(device, "Error getting analog voltage ranges");
-    }
-
-    // Find the common min and max.
-    *minVolts = ranges[0];
-    *maxVolts = ranges[1];
-    for (int i = 0; i < MAX_RANGES; ++i) {
-        if (ranges[2 * i] == 0.0 && ranges[2 * i + 1] == 0.0)
-            break;
-
-        if (ranges[2 * i + 1] > *maxVolts) {
-            *minVolts = ranges[2 * i];
-            *maxVolts = ranges[2 * i + 1];
-        }
-    }
-
-    return OScDev_OK;
-}
-
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device) {
     ss8str *dest = &GetData(device)->aiPhysChans;
     ss8_set_len(dest, 1024);
@@ -224,7 +199,7 @@ int GetNumberOfAIPhysChans(OScDev_Device *device) {
 }
 
 // Return the index-th physical channel, or empty string if no such channel
-bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
+static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
     if (index < 0) {
         if (chan)
             ss8_clear(chan);

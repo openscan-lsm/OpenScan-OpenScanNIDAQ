@@ -6,7 +6,7 @@
 #include <string.h>
 
 // write results to binary file
-void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
+static void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
 
     struct WaveformParams params;
     params.width = resolution;
@@ -38,7 +38,7 @@ void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
     free(xyWaveform);
 }
 
-void DumpClockWaveform(uint32_t resolution, uint32_t lineDelay) {
+static void DumpClockWaveform(uint32_t resolution, uint32_t lineDelay) {
     struct WaveformParams WaveformParameters;
     WaveformParameters.width = resolution;
     WaveformParameters.height = resolution;

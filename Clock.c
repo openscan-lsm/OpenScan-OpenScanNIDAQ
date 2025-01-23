@@ -1,8 +1,15 @@
-#include "OScNIDAQDevicePrivate.h"
+#include "Clock.h"
+
+#include "OScNIDAQ.h"
+#include "OScNIDAQPrivateData.h"
 #include "Waveform.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
+#include <ss8str.h>
+
+#include <stdint.h>
+#include <stdlib.h>
 
 static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
                                           struct ClockConfig *config,

@@ -2,7 +2,9 @@
 /* that are not tied to specific DAQ devices or NIDAQmx functions */
 
 #include "OScNIDAQ.h"
-#include "OScNIDAQDevicePrivate.h"
+#include "OScNIDAQPrivateData.h"
+#include "OScNIDAQSettings.h"
+
 #include <NIDAQmx.h>
 
 #include <string.h>

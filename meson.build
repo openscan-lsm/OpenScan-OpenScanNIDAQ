@@ -3,6 +3,7 @@ project(
     'c',
     default_options: [
         'warning_level=2',
+        'werror=true',
     ],
 )
 

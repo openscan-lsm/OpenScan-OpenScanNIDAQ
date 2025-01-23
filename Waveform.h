@@ -1,6 +1,6 @@
 #pragma once
 
-#include "OpenScanDeviceLib.h"
+#include <OpenScanDeviceLib.h>
 
 #include <stdint.h>
 
@@ -20,14 +20,6 @@ const struct WaveformParams {
     double prevYParkVoltage;
 };
 
-void GenerateXGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
-                            int32_t undershootLen, double scanStart,
-                            double scanEnd, double *waveform);
-void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
-                            size_t xLength, double scanStart, double scanEnd,
-                            double *waveform);
-void SplineInterpolate(int32_t n, double yFirst, double yLast,
-                       double slopeFirst, double slopeLast, double *result);
 OScDev_RichError *GenerateLineClock(const struct WaveformParams *parameters,
                                     uint8_t *lineClock);
 OScDev_RichError *

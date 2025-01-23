@@ -7,11 +7,16 @@
 // zoomFactor * width_or_height
 static const uint32_t X_RETRACE_LEN = 128;
 
+static void SplineInterpolate(int32_t n, double yFirst, double yLast,
+                              double slopeFirst, double slopeLast,
+                              double *result);
+
 // Generate 1D (undershoot + trace + retrace).
 // The trace part spans voltage scanStart to scanEnd.
-void GenerateXGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
-                            int32_t undershootLen, double scanStart,
-                            double scanEnd, double *waveform) {
+static void GenerateXGalvoWaveform(int32_t effectiveScanLen,
+                                   int32_t retraceLen, int32_t undershootLen,
+                                   double scanStart, double scanEnd,
+                                   double *waveform) {
     double scanAmplitude = scanEnd - scanStart;
     double step = scanAmplitude / effectiveScanLen;
     int32_t linearLen = undershootLen + effectiveScanLen;
@@ -31,9 +36,9 @@ void GenerateXGalvoWaveform(int32_t effectiveScanLen, int32_t retraceLen,
 }
 
 // Generate Y waveform for one frame
-void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
-                            size_t xLength, double scanStart, double scanEnd,
-                            double *waveform) {
+static void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
+                                   size_t xLength, double scanStart,
+                                   double scanEnd, double *waveform) {
     double scanAmplitude = scanEnd - scanStart;
     double step = scanAmplitude / linesPerFrame;
 
@@ -58,8 +63,9 @@ void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
 
 // n = number of elements
 // slope in units of per element
-void SplineInterpolate(int32_t n, double yFirst, double yLast,
-                       double slopeFirst, double slopeLast, double *result) {
+static void SplineInterpolate(int32_t n, double yFirst, double yLast,
+                              double slopeFirst, double slopeLast,
+                              double *result) {
     double m = n;
     double mm = m * m;
     double mmm = m * m * m;

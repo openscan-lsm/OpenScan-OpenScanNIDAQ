@@ -1,9 +1,15 @@
-#include "OScNIDAQDevicePrivate.h"
+#include "Scanner.h"
+
+#include "OScNIDAQ.h"
+#include "OScNIDAQPrivateData.h"
 #include "Waveform.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
+#include <ss8str.h>
+
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,

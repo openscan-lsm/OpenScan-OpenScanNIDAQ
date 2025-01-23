@@ -1,10 +1,16 @@
-#include "OScNIDAQDevicePrivate.h"
+#include "Detector.h"
+
+#include "OScNIDAQ.h"
+#include "OScNIDAQPrivateData.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
+#include <ss8str.h>
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 static OScDev_RichError *CreateDetectorTask(OScDev_Device *device,
                                             struct DetectorConfig *config);
