@@ -14,10 +14,6 @@
 
 #include <Windows.h>
 
-// DAQ version; start all tasks
-// Arm acquisition task first. Then make sure the (digital) line clock output
-// is armed before the (analog) waveform output.
-// This will ensure both tasks will start at the same time.
 static OScDev_RichError *StartScan(OScDev_Device *device) {
     OScDev_RichError *err;
     if (!GetImplData(device)->scannerOnly) {
@@ -65,8 +61,6 @@ static OScDev_RichError *WaitScanToFinish(OScDev_Device *device,
     return OScDev_RichError_OK;
 }
 
-// stop running tasks
-// need to stop detector first, then clock and scanner
 static OScDev_RichError *StopScan(OScDev_Device *device,
                                   OScDev_Acquisition *acq) {
     OScDev_RichError *err, *lastErr = OScDev_RichError_OK;

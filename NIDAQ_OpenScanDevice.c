@@ -116,7 +116,6 @@ static OScDev_Error NIDAQIsROIScanSupported(OScDev_Device *device,
     return OScDev_OK;
 }
 
-// Same as OpenScanDAQ::GetNumberOfChannels()
 static OScDev_Error NIDAQGetNumberOfChannels(OScDev_Device *device,
                                              uint32_t *nChannels) {
     *nChannels = GetNumberOfEnabledChannels(device);
@@ -188,7 +187,9 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq) {
         goto error;
 
     EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
-    { GetImplData(device)->acquisition.armed = true; }
+    {
+        GetImplData(device)->acquisition.armed = true;
+    }
     LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
 
     return OScDev_OK;
