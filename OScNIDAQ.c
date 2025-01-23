@@ -1,6 +1,6 @@
 #include "OScNIDAQ.h"
 
-#include "OScNIDAQPrivateData.h"
+#include "NIDAQ_DeviceImplData.h"
 #include "ParkUnpark.h"
 #include "Waveform.h"
 

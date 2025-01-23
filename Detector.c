@@ -1,7 +1,7 @@
 #include "Detector.h"
 
+#include "NIDAQ_DeviceImplData.h"
 #include "OScNIDAQ.h"
-#include "OScNIDAQPrivateData.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>

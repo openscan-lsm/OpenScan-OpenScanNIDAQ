@@ -2,8 +2,8 @@
 
 #include "Clock.h"
 #include "Detector.h"
+#include "NIDAQ_DeviceImplData.h"
 #include "OScNIDAQ.h"
-#include "OScNIDAQPrivateData.h"
 #include "ParkUnpark.h"
 #include "Scanner.h"
 #include "Waveform.h"
