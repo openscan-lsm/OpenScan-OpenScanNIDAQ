@@ -18,8 +18,4 @@ void GetEnabledChannels(OScDev_Device *device, ss8str *chans);
 int GetNumberOfEnabledChannels(OScDev_Device *device);
 int GetNumberOfAIPhysChans(OScDev_Device *device);
 
-OScDev_RichError *RunAcquisitionLoop(OScDev_Device *device);
-OScDev_RichError *StopAcquisitionAndWait(OScDev_Device *device);
-OScDev_RichError *IsAcquisitionRunning(OScDev_Device *device, bool *isRunning);
-OScDev_RichError *WaitForAcquisitionToFinish(OScDev_Device *device);
 OScDev_RichError *ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq);

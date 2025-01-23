@@ -58,6 +58,7 @@ ssstr_dep = dependency(
 )
 
 src = files(
+    'Acquisition.c',
     'Clock.c',
     'Detector.c',
     'NIDAQ_OpenScanDevice.c',
