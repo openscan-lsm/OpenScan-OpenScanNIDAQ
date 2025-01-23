@@ -60,8 +60,9 @@ ssstr_dep = dependency(
 src = files(
     'Clock.c',
     'Detector.c',
+    'NIDAQ_OpenScanDevice.c',
+    'NIDAQ_OpenScanModule.c',
     'OScNIDAQ.c',
-    'OScNIDAQDevice.c',
     'OScNIDAQSettings.c',
     'ParkUnpark.c',
     'Scanner.c',

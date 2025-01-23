@@ -1,18 +1,16 @@
-/* Generic operation on NI DAQ properties */
-/* that are not tied to specific DAQ devices or NIDAQmx functions */
+#include "NIDAQ_OpenScanDevice.h"
 
 #include "OScNIDAQ.h"
 #include "OScNIDAQPrivateData.h"
 #include "OScNIDAQSettings.h"
 
 #include <NIDAQmx.h>
+#include <OpenScanDeviceLib.h>
+#include <ss8str.h>
 
 #include <string.h>
 
 #include <Windows.h>
-
-// Forward declaration
-static OScDev_DeviceImpl DeviceImpl;
 
 static OScDev_Error NIDAQGetModelName(const char **name) {
     *name = "OpenScan-NIDAQ";
@@ -20,7 +18,7 @@ static OScDev_Error NIDAQGetModelName(const char **name) {
 }
 
 static OScDev_Error NIDAQEnumerateInstances(OScDev_PtrArray **devices) {
-    OScDev_RichError *err = EnumerateInstances(devices, &DeviceImpl);
+    OScDev_RichError *err = EnumerateInstances(devices, &NIDAQDeviceImpl);
     return OScDev_Error_ReturnAsCode(err);
 }
 
@@ -227,7 +225,7 @@ static OScDev_Error NIDAQWait(OScDev_Device *device) {
     return OScDev_Error_ReturnAsCode(WaitForAcquisitionToFinish(device));
 }
 
-static OScDev_DeviceImpl DeviceImpl = {
+OScDev_DeviceImpl NIDAQDeviceImpl = {
     .GetModelName = NIDAQGetModelName,
     .EnumerateInstances = NIDAQEnumerateInstances,
     .ReleaseInstance = NIDAQReleaseInstance,
@@ -249,16 +247,4 @@ static OScDev_DeviceImpl DeviceImpl = {
     .Stop = NIDAQStop,
     .IsRunning = NIDAQIsRunning,
     .Wait = NIDAQWait,
-};
-
-static OScDev_Error GetDeviceImpls(OScDev_PtrArray **impls) {
-    *impls = OScDev_PtrArray_Create();
-    OScDev_PtrArray_Append(*impls, &DeviceImpl);
-    return OScDev_OK;
-}
-
-OScDev_MODULE_IMPL = {
-    .displayName = "OpenScan NI-DAQ",
-    .GetDeviceImpls = GetDeviceImpls,
-    .supportsRichErrors = true,
 };
