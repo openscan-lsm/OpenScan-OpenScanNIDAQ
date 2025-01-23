@@ -180,7 +180,7 @@ static void ReleaseEnableChannel(OScDev_Setting *setting) {
 static OScDev_Error GetEnableChannel(OScDev_Setting *setting, bool *value) {
     struct EnableChannelData *settingData =
         OScDev_Setting_GetImplData(setting);
-    struct DeviceImplData *devData = GetData(settingData->device);
+    struct DeviceImplData *devData = GetImplData(settingData->device);
     *value = devData->channelEnabled[settingData->hwChannel];
     return OScDev_OK;
 }
@@ -188,7 +188,7 @@ static OScDev_Error GetEnableChannel(OScDev_Setting *setting, bool *value) {
 static OScDev_Error SetEnableChannel(OScDev_Setting *setting, bool value) {
     struct EnableChannelData *settingData =
         OScDev_Setting_GetImplData(setting);
-    struct DeviceImplData *devData = GetData(settingData->device);
+    struct DeviceImplData *devData = GetImplData(settingData->device);
     devData->channelEnabled[settingData->hwChannel] = value;
 
     // Force recreation of detector task next time
@@ -225,17 +225,17 @@ struct OffsetSettingData {
 static OScDev_Error GetOffset(OScDev_Setting *setting, double *value) {
     struct OffsetSettingData *data =
         (struct OffsetSettingData *)OScDev_Setting_GetImplData(setting);
-    *value = GetData(data->device)->offsetXY[data->axis];
+    *value = GetImplData(data->device)->offsetXY[data->axis];
     return OScDev_OK;
 }
 
 static OScDev_Error SetOffset(OScDev_Setting *setting, double value) {
     struct OffsetSettingData *data =
         (struct OffsetSettingData *)OScDev_Setting_GetImplData(setting);
-    GetData(data->device)->offsetXY[data->axis] = value;
+    GetImplData(data->device)->offsetXY[data->axis] = value;
 
-    GetData(data->device)->clockConfig.mustRewriteOutput = true;
-    GetData(data->device)->scannerConfig.mustRewriteOutput = true;
+    GetImplData(data->device)->clockConfig.mustRewriteOutput = true;
+    GetImplData(data->device)->scannerConfig.mustRewriteOutput = true;
 
     return OScDev_OK;
 }

@@ -24,26 +24,27 @@ static OScDev_Error NIDAQEnumerateInstances(OScDev_PtrArray **devices) {
 }
 
 static OScDev_Error NIDAQReleaseInstance(OScDev_Device *device) {
-    ss8_destroy(&GetData(device)->deviceName);
-    ss8_destroy(&GetData(device)->aiPhysChans);
-    free(GetData(device));
+    ss8_destroy(&GetImplData(device)->deviceName);
+    ss8_destroy(&GetImplData(device)->aiPhysChans);
+    free(GetImplData(device));
     return OScDev_OK;
 }
 
 static OScDev_Error NIDAQGetName(OScDev_Device *device, char *name) {
-    ss8_copy_to_cstr(&GetData(device)->deviceName, name, OScDev_MAX_STR_SIZE);
+    ss8_copy_to_cstr(&GetImplData(device)->deviceName, name,
+                     OScDev_MAX_STR_SIZE);
     return OScDev_OK;
 }
 
 static OScDev_Error NIDAQOpen(OScDev_Device *device) {
     int32 nierr = DAQmxResetDevice(
-        ss8_cstr(&GetData(device)->deviceName)); // TODO wrong function
+        ss8_cstr(&GetImplData(device)->deviceName)); // TODO wrong function
     if (nierr) {
         OScDev_RichError *err = CreateDAQmxError(nierr);
 
         ss8str msg;
         ss8_init_copy_cstr(&msg, "Cannot reset NI DAQ card ");
-        ss8_cat(&msg, &GetData(device)->deviceName);
+        ss8_cat(&msg, &GetImplData(device)->deviceName);
         OScDev_RichError *rerr = OScDev_Error_Wrap(err, ss8_cstr(&msg));
         ss8_destroy(&msg);
         return OScDev_Error_ReturnAsCode(rerr);
@@ -156,29 +157,29 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq) {
 
     if (useDetector) {
         // arm scanner, detector, and clock
-        GetData(device)->scannerOnly = false;
+        GetImplData(device)->scannerOnly = false;
     } else {
         // arm scanner and clock
-        GetData(device)->scannerOnly = true;
+        GetImplData(device)->scannerOnly = true;
     }
 
     OScDev_RichError *err;
-    CRITICAL_SECTION *mutex = &GetData(device)->acquisition.mutex;
+    CRITICAL_SECTION *mutex = &GetImplData(device)->acquisition.mutex;
     EnterCriticalSection(mutex);
     {
-        if (GetData(device)->acquisition.running) {
+        if (GetImplData(device)->acquisition.running) {
             // TODO Error should be "already armed"
             LeaveCriticalSection(mutex);
             return OScDev_Error_ReturnAsCode(
                 OScDev_Error_Create("Device already armed"));
         }
 
-        GetData(device)->acquisition.acquisition = acq;
+        GetImplData(device)->acquisition.acquisition = acq;
 
-        GetData(device)->acquisition.stopRequested = false;
-        GetData(device)->acquisition.running = true;
-        GetData(device)->acquisition.armed = false;
-        GetData(device)->acquisition.started = false;
+        GetImplData(device)->acquisition.stopRequested = false;
+        GetImplData(device)->acquisition.running = true;
+        GetImplData(device)->acquisition.armed = false;
+        GetImplData(device)->acquisition.started = false;
     }
     LeaveCriticalSection(mutex);
 
@@ -186,38 +187,38 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq) {
     if (err)
         goto error;
 
-    EnterCriticalSection(&(GetData(device)->acquisition.mutex));
-    { GetData(device)->acquisition.armed = true; }
-    LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+    EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
+    { GetImplData(device)->acquisition.armed = true; }
+    LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
 
     return OScDev_OK;
 
 error:
     EnterCriticalSection(mutex);
     {
-        GetData(device)->acquisition.running = false;
-        GetData(device)->acquisition.acquisition = NULL;
+        GetImplData(device)->acquisition.running = false;
+        GetImplData(device)->acquisition.acquisition = NULL;
     }
     LeaveCriticalSection(mutex);
     return OScDev_Error_ReturnAsCode(err);
 }
 
 static OScDev_Error NIDAQStart(OScDev_Device *device) {
-    EnterCriticalSection(&(GetData(device)->acquisition.mutex));
+    EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
     {
-        if (!GetData(device)->acquisition.running ||
-            !GetData(device)->acquisition.armed) {
-            LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+        if (!GetImplData(device)->acquisition.running ||
+            !GetImplData(device)->acquisition.armed) {
+            LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
             return OScDev_Error_Not_Armed;
         }
-        if (GetData(device)->acquisition.started) {
-            LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+        if (GetImplData(device)->acquisition.started) {
+            LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
             return OScDev_Error_Acquisition_Running;
         }
 
-        GetData(device)->acquisition.started = true;
+        GetImplData(device)->acquisition.started = true;
     }
-    LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+    LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
 
     return OScDev_Error_ReturnAsCode(RunAcquisitionLoop(device));
 }

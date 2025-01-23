@@ -21,7 +21,7 @@ GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *maxVolts) {
     // TODO How does this relate to the setting "Input Voltage Range"?
     // BUG: This should be AIVoltageRngs, but keeping existing behavior for now
     err = CreateDAQmxError(
-        DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetData(device)->deviceName),
+        DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetImplData(device)->deviceName),
                                  ranges, sizeof(ranges) / sizeof(float64)));
     if (err) {
         OScDev_Log_Error(device, OScDev_Error_GetMessage(err));
@@ -59,15 +59,15 @@ static int32 HandleRawData(OScDev_Device *device) {
     // shift any remaining samples to the front of rawDataBuffer so that they
     // can be handled when more data is available.
 
-    size_t availableSamples = GetData(device)->rawDataSize;
+    size_t availableSamples = GetImplData(device)->rawDataSize;
     uint32_t numChannels = GetNumberOfEnabledChannels(device);
     size_t leftoverSamples = availableSamples % numChannels;
     size_t samplesToProcess = availableSamples - leftoverSamples;
     size_t pixelsToProducePerChan = samplesToProcess / numChannels;
 
-    double inputVoltageRange = GetData(device)->inputVoltageRange;
+    double inputVoltageRange = GetImplData(device)->inputVoltageRange;
 
-    float64 *rawDataBuffer = GetData(device)->rawDataBuffer;
+    float64 *rawDataBuffer = GetImplData(device)->rawDataBuffer;
 
     // Given 2 channels and 2 samples per pixel per channel, rawDataBuffer
     // contains data in the following order:
@@ -77,7 +77,7 @@ static int32 HandleRawData(OScDev_Device *device) {
     // Process raw data and fill in frame buffers
     for (size_t p = 0; p < pixelsToProducePerChan; ++p) {
         size_t rawPixelStart = p * numChannels;
-        size_t pixelIndex = GetData(device)->framePixelsFilled++;
+        size_t pixelIndex = GetImplData(device)->framePixelsFilled++;
 
         for (size_t ch = 0; ch < numChannels; ++ch) {
             size_t rawChannelStart = rawPixelStart + ch;
@@ -98,7 +98,7 @@ static int32 HandleRawData(OScDev_Device *device) {
             }
             uint16_t pixel = (uint16_t)dpixel;
 
-            GetData(device)->frameBuffers[ch][pixelIndex] = pixel;
+            GetImplData(device)->frameBuffers[ch][pixelIndex] = pixel;
         }
     }
 
@@ -106,27 +106,27 @@ static int32 HandleRawData(OScDev_Device *device) {
     // consumption
     memmove(rawDataBuffer, rawDataBuffer + samplesToProcess,
             sizeof(float64) * leftoverSamples);
-    GetData(device)->rawDataSize = leftoverSamples;
+    GetImplData(device)->rawDataSize = leftoverSamples;
 
     // TODO Cleaner to get raster size from the OScDev_Acquisition (a future
     // OpenScanLib should allow getting the current device from the
     // acquisition, so that we can pass the acquisition as callback data)
-    uint32_t pixelsPerLine = GetData(device)->configuredRasterWidth;
-    uint32_t linesPerFrame = GetData(device)->configuredRasterHeight;
+    uint32_t pixelsPerLine = GetImplData(device)->configuredRasterWidth;
+    uint32_t linesPerFrame = GetImplData(device)->configuredRasterHeight;
 
     size_t pixelsPerFrame = pixelsPerLine * linesPerFrame;
     char msg[OScDev_MAX_STR_LEN + 1];
     snprintf(msg, OScDev_MAX_STR_LEN, "Read %zd pixels",
-             GetData(device)->framePixelsFilled);
+             GetImplData(device)->framePixelsFilled);
     OScDev_Log_Debug(device, msg);
 
-    if (GetData(device)->framePixelsFilled == pixelsPerFrame) {
+    if (GetImplData(device)->framePixelsFilled == pixelsPerFrame) {
         // TODO This method of communication is unreliable without a mutex
         // TODO But we should use a condition variable in any case
-        GetData(device)->oneFrameScanDone = true;
+        GetImplData(device)->oneFrameScanDone = true;
 
         // TODO This reset should occur at start of frame
-        GetData(device)->framePixelsFilled = 0;
+        GetImplData(device)->framePixelsFilled = 0;
     }
 
     return OScDev_OK;
@@ -138,7 +138,7 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
     OScDev_Error errCode;
     OScDev_Device *device = (OScDev_Device *)(callbackData);
 
-    if (taskHandle != GetData(device)->detectorConfig.aiTask)
+    if (taskHandle != GetImplData(device)->detectorConfig.aiTask)
         return OScDev_OK;
     if (everyNsamplesEventType != DAQmx_Val_Acquired_Into_Buffer)
         return OScDev_OK;
@@ -160,9 +160,9 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
     int32 samplesPerChanRead;
     errCode = DAQmxReadAnalogF64(
         taskHandle, DAQmx_Val_Auto, 0.0, DAQmx_Val_GroupByScanNumber,
-        GetData(device)->rawDataBuffer + GetData(device)->rawDataSize,
-        (uInt32)(GetData(device)->rawDataCapacity -
-                 GetData(device)->rawDataSize),
+        GetImplData(device)->rawDataBuffer + GetImplData(device)->rawDataSize,
+        (uInt32)(GetImplData(device)->rawDataCapacity -
+                 GetImplData(device)->rawDataSize),
         &samplesPerChanRead, NULL);
     if (errCode == DAQmxErrorTimeoutExceeded) {
         OScDev_Log_Error(device, "Error: DAQ read data timeout");
@@ -180,7 +180,7 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
         return OScDev_OK;
     }
 
-    GetData(device)->rawDataSize += samplesPerChanRead * numChannels;
+    GetImplData(device)->rawDataSize += samplesPerChanRead * numChannels;
 
     errCode = HandleRawData(device);
     if (errCode)
@@ -189,8 +189,8 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
     return OScDev_OK;
 
 error:
-    if (GetData(device)->detectorConfig.aiTask)
-        ShutdownDetector(&GetData(device)->detectorConfig);
+    if (GetImplData(device)->detectorConfig.aiTask)
+        ShutdownDetector(&GetImplData(device)->detectorConfig);
     return errCode;
 }
 
@@ -264,7 +264,7 @@ ConfigureDetectorTrigger(OScDev_Device *device,
 
     ss8str trigSrc;
     ss8_init_copy_ch(&trigSrc, '/');
-    ss8_cat(&trigSrc, &GetData(device)->deviceName);
+    ss8_cat(&trigSrc, &GetImplData(device)->deviceName);
     ss8_cat_cstr(&trigSrc, "/PFI12");
     err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(
         config->aiTask, ss8_cstr(&trigSrc), DAQmx_Val_Rising));
@@ -319,7 +319,7 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
     uint32_t pixelsPerFrame = pixelsPerLine * height;
     uint32_t samplesPerChanPerLine = pixelsPerLine;
     uint32_t numChannels = GetNumberOfEnabledChannels(device);
-    size_t bufferSize = GetData(device)->numLinesToBuffer *
+    size_t bufferSize = GetImplData(device)->numLinesToBuffer *
                         samplesPerChanPerLine * numChannels;
 
     char msg[1024];
@@ -337,22 +337,22 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
 
     // Allocate buffer into which we read data. Set it to be large enough
     // to read all available data from the input buffer in one go.
-    GetData(device)->rawDataCapacity = bufferSize;
-    GetData(device)->rawDataSize = 0;
-    GetData(device)->rawDataBuffer =
-        realloc(GetData(device)->rawDataBuffer,
-                sizeof(float64) * GetData(device)->rawDataCapacity);
+    GetImplData(device)->rawDataCapacity = bufferSize;
+    GetImplData(device)->rawDataSize = 0;
+    GetImplData(device)->rawDataBuffer =
+        realloc(GetImplData(device)->rawDataBuffer,
+                sizeof(float64) * GetImplData(device)->rawDataCapacity);
 
     // Allocate frame buffers for the enabled channels
     for (uint32_t ch = 0; ch < numChannels; ++ch) {
-        GetData(device)->frameBuffers[ch] =
-            realloc(GetData(device)->frameBuffers[ch],
+        GetImplData(device)->frameBuffers[ch] =
+            realloc(GetImplData(device)->frameBuffers[ch],
                     sizeof(uint16_t) * pixelsPerFrame);
     }
     // Free the frame buffers for unused channels
     for (uint32_t ch = numChannels; ch < MAX_PHYSICAL_CHANS; ++ch) {
-        free(GetData(device)->frameBuffers[ch]);
-        GetData(device)->frameBuffers[ch] = NULL;
+        free(GetImplData(device)->frameBuffers[ch]);
+        GetImplData(device)->frameBuffers[ch] = NULL;
     }
 
     // Set DAQmxRead*() with DAQmx_Val_Auto to immediately return all

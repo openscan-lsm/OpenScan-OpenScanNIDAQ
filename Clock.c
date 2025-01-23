@@ -27,7 +27,7 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
     // This needs to be port0 to support buffered output
 
     ss8str doTerms;
-    ss8_init_copy(&doTerms, &GetData(device)->deviceName);
+    ss8_init_copy(&doTerms, &GetImplData(device)->deviceName);
     ss8_cat_cstr(&doTerms, "/port0/line5:7");
     err = CreateDAQmxError(DAQmxCreateDOChan(
         config->doTask, ss8_cstr(&doTerms), "ClockDO", DAQmx_Val_ChanPerLine));
@@ -37,8 +37,8 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
         return err;
     }
 
-    err = CreateDAQmxError(
-        DAQmxGetReadNumChans(config->doTask, &GetData(device)->numDOChannels));
+    err = CreateDAQmxError(DAQmxGetReadNumChans(
+        config->doTask, &GetImplData(device)->numDOChannels));
     if (err) {
         err = OScDev_Error_Wrap(
             err, "Failed to get number of channels from clock do task");
@@ -59,10 +59,10 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
     uint32_t elementsPerLine = GetLineWaveformSize(&params);
     double effectiveScanPortion = (double)width / elementsPerLine;
     double lineFreqHz = pixelRateHz / elementsPerLine;
-    double scanPhase = 1.0 / pixelRateHz * GetData(device)->lineDelay;
+    double scanPhase = 1.0 / pixelRateHz * GetImplData(device)->lineDelay;
 
     ss8str ctrTerms;
-    ss8_init_copy(&ctrTerms, &GetData(device)->deviceName);
+    ss8_init_copy(&ctrTerms, &GetImplData(device)->deviceName);
     ss8_cat_cstr(&ctrTerms, "/ctr0");
     err = CreateDAQmxError(DAQmxCreateCOPulseChanFreq(
         config->lineCtrTask, ss8_cstr(&ctrTerms), "ClockLineCTR", DAQmx_Val_Hz,
@@ -102,7 +102,7 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device,
 
     double effectiveScanPortion = (double)width / elementsPerLine;
     double lineFreqHz = pixelRateHz / elementsPerLine;
-    double scanPhase = 1.0 / pixelRateHz * GetData(device)->lineDelay;
+    double scanPhase = 1.0 / pixelRateHz * GetImplData(device)->lineDelay;
 
     err = CreateDAQmxError(DAQmxSetChanAttribute(
         config->lineCtrTask, "", DAQmx_CO_Pulse_Freq, lineFreqHz));
@@ -144,7 +144,7 @@ static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device,
 
     ss8str trigSrc;
     ss8_init_copy_ch(&trigSrc, '/');
-    ss8_cat(&trigSrc, &GetData(device)->deviceName);
+    ss8_cat(&trigSrc, &GetImplData(device)->deviceName);
     ss8_cat_cstr(&trigSrc, "/ao/StartTrigger");
     err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(
         config->doTask, ss8_cstr(&trigSrc), DAQmx_Val_Rising));
@@ -195,8 +195,8 @@ static OScDev_RichError *WriteClockOutput(OScDev_Device *device,
     // digital frame clock pattern for FLIM
     uInt8 *frameClockFLIM = (uInt8 *)malloc(elementsPerFramePerChan);
     // combination of lineClock, lineClockFLIM, and frameClock
-    uInt8 *lineClockPatterns = (uInt8 *)malloc(elementsPerFramePerChan *
-                                               GetData(device)->numDOChannels);
+    uInt8 *lineClockPatterns = (uInt8 *)malloc(
+        elementsPerFramePerChan * GetImplData(device)->numDOChannels);
 
     // TODO: why use elementsPerLine instead of elementsPerFramePerChan?
     err = GenerateLineClock(&params, lineClockPattern);

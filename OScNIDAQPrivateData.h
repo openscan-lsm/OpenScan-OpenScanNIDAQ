@@ -77,6 +77,6 @@ struct DeviceImplData {
     } acquisition;
 };
 
-static inline struct DeviceImplData *GetData(OScDev_Device *device) {
+static inline struct DeviceImplData *GetImplData(OScDev_Device *device) {
     return (struct DeviceImplData *)OScDev_Device_GetImplData(device);
 }

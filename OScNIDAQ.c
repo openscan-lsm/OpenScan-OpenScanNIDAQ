@@ -23,7 +23,7 @@ static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
     }
 
     ss8str chans;
-    ss8_init_copy(&chans, &GetData(device)->aiPhysChans);
+    ss8_init_copy(&chans, &GetImplData(device)->aiPhysChans);
 
     size_t p = 0;
     bool notFound = false;
@@ -99,13 +99,13 @@ void SetWaveformParamsFromDevice(OScDev_Device *device,
     parameters->zoom = OScDev_Acquisition_GetZoomFactor(acq);
     OScDev_Acquisition_GetROI(acq, &parameters->xOffset, &parameters->yOffset,
                               &parameters->width, &parameters->height);
-    parameters->undershoot = GetData(device)->lineDelay;
-    parameters->galvoOffsetX = GetData(device)->offsetXY[0];
-    parameters->galvoOffsetY = GetData(device)->offsetXY[1];
-    parameters->xPark = GetData(device)->xPark;
-    parameters->yPark = GetData(device)->yPark;
-    parameters->prevXParkVoltage = GetData(device)->prevXParkVoltage;
-    parameters->prevYParkVoltage = GetData(device)->prevYParkVoltage;
+    parameters->undershoot = GetImplData(device)->lineDelay;
+    parameters->galvoOffsetX = GetImplData(device)->offsetXY[0];
+    parameters->galvoOffsetY = GetImplData(device)->offsetXY[1];
+    parameters->xPark = GetImplData(device)->xPark;
+    parameters->yPark = GetImplData(device)->yPark;
+    parameters->prevXParkVoltage = GetImplData(device)->prevXParkVoltage;
+    parameters->prevYParkVoltage = GetImplData(device)->prevYParkVoltage;
 }
 
 OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
@@ -167,11 +167,11 @@ fail1:
 }
 
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device) {
-    ss8str *dest = &GetData(device)->aiPhysChans;
+    ss8str *dest = &GetImplData(device)->aiPhysChans;
     ss8_set_len(dest, 1024);
     ss8_set_front(dest, '\0');
     int32 nierr = DAQmxGetDevAIPhysicalChans(
-        ss8_cstr(&GetData(device)->deviceName), ss8_mutable_cstr(dest),
+        ss8_cstr(&GetImplData(device)->deviceName), ss8_mutable_cstr(dest),
         (uInt32)ss8_len(dest));
     ss8_set_len_to_cstrlen(dest);
     ss8_shrink_to_fit(dest);
@@ -185,7 +185,7 @@ OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device) {
 int GetNumberOfEnabledChannels(OScDev_Device *device) {
     int ret = 0;
     for (int i = 0; i < MAX_PHYSICAL_CHANS; ++i) {
-        if (GetData(device)->channelEnabled[i]) {
+        if (GetImplData(device)->channelEnabled[i]) {
             ++ret;
         }
     }
@@ -197,7 +197,7 @@ void GetEnabledChannels(OScDev_Device *device, ss8str *chans) {
     ss8_init(&chan);
 
     for (int i = 0; i < MAX_PHYSICAL_CHANS; ++i) {
-        if (GetData(device)->channelEnabled[i]) {
+        if (GetImplData(device)->channelEnabled[i]) {
             GetAIPhysChan(device, i, &chan);
             if (!ss8_is_empty(chans))
                 ss8_cat_cstr(chans, ", ");
@@ -222,31 +222,31 @@ OScDev_RichError *ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq) {
     double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
     uint32_t xOffset, yOffset, width, height;
     OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
-    if (pixelRateHz != GetData(device)->configuredPixelRateHz) {
-        GetData(device)->clockConfig.mustReconfigureTiming = true;
-        GetData(device)->scannerConfig.mustReconfigureTiming = true;
-        GetData(device)->detectorConfig.mustReconfigureTiming = true;
+    if (pixelRateHz != GetImplData(device)->configuredPixelRateHz) {
+        GetImplData(device)->clockConfig.mustReconfigureTiming = true;
+        GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
+        GetImplData(device)->detectorConfig.mustReconfigureTiming = true;
     }
-    if (resolution != GetData(device)->configuredResolution) {
-        GetData(device)->scannerConfig.mustReconfigureTiming = true;
-        GetData(device)->scannerConfig.mustRewriteOutput = true;
+    if (resolution != GetImplData(device)->configuredResolution) {
+        GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
     }
-    if (zoomFactor != GetData(device)->configuredZoomFactor) {
-        GetData(device)->clockConfig.mustRewriteOutput = true;
-        GetData(device)->scannerConfig.mustRewriteOutput = true;
+    if (zoomFactor != GetImplData(device)->configuredZoomFactor) {
+        GetImplData(device)->clockConfig.mustRewriteOutput = true;
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
     }
-    if (xOffset != GetData(device)->configuredXOffset ||
-        yOffset != GetData(device)->configuredYOffset) {
-        GetData(device)->scannerConfig.mustRewriteOutput = true;
+    if (xOffset != GetImplData(device)->configuredXOffset ||
+        yOffset != GetImplData(device)->configuredYOffset) {
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
     }
-    if (width != GetData(device)->configuredRasterWidth ||
-        height != GetData(device)->configuredRasterHeight) {
-        GetData(device)->clockConfig.mustReconfigureTiming = true;
-        GetData(device)->scannerConfig.mustReconfigureTiming = true;
-        GetData(device)->detectorConfig.mustReconfigureTiming = true;
-        GetData(device)->clockConfig.mustRewriteOutput = true;
-        GetData(device)->scannerConfig.mustRewriteOutput = true;
-        GetData(device)->detectorConfig.mustReconfigureCallback = true;
+    if (width != GetImplData(device)->configuredRasterWidth ||
+        height != GetImplData(device)->configuredRasterHeight) {
+        GetImplData(device)->clockConfig.mustReconfigureTiming = true;
+        GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
+        GetImplData(device)->detectorConfig.mustReconfigureTiming = true;
+        GetImplData(device)->clockConfig.mustRewriteOutput = true;
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
+        GetImplData(device)->detectorConfig.mustReconfigureCallback = true;
     }
 
     // Note that additional setting of 'mustReconfigure' flags occurs in
@@ -254,11 +254,11 @@ OScDev_RichError *ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq) {
 
     OScDev_RichError *err;
 
-    err = SetUpClock(device, &GetData(device)->clockConfig, acq);
+    err = SetUpClock(device, &GetImplData(device)->clockConfig, acq);
     if (err)
         return err;
-    if (!GetData(device)->scannerOnly) {
-        err = SetUpDetector(device, &GetData(device)->detectorConfig, acq);
+    if (!GetImplData(device)->scannerOnly) {
+        err = SetUpDetector(device, &GetImplData(device)->detectorConfig, acq);
         if (err)
             return err;
     }
@@ -267,13 +267,13 @@ OScDev_RichError *ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq) {
     resolution = OScDev_Acquisition_GetResolution(acq);
     zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
     OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
-    GetData(device)->configuredPixelRateHz = pixelRateHz;
-    GetData(device)->configuredResolution = resolution;
-    GetData(device)->configuredZoomFactor = zoomFactor;
-    GetData(device)->configuredXOffset = xOffset;
-    GetData(device)->configuredYOffset = yOffset;
-    GetData(device)->configuredRasterWidth = width;
-    GetData(device)->configuredRasterHeight = height;
+    GetImplData(device)->configuredPixelRateHz = pixelRateHz;
+    GetImplData(device)->configuredResolution = resolution;
+    GetImplData(device)->configuredZoomFactor = zoomFactor;
+    GetImplData(device)->configuredXOffset = xOffset;
+    GetImplData(device)->configuredYOffset = yOffset;
+    GetImplData(device)->configuredRasterWidth = width;
+    GetImplData(device)->configuredRasterHeight = height;
 
     return OScDev_RichError_OK;
 }

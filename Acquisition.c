@@ -20,18 +20,18 @@
 // This will ensure both tasks will start at the same time.
 static OScDev_RichError *StartScan(OScDev_Device *device) {
     OScDev_RichError *err;
-    if (!GetData(device)->scannerOnly) {
-        err = StartDetector(&GetData(device)->detectorConfig);
+    if (!GetImplData(device)->scannerOnly) {
+        err = StartDetector(&GetImplData(device)->detectorConfig);
         if (err)
             return err;
     } else
         OScDev_Log_Debug(device, "DAQ not used as detector");
 
-    err = StartClock(&GetData(device)->clockConfig);
+    err = StartClock(&GetImplData(device)->clockConfig);
     if (err)
         return err;
 
-    err = StartScanner(&GetData(device)->scannerConfig);
+    err = StartScanner(&GetImplData(device)->scannerConfig);
     if (err)
         return err;
 
@@ -55,7 +55,7 @@ static OScDev_RichError *WaitScanToFinish(OScDev_Device *device,
         GetScannerWaveformSizeAfterLastPixel(&parameters) / pixelRateHz;
     double estFrameTime = GetScannerWaveformSize(&parameters) / pixelRateHz;
     double secondsToWait =
-        GetData(device)->scannerOnly ? estFrameTime : yRetraceTime;
+        GetImplData(device)->scannerOnly ? estFrameTime : yRetraceTime;
     char msg[OScDev_MAX_STR_LEN + 1];
     snprintf(msg, OScDev_MAX_STR_LEN, "Wait %f s for scan to finish...",
              secondsToWait);
@@ -74,8 +74,8 @@ static OScDev_RichError *StopScan(OScDev_Device *device,
     // Stopping a task may return an error if it failed, so make sure to stop
     // all tasks even if we get errors.
 
-    if (!GetData(device)->scannerOnly) {
-        err = StopDetector(&GetData(device)->detectorConfig);
+    if (!GetImplData(device)->scannerOnly) {
+        err = StopDetector(&GetImplData(device)->detectorConfig);
         if (err)
             lastErr = err;
     }
@@ -91,11 +91,11 @@ static OScDev_RichError *StopScan(OScDev_Device *device,
     if (err)
         return err;
 
-    err = StopClock(&GetData(device)->clockConfig);
+    err = StopClock(&GetImplData(device)->clockConfig);
     if (err)
         lastErr = err;
 
-    err = StopScanner(&GetData(device)->scannerConfig);
+    err = StopScanner(&GetImplData(device)->scannerConfig);
     if (err)
         lastErr = err;
 
@@ -107,8 +107,8 @@ static OScDev_RichError *ReadImage(OScDev_Device *device,
     double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
-    GetData(device)->oneFrameScanDone = false;
-    GetData(device)->framePixelsFilled = 0;
+    GetImplData(device)->oneFrameScanDone = false;
+    GetImplData(device)->framePixelsFilled = 0;
 
     uint32_t totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
     uint32_t estFrameTimeMs =
@@ -122,7 +122,7 @@ static OScDev_RichError *ReadImage(OScDev_Device *device,
 
     // Wait for scan to complete
     err = CreateDAQmxError(DAQmxWaitUntilTaskDone(
-        GetData(device)->scannerConfig.aoTask, 2 * estFrameTimeMs * 1e-3));
+        GetImplData(device)->scannerConfig.aoTask, 2 * estFrameTimeMs * 1e-3));
     if (err) {
         err = OScDev_Error_Wrap(err,
                                 "Failed to wait for scanner task to finish");
@@ -130,8 +130,8 @@ static OScDev_RichError *ReadImage(OScDev_Device *device,
     }
 
     // Wait for data
-    if (!GetData(device)->scannerOnly) {
-        while (!GetData(device)->oneFrameScanDone) {
+    if (!GetImplData(device)->scannerOnly) {
+        while (!GetImplData(device)->oneFrameScanDone) {
             Sleep(1);
             totalWaitTimeMs += 1;
             if (totalWaitTimeMs > 2 * estFrameTimeMs) {
@@ -149,11 +149,11 @@ static OScDev_RichError *ReadImage(OScDev_Device *device,
     if (err)
         return err;
 
-    if (!GetData(device)->scannerOnly) {
+    if (!GetImplData(device)->scannerOnly) {
         int nChans = GetNumberOfEnabledChannels(device);
         for (int ch = 0; ch < nChans; ++ch) {
             bool shouldContinue = OScDev_Acquisition_CallFrameCallback(
-                acq, ch, GetData(device)->frameBuffers[ch]);
+                acq, ch, GetImplData(device)->frameBuffers[ch]);
             if (!shouldContinue) {
                 // TODO Stop acquisition
             }
@@ -177,24 +177,24 @@ static OScDev_RichError *AcquireFrame(OScDev_Device *device,
 
 static DWORD WINAPI AcquisitionLoop(void *param) {
     OScDev_Device *device = (OScDev_Device *)param;
-    OScDev_Acquisition *acq = GetData(device)->acquisition.acquisition;
+    OScDev_Acquisition *acq = GetImplData(device)->acquisition.acquisition;
 
     uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
 
     // insert from parking to start here
-    CreateScannerTask(device, &GetData(device)->scannerConfig);
-    ConfigureUnparkTiming(device, &GetData(device)->scannerConfig, acq);
-    WriteUnparkOutput(device, &GetData(device)->scannerConfig, acq);
-    GenerateUnparkOutput(device, &GetData(device)->scannerConfig, acq);
+    CreateScannerTask(device, &GetImplData(device)->scannerConfig);
+    ConfigureUnparkTiming(device, &GetImplData(device)->scannerConfig, acq);
+    WriteUnparkOutput(device, &GetImplData(device)->scannerConfig, acq);
+    GenerateUnparkOutput(device, &GetImplData(device)->scannerConfig, acq);
 
     // prepare raster waveform
-    SetUpScanner(device, &GetData(device)->scannerConfig, acq);
+    SetUpScanner(device, &GetImplData(device)->scannerConfig, acq);
 
     for (uint32_t frame = 0; frame < totalFrames; ++frame) {
         bool stopRequested;
-        EnterCriticalSection(&(GetData(device)->acquisition.mutex));
-        stopRequested = GetData(device)->acquisition.stopRequested;
-        LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+        EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
+        stopRequested = GetImplData(device)->acquisition.stopRequested;
+        LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
         if (stopRequested)
             break;
 
@@ -214,15 +214,15 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     }
 
     // insert from start to parking here
-    ConfigureParkTiming(device, &GetData(device)->scannerConfig, acq);
-    WriteParkOutput(device, &GetData(device)->scannerConfig, acq);
-    GenerateParkOutput(device, &GetData(device)->scannerConfig, acq);
+    ConfigureParkTiming(device, &GetImplData(device)->scannerConfig, acq);
+    WriteParkOutput(device, &GetImplData(device)->scannerConfig, acq);
+    GenerateParkOutput(device, &GetImplData(device)->scannerConfig, acq);
 
-    EnterCriticalSection(&(GetData(device)->acquisition.mutex));
-    GetData(device)->acquisition.running = false;
-    LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+    EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
+    GetImplData(device)->acquisition.running = false;
+    LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
     CONDITION_VARIABLE *cv =
-        &(GetData(device)->acquisition.acquisitionFinishCondition);
+        &(GetImplData(device)->acquisition.acquisitionFinishCondition);
     WakeAllConditionVariable(cv);
 
     return 0;
@@ -230,24 +230,24 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
 
 OScDev_RichError *RunAcquisitionLoop(OScDev_Device *device) {
     DWORD id;
-    GetData(device)->acquisition.thread =
+    GetImplData(device)->acquisition.thread =
         CreateThread(NULL, 0, AcquisitionLoop, device, 0, &id);
     return OScDev_RichError_OK;
 }
 
 OScDev_RichError *StopAcquisitionAndWait(OScDev_Device *device) {
-    CRITICAL_SECTION *mutex = &GetData(device)->acquisition.mutex;
+    CRITICAL_SECTION *mutex = &GetImplData(device)->acquisition.mutex;
     CONDITION_VARIABLE *cv =
-        &(GetData(device)->acquisition.acquisitionFinishCondition);
+        &(GetImplData(device)->acquisition.acquisitionFinishCondition);
 
     EnterCriticalSection(mutex);
-    if (GetData(device)->acquisition.started) {
-        GetData(device)->acquisition.stopRequested = true;
+    if (GetImplData(device)->acquisition.started) {
+        GetImplData(device)->acquisition.stopRequested = true;
     } else { // Armed but not started
-        GetData(device)->acquisition.running = false;
+        GetImplData(device)->acquisition.running = false;
     }
 
-    while (GetData(device)->acquisition.running) {
+    while (GetImplData(device)->acquisition.running) {
         SleepConditionVariableCS(cv, mutex, INFINITE);
     }
     LeaveCriticalSection(mutex);
@@ -257,19 +257,19 @@ OScDev_RichError *StopAcquisitionAndWait(OScDev_Device *device) {
 
 OScDev_RichError *IsAcquisitionRunning(OScDev_Device *device,
                                        bool *isRunning) {
-    EnterCriticalSection(&(GetData(device)->acquisition.mutex));
-    *isRunning = GetData(device)->acquisition.running;
-    LeaveCriticalSection(&(GetData(device)->acquisition.mutex));
+    EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
+    *isRunning = GetImplData(device)->acquisition.running;
+    LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
     return OScDev_RichError_OK;
 }
 
 OScDev_RichError *WaitForAcquisitionToFinish(OScDev_Device *device) {
-    CRITICAL_SECTION *mutex = &GetData(device)->acquisition.mutex;
+    CRITICAL_SECTION *mutex = &GetImplData(device)->acquisition.mutex;
     CONDITION_VARIABLE *cv =
-        &(GetData(device)->acquisition.acquisitionFinishCondition);
+        &(GetImplData(device)->acquisition.acquisitionFinishCondition);
 
     EnterCriticalSection(mutex);
-    while (GetData(device)->acquisition.running) {
+    while (GetImplData(device)->acquisition.running) {
         SleepConditionVariableCS(cv, mutex, INFINITE);
     }
     LeaveCriticalSection(mutex);

@@ -98,9 +98,9 @@ OScDev_RichError *WriteParkOutput(OScDev_Device *device,
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
     err = GenerateGalvoParkWaveform(&params, xyWaveformFrame);
-    GetData(device)->prevXParkVoltage =
+    GetImplData(device)->prevXParkVoltage =
         xyWaveformFrame[totalElementsPerFramePerChan - 1];
-    GetData(device)->prevYParkVoltage =
+    GetImplData(device)->prevYParkVoltage =
         xyWaveformFrame[(totalElementsPerFramePerChan * 2) - 1];
     if (err)
         return err;
@@ -149,7 +149,7 @@ OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
 
     // Wait for scan to complete
     err = CreateDAQmxError(DAQmxWaitUntilTaskDone(
-        GetData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
+        GetImplData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
     if (err) {
         err =
             OScDev_Error_Wrap(err, "Failed to wait for unpark task to finish");
@@ -191,7 +191,7 @@ OScDev_RichError *GenerateParkOutput(OScDev_Device *device,
 
     // Wait for scan to complete
     err = CreateDAQmxError(DAQmxWaitUntilTaskDone(
-        GetData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
+        GetImplData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to wait for park task to finish");
         return err;
