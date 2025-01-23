@@ -18,6 +18,7 @@ static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan);
 
 // Must be called immediately after failed DAQmx function
 void LogNiError(OScDev_Device *device, int32 nierr, const char *when) {
+    (void)nierr; // Unused
     ss8str msg;
     ss8_init_copy_cstr(&msg, "DAQmx error while ");
     ss8_cat_cstr(&msg, when);
@@ -241,17 +242,17 @@ static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
 static OScDev_RichError *StartScan(OScDev_Device *device) {
     OScDev_RichError *err;
     if (!GetData(device)->scannerOnly) {
-        err = StartDetector(device, &GetData(device)->detectorConfig);
+        err = StartDetector(&GetData(device)->detectorConfig);
         if (err)
             return err;
     } else
         OScDev_Log_Debug(device, "DAQ not used as detector");
 
-    err = StartClock(device, &GetData(device)->clockConfig);
+    err = StartClock(&GetData(device)->clockConfig);
     if (err)
         return err;
 
-    err = StartScanner(device, &GetData(device)->scannerConfig);
+    err = StartScanner(&GetData(device)->scannerConfig);
     if (err)
         return err;
 
@@ -295,7 +296,7 @@ static OScDev_RichError *StopScan(OScDev_Device *device,
     // all tasks even if we get errors.
 
     if (!GetData(device)->scannerOnly) {
-        err = StopDetector(device, &GetData(device)->detectorConfig);
+        err = StopDetector(&GetData(device)->detectorConfig);
         if (err)
             lastErr = err;
     }
@@ -311,11 +312,11 @@ static OScDev_RichError *StopScan(OScDev_Device *device,
     if (err)
         return err;
 
-    err = StopClock(device, &GetData(device)->clockConfig);
+    err = StopClock(&GetData(device)->clockConfig);
     if (err)
         lastErr = err;
 
-    err = StopScanner(device, &GetData(device)->scannerConfig);
+    err = StopScanner(&GetData(device)->scannerConfig);
     if (err)
         lastErr = err;
 
@@ -428,7 +429,6 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
         err = AcquireFrame(device, acq);
         if (err) {
             err = OScDev_Error_Wrap(err, "Error during sequence acquisition");
-            char msg[OScDev_MAX_STR_LEN + 1];
             OScDev_Error_FormatRecursive(err, msg, sizeof(msg));
             OScDev_Log_Error(device, msg);
             break;

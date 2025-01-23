@@ -16,6 +16,7 @@ GetSettingDeviceData(OScDev_Setting *setting) {
 
 static OScDev_Error GetNumericConstraintTypeImpl_DiscreteValues(
     OScDev_Setting *setting, OScDev_ValueConstraint *constraintType) {
+    (void)setting; // Unused
     *constraintType = OScDev_ValueConstraint_DiscreteValues;
     return OScDev_OK;
 }
@@ -23,6 +24,7 @@ static OScDev_Error GetNumericConstraintTypeImpl_DiscreteValues(
 static OScDev_Error
 GetNumericConstraintTypeImpl_Range(OScDev_Setting *setting,
                                    OScDev_ValueConstraint *constraintType) {
+    (void)setting; // Unused
     *constraintType = OScDev_ValueConstraint_Range;
     return OScDev_OK;
 }
@@ -46,6 +48,7 @@ static OScDev_Error SetLineDelay(OScDev_Setting *setting, int32_t value) {
 
 static OScDev_Error GetLineDelayRange(OScDev_Setting *setting, int32_t *min,
                                       int32_t *max) {
+    (void)setting; // Unused
     *min = 1;
     *max = 200;
     return OScDev_OK;
@@ -113,6 +116,7 @@ static OScDev_Error SetAcqBufferSize(OScDev_Setting *setting, int32_t value) {
 
 static OScDev_Error GetAcqBufferSizeValues(OScDev_Setting *setting,
                                            OScDev_NumArray **values) {
+    (void)setting; // Unused
     static const uint32_t v[] = {
         2, 4, 8, 16, 32, 64, 128, 256,
         0 // End mark
@@ -145,6 +149,7 @@ static OScDev_Error SetInputVoltageRange(OScDev_Setting *setting,
 
 static OScDev_Error GetInputVoltageRangeValues(OScDev_Setting *setting,
                                                OScDev_NumArray **values) {
+    (void)setting; // Unused
     static const double v[] = {
         1.0000, 2.0000, 5.0000, 10.0000,
         0.0 // End mark
@@ -187,8 +192,7 @@ static OScDev_Error SetEnableChannel(OScDev_Setting *setting, bool value) {
     devData->channelEnabled[settingData->hwChannel] = value;
 
     // Force recreation of detector task next time
-    OScDev_RichError *err =
-        ShutdownDetector(settingData->device, &devData->detectorConfig);
+    OScDev_RichError *err = ShutdownDetector(&devData->detectorConfig);
     return OScDev_Error_ReturnAsCode(err);
 }
 
@@ -238,6 +242,7 @@ static OScDev_Error SetOffset(OScDev_Setting *setting, double value) {
 
 static OScDev_Error GetOffsetRange(OScDev_Setting *setting, double *min,
                                    double *max) {
+    (void)setting; // Unused
     /*The galvoOffsetX and galvoOffsetY variables are expressed  in optical
     degrees This is a rough correspondence - it likely needs to be calibrated
     to the actual sensitivity of the galvos*/

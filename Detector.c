@@ -14,8 +14,7 @@
 
 static OScDev_RichError *CreateDetectorTask(OScDev_Device *device,
                                             struct DetectorConfig *config);
-static OScDev_RichError *ConfigureDetectorTiming(OScDev_Device *device,
-                                                 struct DetectorConfig *config,
+static OScDev_RichError *ConfigureDetectorTiming(struct DetectorConfig *config,
                                                  OScDev_Acquisition *acq);
 static OScDev_RichError *
 ConfigureDetectorTrigger(OScDev_Device *device, struct DetectorConfig *config);
@@ -47,7 +46,7 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device,
     }
 
     if (config->mustReconfigureTiming) {
-        err = ConfigureDetectorTiming(device, config, acq);
+        err = ConfigureDetectorTiming(config, acq);
         if (err)
             goto error;
         config->mustReconfigureTiming = false;
@@ -82,7 +81,7 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device,
     return OScDev_RichError_OK;
 
 error:
-    if (ShutdownDetector(device, config))
+    if (ShutdownDetector(config))
         OScDev_Log_Error(device,
                          "Failed to clean up detector task after error");
     return err;
@@ -91,8 +90,7 @@ error:
 // Remove all DAQmx configuration for the detector
 // This can be called to force task recreation the next time the detector is
 // armed
-OScDev_RichError *ShutdownDetector(OScDev_Device *device,
-                                   struct DetectorConfig *config) {
+OScDev_RichError *ShutdownDetector(struct DetectorConfig *config) {
     OScDev_RichError *err;
     if (config->aiTask) {
         err = CreateDAQmxError(DAQmxClearTask(config->aiTask));
@@ -105,20 +103,18 @@ OScDev_RichError *ShutdownDetector(OScDev_Device *device,
     return OScDev_RichError_OK;
 }
 
-OScDev_RichError *StartDetector(OScDev_Device *device,
-                                struct DetectorConfig *config) {
+OScDev_RichError *StartDetector(struct DetectorConfig *config) {
     OScDev_RichError *err;
     err = CreateDAQmxError(DAQmxStartTask(config->aiTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to start detector task");
-        ShutdownDetector(device, config); // Force re-setup next time
+        ShutdownDetector(config); // Force re-setup next time
         return err;
     }
     return OScDev_RichError_OK;
 }
 
-OScDev_RichError *StopDetector(OScDev_Device *device,
-                               struct DetectorConfig *config) {
+OScDev_RichError *StopDetector(struct DetectorConfig *config) {
     OScDev_RichError *err;
     // The task may have been cleared in the case of an error
     if (!config->aiTask)
@@ -127,7 +123,7 @@ OScDev_RichError *StopDetector(OScDev_Device *device,
     err = CreateDAQmxError(DAQmxStopTask(config->aiTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to stop detector task");
-        ShutdownDetector(device, config); // Force re-setup next time
+        ShutdownDetector(config); // Force re-setup next time
         return err;
     }
     return OScDev_RichError_OK;
@@ -200,14 +196,13 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device,
     return OScDev_RichError_OK;
 
 error:
-    if (ShutdownDetector(device, config))
+    if (ShutdownDetector(config))
         OScDev_Log_Error(device,
                          "Failed to clean up detector task after error");
     return err;
 }
 
-static OScDev_RichError *ConfigureDetectorTiming(OScDev_Device *device,
-                                                 struct DetectorConfig *config,
+static OScDev_RichError *ConfigureDetectorTiming(struct DetectorConfig *config,
                                                  OScDev_Acquisition *acq) {
     OScDev_RichError *err;
     double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
@@ -262,8 +257,7 @@ ConfigureDetectorTrigger(OScDev_Device *device,
 }
 
 static OScDev_RichError *
-UnconfigureDetectorCallback(OScDev_Device *device,
-                            struct DetectorConfig *config) {
+UnconfigureDetectorCallback(struct DetectorConfig *config) {
     OScDev_RichError *err;
     err = CreateDAQmxError(DAQmxRegisterEveryNSamplesEvent(
         config->aiTask, DAQmx_Val_Acquired_Into_Buffer, 0, 0, NULL, NULL));
@@ -285,7 +279,7 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
 
     // Registering the callback in DAQmx is not idempotent, so we need to
     // clear any existing callback.
-    err = UnconfigureDetectorCallback(device, config);
+    err = UnconfigureDetectorCallback(config);
     if (err)
         return err;
 
@@ -419,7 +413,7 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
 
 error:
     if (GetData(device)->detectorConfig.aiTask)
-        ShutdownDetector(device, &GetData(device)->detectorConfig);
+        ShutdownDetector(&GetData(device)->detectorConfig);
     return errCode;
 }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Scanner.h"
+
 #include <OpenScanDeviceLib.h>
 
 OScDev_RichError *ConfigureUnparkTiming(OScDev_Device *device,

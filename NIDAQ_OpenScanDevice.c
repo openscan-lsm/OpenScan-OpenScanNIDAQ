@@ -56,23 +56,27 @@ static OScDev_Error NIDAQClose(OScDev_Device *device) {
 }
 
 static OScDev_Error NIDAQHasClock(OScDev_Device *device, bool *hasClock) {
+    (void)device; // Unused
     *hasClock = true;
     return OScDev_OK;
 }
 
 static OScDev_Error NIDAQHasScanner(OScDev_Device *device, bool *hasScanner) {
+    (void)device; // Unused
     *hasScanner = true;
     return OScDev_OK;
 }
 
 static OScDev_Error NIDAQHasDetector(OScDev_Device *device,
                                      bool *hasDetector) {
+    (void)device; // Unused
     *hasDetector = true;
     return OScDev_OK;
 }
 
 static OScDev_Error NIDAQGetPixelRates(OScDev_Device *device,
                                        OScDev_NumRange **pixelRatesHz) {
+    (void)device; // Unused
     static const double ratesMHz[] = {
         0.0500, 0.1000, 0.1250, 0.2000, 0.2500,
         0.4000, 0.5000, 0.6250, 1.0000, 1.2500,
@@ -87,6 +91,7 @@ static OScDev_Error NIDAQGetPixelRates(OScDev_Device *device,
 
 static OScDev_Error NIDAQGetResolutions(OScDev_Device *device,
                                         OScDev_NumRange **resolutions) {
+    (void)device; // Unused
     *resolutions = OScDev_NumRange_CreateDiscrete();
     OScDev_NumRange_AppendDiscrete(*resolutions, 256);
     OScDev_NumRange_AppendDiscrete(*resolutions, 512);
@@ -97,12 +102,14 @@ static OScDev_Error NIDAQGetResolutions(OScDev_Device *device,
 
 static OScDev_Error NIDAQGetZoomFactors(OScDev_Device *device,
                                         OScDev_NumRange **zooms) {
+    (void)device; // Unused
     *zooms = OScDev_NumRange_CreateContinuous(0.2, 20.0);
     return OScDev_OK;
 }
 
 static OScDev_Error NIDAQIsROIScanSupported(OScDev_Device *device,
                                             bool *supported) {
+    (void)device; // Unused
     *supported = true;
     return OScDev_OK;
 }
@@ -116,6 +123,7 @@ static OScDev_Error NIDAQGetNumberOfChannels(OScDev_Device *device,
 
 static OScDev_Error NIDAQGetBytesPerSample(OScDev_Device *device,
                                            uint32_t *bytesPerSample) {
+    (void)device; // Unused
     *bytesPerSample = 2;
     return OScDev_OK;
 }

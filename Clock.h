@@ -17,8 +17,6 @@ struct ClockConfig {
 
 OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config,
                              OScDev_Acquisition *acq);
-OScDev_RichError *ShutdownClock(OScDev_Device *device,
-                                struct ClockConfig *config);
-OScDev_RichError *StartClock(OScDev_Device *device,
-                             struct ClockConfig *config);
-OScDev_RichError *StopClock(OScDev_Device *device, struct ClockConfig *config);
+OScDev_RichError *ShutdownClock(struct ClockConfig *config);
+OScDev_RichError *StartClock(struct ClockConfig *config);
+OScDev_RichError *StopClock(struct ClockConfig *config);

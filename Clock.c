@@ -32,7 +32,7 @@ OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config,
 
     if (!config->doTask || !config->lineCtrTask) {
         // In case one of the two tasks exists
-        err = ShutdownClock(device, config);
+        err = ShutdownClock(config);
         if (err)
             return err;
 
@@ -91,16 +91,14 @@ OScDev_RichError *SetUpClock(OScDev_Device *device, struct ClockConfig *config,
     return OScDev_RichError_OK;
 
 error:
-    if (ShutdownClock(device, config))
+    if (ShutdownClock(config))
         err = OScDev_Error_Wrap(
             err, "Failed to clean up clock task(s) after error");
     return err;
 }
 
 // Remove all DAQmx configuration for the clock
-OScDev_RichError *ShutdownClock(OScDev_Device *device,
-                                struct ClockConfig *config) {
-    int32 nierr1 = 0, nierr2 = 0;
+OScDev_RichError *ShutdownClock(struct ClockConfig *config) {
     OScDev_RichError *err1 = NULL, *err2 = NULL;
 
     if (config->doTask) {
@@ -127,42 +125,40 @@ OScDev_RichError *ShutdownClock(OScDev_Device *device,
     }
 }
 
-OScDev_RichError *StartClock(OScDev_Device *device,
-                             struct ClockConfig *config) {
+OScDev_RichError *StartClock(struct ClockConfig *config) {
     OScDev_RichError *err;
 
     err = CreateDAQmxError(DAQmxStartTask(config->doTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to start clock do task");
-        ShutdownClock(device, config);
+        ShutdownClock(config);
         return err;
     }
 
     err = CreateDAQmxError(DAQmxStartTask(config->lineCtrTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to start clock lineCtr task");
-        ShutdownClock(device, config);
+        ShutdownClock(config);
         return err;
     }
 
     return OScDev_RichError_OK;
 }
 
-OScDev_RichError *StopClock(OScDev_Device *device,
-                            struct ClockConfig *config) {
+OScDev_RichError *StopClock(struct ClockConfig *config) {
     OScDev_RichError *err;
 
     err = CreateDAQmxError(DAQmxStopTask(config->doTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to stop clock do task");
-        ShutdownClock(device, config);
+        ShutdownClock(config);
         return err;
     }
 
     err = CreateDAQmxError(DAQmxStopTask(config->lineCtrTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to stop clock lineCtr task");
-        ShutdownClock(device, config);
+        ShutdownClock(config);
         return err;
     }
 

@@ -2,7 +2,7 @@ project(
     'OpenScanNIDAQ',
     'c',
     default_options: [
-        'warning_level=2',
+        'warning_level=3',
         'werror=true',
     ],
 )

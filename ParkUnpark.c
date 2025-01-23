@@ -143,7 +143,7 @@ OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
     err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to start unpark task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
 
@@ -159,7 +159,7 @@ OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
     err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to stop unpark task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
 
@@ -185,7 +185,7 @@ OScDev_RichError *GenerateParkOutput(OScDev_Device *device,
     err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to start park task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
 
@@ -200,7 +200,7 @@ OScDev_RichError *GenerateParkOutput(OScDev_Device *device,
     err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to stop park task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
 

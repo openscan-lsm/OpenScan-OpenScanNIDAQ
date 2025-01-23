@@ -39,6 +39,8 @@ static void GenerateXGalvoWaveform(int32_t effectiveScanLen,
 static void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
                                    size_t xLength, double scanStart,
                                    double scanEnd, double *waveform) {
+    (void)retraceLen; // Unused
+
     double scanAmplitude = scanEnd - scanStart;
     double step = scanAmplitude / linesPerFrame;
 
@@ -155,10 +157,12 @@ int32_t GetScannerWaveformSize(const struct WaveformParams *parameters) {
 
 int32_t
 GetScannerWaveformSizeAfterLastPixel(const struct WaveformParams *parameters) {
+    (void)parameters; // Unused
     return X_RETRACE_LEN;
 }
 
 int32_t GetParkWaveformSize(const struct WaveformParams *parameters) {
+    (void)parameters; // Unused
     uint32_t elementsPerLine = X_RETRACE_LEN;
     return elementsPerLine;
 }
@@ -245,8 +249,6 @@ GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
     double galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
     double galvoOffsetY = parameters->galvoOffsetY;
     int32_t undershoot = parameters->undershoot;
-    int32_t xPark = parameters->xPark;
-    int32_t yPark = parameters->yPark;
     double xParkVoltage = parameters->prevXParkVoltage;
     double yParkVoltage = parameters->prevYParkVoltage;
 

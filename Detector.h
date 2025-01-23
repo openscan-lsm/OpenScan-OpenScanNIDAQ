@@ -17,9 +17,6 @@ struct DetectorConfig {
 OScDev_RichError *SetUpDetector(OScDev_Device *device,
                                 struct DetectorConfig *config,
                                 OScDev_Acquisition *acq);
-OScDev_RichError *ShutdownDetector(OScDev_Device *device,
-                                   struct DetectorConfig *config);
-OScDev_RichError *StartDetector(OScDev_Device *device,
-                                struct DetectorConfig *config);
-OScDev_RichError *StopDetector(OScDev_Device *device,
-                               struct DetectorConfig *config);
+OScDev_RichError *ShutdownDetector(struct DetectorConfig *config);
+OScDev_RichError *StartDetector(struct DetectorConfig *config);
+OScDev_RichError *StopDetector(struct DetectorConfig *config);

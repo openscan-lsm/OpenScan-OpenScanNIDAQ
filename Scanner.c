@@ -75,15 +75,14 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device,
     return OScDev_RichError_OK;
 
 error:
-    if (ShutdownScanner(device, config))
+    if (ShutdownScanner(config))
         OScDev_Log_Error(device,
                          "Failed to clean up scanner task after error");
     return err;
 }
 
 // Remove all DAQmx configuration for the scanner
-OScDev_RichError *ShutdownScanner(OScDev_Device *device,
-                                  struct ScannerConfig *config) {
+OScDev_RichError *ShutdownScanner(struct ScannerConfig *config) {
     OScDev_RichError *err;
     if (config->aoTask) {
         err = CreateDAQmxError(DAQmxClearTask(config->aoTask));
@@ -96,25 +95,23 @@ OScDev_RichError *ShutdownScanner(OScDev_Device *device,
     return OScDev_RichError_OK;
 }
 
-OScDev_RichError *StartScanner(OScDev_Device *device,
-                               struct ScannerConfig *config) {
+OScDev_RichError *StartScanner(struct ScannerConfig *config) {
     OScDev_RichError *err;
     err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to start scanner task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
     return OScDev_RichError_OK;
 }
 
-OScDev_RichError *StopScanner(OScDev_Device *device,
-                              struct ScannerConfig *config) {
+OScDev_RichError *StopScanner(struct ScannerConfig *config) {
     OScDev_RichError *err;
     err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to stop scanner task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
     return OScDev_RichError_OK;
@@ -194,7 +191,7 @@ OScDev_RichError *CreateScannerTask(OScDev_Device *device,
         if (err) {
             err = OScDev_Error_Wrap(
                 err, "Failed to create ao channels for scanner");
-            if (ShutdownScanner(device, config))
+            if (ShutdownScanner(config))
                 OScDev_Log_Error(
                     device, "Failed to clean up scanner task after error");
             return err;
