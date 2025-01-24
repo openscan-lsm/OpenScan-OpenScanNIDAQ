@@ -71,7 +71,7 @@ src = files(
     'Waveform.c',
 )
 
-osdev = shared_module(
+shared_module(
     'OpenScanNIDAQ',
     src,
     name_suffix: 'osdev',
