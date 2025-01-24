@@ -8,9 +8,12 @@
 #include "Scanner.h"
 #include "Waveform.h"
 
+#include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
 
+#include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include <Windows.h>
 

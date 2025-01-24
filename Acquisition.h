@@ -2,8 +2,6 @@
 
 #include <OpenScanDeviceLib.h>
 
-#include <stdbool.h>
-
 OScDev_RichError *RunAcquisitionLoop(OScDev_Device *device);
 OScDev_RichError *StopAcquisitionAndWait(OScDev_Device *device);
 OScDev_RichError *IsAcquisitionRunning(OScDev_Device *device, bool *isRunning);

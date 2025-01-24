@@ -3,8 +3,6 @@
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
 
-#include <stdbool.h>
-
 // DAQmx tasks and flags to track invalidated configurations for clock
 // See Clock.c
 struct ClockConfig {

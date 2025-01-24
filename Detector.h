@@ -3,8 +3,6 @@
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
 
-#include <stdbool.h>
-
 // DAQmx task and flags to track invalidated configurations for detector
 // See Detector.c
 struct DetectorConfig {

@@ -8,7 +8,6 @@
 #include <OpenScanDeviceLib.h>
 #include <ss8str.h>
 
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 

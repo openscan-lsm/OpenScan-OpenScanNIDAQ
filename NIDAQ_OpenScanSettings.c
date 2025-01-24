@@ -3,7 +3,11 @@
 #include "NIDAQ_DeviceImplData.h"
 #include "OScNIDAQ.h"
 
+#include <OpenScanDeviceLib.h>
+
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // For most settings, we set the setting's implData to the device.

@@ -2,12 +2,14 @@
 
 #include "NIDAQ_DeviceImplData.h"
 #include "OScNIDAQ.h"
+#include "Scanner.h"
 #include "Waveform.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
 
-#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 OScDev_RichError *ConfigureUnparkTiming(OScDev_Device *device,

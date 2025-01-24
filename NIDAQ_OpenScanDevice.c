@@ -9,6 +9,8 @@
 #include <OpenScanDeviceLib.h>
 #include <ss8str.h>
 
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <Windows.h>

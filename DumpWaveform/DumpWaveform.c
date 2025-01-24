@@ -1,6 +1,7 @@
 #include "../Waveform.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,7 +77,7 @@ static void DumpClockWaveform(uint32_t resolution, uint32_t lineDelay) {
     free(frameClockFLIM);
 }
 
-void main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
     if (argc != 4) {
         fprintf(
             stderr,

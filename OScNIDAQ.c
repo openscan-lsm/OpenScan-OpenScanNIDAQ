@@ -1,18 +1,18 @@
 #include "OScNIDAQ.h"
 
+#include "Clock.h"
+#include "Detector.h"
 #include "NIDAQ_DeviceImplData.h"
-#include "ParkUnpark.h"
+#include "Scanner.h"
 #include "Waveform.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
 #include <ss8str.h>
 
-#include <math.h>
-#include <stdio.h>
-#include <string.h>
-
-#include <Windows.h>
+#include <limits.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 // Return the index-th physical channel, or empty string if no such channel
 static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {
