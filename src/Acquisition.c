@@ -99,8 +99,8 @@ static OScDev_RichError *StopScan(OScDev_Device *device,
     return lastErr;
 }
 
-static OScDev_RichError *ReadImage(OScDev_Device *device,
-                                   OScDev_Acquisition *acq) {
+static OScDev_RichError *AcquireFrame(OScDev_Device *device,
+                                      OScDev_Acquisition *acq) {
     double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
@@ -156,18 +156,6 @@ static OScDev_RichError *ReadImage(OScDev_Device *device,
             }
         }
     }
-
-    return OScDev_RichError_OK;
-}
-
-static OScDev_RichError *AcquireFrame(OScDev_Device *device,
-                                      OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
-    OScDev_Log_Debug(device, "Reading image...");
-    err = ReadImage(device, acq);
-    if (err)
-        return err;
-    OScDev_Log_Debug(device, "Finished reading image");
 
     return OScDev_RichError_OK;
 }
