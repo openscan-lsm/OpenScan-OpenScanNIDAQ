@@ -235,7 +235,7 @@ OScDev_RichError *ArmAcquisition(OScDev_Device *device,
 
     GetImplData(device)->acquisition.acquisition = acq;
     GetImplData(device)->scannerOnly = scannerOnly;
-    err = ReconfigDAQ(device, acq);
+    err = ReconfigDAQ(device);
     if (err) {
         GetImplData(device)->acquisition.acquisition = NULL;
         EnterCriticalSection(mutex);

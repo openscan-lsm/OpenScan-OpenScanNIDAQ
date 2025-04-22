@@ -200,7 +200,8 @@ int GetNumberOfAIPhysChans(OScDev_Device *device) {
     return MAX_PHYSICAL_CHANS;
 }
 
-OScDev_RichError *ReconfigDAQ(OScDev_Device *device, OScDev_Acquisition *acq) {
+OScDev_RichError *ReconfigDAQ(OScDev_Device *device) {
+    OScDev_Acquisition *acq = GetImplData(device)->acquisition.acquisition;
     double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
     uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
     double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
