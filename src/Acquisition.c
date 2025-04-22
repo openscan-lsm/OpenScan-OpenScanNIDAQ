@@ -213,9 +213,46 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     return 0;
 }
 
+OScDev_RichError *ArmAcquisition(OScDev_Device *device,
+                                 OScDev_Acquisition *acq, bool scannerOnly) {
+    CRITICAL_SECTION *mutex = &GetImplData(device)->acquisition.mutex;
+
+    OScDev_RichError *err = OScDev_RichError_OK;
+    EnterCriticalSection(mutex);
+    {
+        if (GetImplData(device)->acquisition.running) {
+            err = OScDev_Error_Create("Acquisition already armed or running");
+        } else {
+            GetImplData(device)->acquisition.stopRequested = false;
+            GetImplData(device)->acquisition.running = true;
+            GetImplData(device)->acquisition.armed = false;
+            GetImplData(device)->acquisition.started = false;
+        }
+    }
+    LeaveCriticalSection(mutex);
+    if (err)
+        return err;
+
+    GetImplData(device)->acquisition.acquisition = acq;
+    GetImplData(device)->scannerOnly = scannerOnly;
+    err = ReconfigDAQ(device, acq);
+    if (err) {
+        GetImplData(device)->acquisition.acquisition = NULL;
+        EnterCriticalSection(mutex);
+        { GetImplData(device)->acquisition.running = false; }
+        LeaveCriticalSection(mutex);
+        return err;
+    }
+
+    EnterCriticalSection(mutex);
+    { GetImplData(device)->acquisition.armed = true; }
+    LeaveCriticalSection(mutex);
+    return OScDev_RichError_OK;
+}
+
 OScDev_RichError *StartAcquisition(OScDev_Device *device) {
     OScDev_RichError *err = OScDev_RichError_OK;
-    EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
+    EnterCriticalSection(&GetImplData(device)->acquisition.mutex);
     {
         if (!GetImplData(device)->acquisition.running ||
             !GetImplData(device)->acquisition.armed) {
@@ -230,7 +267,7 @@ OScDev_RichError *StartAcquisition(OScDev_Device *device) {
             GetImplData(device)->acquisition.started = true;
         }
     }
-    LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
+    LeaveCriticalSection(&GetImplData(device)->acquisition.mutex);
     if (err)
         return err;
 

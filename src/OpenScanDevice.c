@@ -137,71 +137,25 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq) {
     OScDev_Acquisition_IsScannerRequested(acq, &useScanner);
     OScDev_Acquisition_IsDetectorRequested(acq, &useDetector);
 
-    // assume scanner is always enabled
     if (!useClock || !useScanner)
-        return OScDev_Error_ReturnAsCode(
-            OScDev_Error_Create("Unsupported Operation"));
+        return OScDev_Error_ReturnAsCode(OScDev_Error_Create(
+            "Unsupported operation (cannot disable clock or scanner)"));
 
     OScDev_TriggerSource clockStartTriggerSource;
     OScDev_Acquisition_GetClockStartTriggerSource(acq,
                                                   &clockStartTriggerSource);
     if (clockStartTriggerSource != OScDev_TriggerSource_Software)
-        return OScDev_Error_ReturnAsCode(
-            OScDev_Error_Create("Unsupported Operation"));
+        return OScDev_Error_ReturnAsCode(OScDev_Error_Create(
+            "Unsupported operation (trigger source must be software)"));
 
     OScDev_ClockSource clockSource;
     OScDev_Acquisition_GetClockSource(acq, &clockSource);
     if (clockSource != OScDev_ClockSource_Internal)
-        return OScDev_Error_ReturnAsCode(
-            OScDev_Error_Create("Unsupported Operation"));
-    // what if we use external line clock to trigger acquisition?
+        return OScDev_Error_ReturnAsCode(OScDev_Error_Create(
+            "Unsupported operation (clock source must be internal)"));
 
-    if (useDetector) {
-        // arm scanner, detector, and clock
-        GetImplData(device)->scannerOnly = false;
-    } else {
-        // arm scanner and clock
-        GetImplData(device)->scannerOnly = true;
-    }
-
-    OScDev_RichError *err;
-    CRITICAL_SECTION *mutex = &GetImplData(device)->acquisition.mutex;
-    EnterCriticalSection(mutex);
-    {
-        if (GetImplData(device)->acquisition.running) {
-            // TODO Error should be "already armed"
-            LeaveCriticalSection(mutex);
-            return OScDev_Error_ReturnAsCode(
-                OScDev_Error_Create("Device already armed"));
-        }
-
-        GetImplData(device)->acquisition.acquisition = acq;
-
-        GetImplData(device)->acquisition.stopRequested = false;
-        GetImplData(device)->acquisition.running = true;
-        GetImplData(device)->acquisition.armed = false;
-        GetImplData(device)->acquisition.started = false;
-    }
-    LeaveCriticalSection(mutex);
-
-    err = ReconfigDAQ(device, acq);
-    if (err)
-        goto error;
-
-    EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
-    { GetImplData(device)->acquisition.armed = true; }
-    LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
-
-    return OScDev_OK;
-
-error:
-    EnterCriticalSection(mutex);
-    {
-        GetImplData(device)->acquisition.running = false;
-        GetImplData(device)->acquisition.acquisition = NULL;
-    }
-    LeaveCriticalSection(mutex);
-    return OScDev_Error_ReturnAsCode(err);
+    return OScDev_Error_ReturnAsCode(
+        ArmAcquisition(device, acq, !useDetector));
 }
 
 static OScDev_Error NIDAQStart(OScDev_Device *device) {
