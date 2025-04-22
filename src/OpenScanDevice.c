@@ -205,23 +205,7 @@ error:
 }
 
 static OScDev_Error NIDAQStart(OScDev_Device *device) {
-    EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
-    {
-        if (!GetImplData(device)->acquisition.running ||
-            !GetImplData(device)->acquisition.armed) {
-            LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
-            return OScDev_Error_Not_Armed;
-        }
-        if (GetImplData(device)->acquisition.started) {
-            LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
-            return OScDev_Error_Acquisition_Running;
-        }
-
-        GetImplData(device)->acquisition.started = true;
-    }
-    LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
-
-    return OScDev_Error_ReturnAsCode(StartAcquisitionLoop(device));
+    return OScDev_Error_ReturnAsCode(StartAcquisition(device));
 }
 
 static OScDev_Error NIDAQStop(OScDev_Device *device) {

@@ -213,7 +213,27 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     return 0;
 }
 
-OScDev_RichError *StartAcquisitionLoop(OScDev_Device *device) {
+OScDev_RichError *StartAcquisition(OScDev_Device *device) {
+    OScDev_RichError *err = OScDev_RichError_OK;
+    EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
+    {
+        if (!GetImplData(device)->acquisition.running ||
+            !GetImplData(device)->acquisition.armed) {
+            err = OScDev_Error_Create(
+                "Cannot start acquisition without first arming");
+            LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
+        } else if (GetImplData(device)->acquisition.started) {
+            LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
+            err = OScDev_Error_Create(
+                "Cannot start acquisition because acquisition already running");
+        } else {
+            GetImplData(device)->acquisition.started = true;
+        }
+    }
+    LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
+    if (err)
+        return err;
+
     DWORD id;
     GetImplData(device)->acquisition.thread =
         CreateThread(NULL, 0, AcquisitionLoop, device, 0, &id);
