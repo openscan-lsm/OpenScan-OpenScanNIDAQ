@@ -1,7 +1,7 @@
 #include "ParkUnpark.h"
 
-#include "NIDAQ_DeviceImplData.h"
-#include "OScNIDAQ.h"
+#include "DAQConfig.h"
+#include "DeviceImplData.h"
 #include "Scanner.h"
 #include "Waveform.h"
 

@@ -1,4 +1,4 @@
-#include "../Waveform.h"
+#include "../src/Waveform.h"
 
 #include <math.h>
 #include <stdint.h>

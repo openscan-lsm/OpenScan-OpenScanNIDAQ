@@ -1,6 +1,6 @@
 dumpwaveform_src = [
     'DumpWaveform.c',
-    '../Waveform.c',
+    '../src/Waveform.c',
 ]
 
 executable(

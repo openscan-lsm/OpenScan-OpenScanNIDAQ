@@ -1,4 +1,4 @@
-#include "NIDAQ_OpenScanDevice.h"
+#include "OpenScanDevice.h"
 
 #include <OpenScanDeviceLib.h>
 

@@ -57,23 +57,11 @@ ssstr_dep = dependency(
     fallback: 'ssstr',
 )
 
-src = files(
-    'Acquisition.c',
-    'Clock.c',
-    'Detector.c',
-    'NIDAQ_DeviceImplData.c',
-    'NIDAQ_OpenScanDevice.c',
-    'NIDAQ_OpenScanModule.c',
-    'NIDAQ_OpenScanSettings.c',
-    'OScNIDAQ.c',
-    'ParkUnpark.c',
-    'Scanner.c',
-    'Waveform.c',
-)
+subdir('src')
 
 shared_module(
     'OpenScanNIDAQ',
-    src,
+    openscan_nidaq_src,
     name_suffix: 'osdev',
     dependencies: [
         daqmx_dep,

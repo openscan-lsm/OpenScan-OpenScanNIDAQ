@@ -1,7 +1,7 @@
 #include "Scanner.h"
 
-#include "NIDAQ_DeviceImplData.h"
-#include "OScNIDAQ.h"
+#include "DAQConfig.h"
+#include "DeviceImplData.h"
 #include "Waveform.h"
 
 #include <NIDAQmx.h>

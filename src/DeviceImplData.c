@@ -1,4 +1,4 @@
-#include "NIDAQ_DeviceImplData.h"
+#include "DeviceImplData.h"
 
 #include <ss8str.h>
 

@@ -1,9 +1,9 @@
-#include "NIDAQ_OpenScanDevice.h"
+#include "OpenScanDevice.h"
 
 #include "Acquisition.h"
-#include "NIDAQ_DeviceImplData.h"
-#include "NIDAQ_OpenScanSettings.h"
-#include "OScNIDAQ.h"
+#include "DAQConfig.h"
+#include "DeviceImplData.h"
+#include "OpenScanSettings.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
@@ -189,9 +189,7 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq) {
         goto error;
 
     EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
-    {
-        GetImplData(device)->acquisition.armed = true;
-    }
+    { GetImplData(device)->acquisition.armed = true; }
     LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
 
     return OScDev_OK;

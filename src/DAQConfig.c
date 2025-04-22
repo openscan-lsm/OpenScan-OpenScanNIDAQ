@@ -1,8 +1,8 @@
-#include "OScNIDAQ.h"
+#include "DAQConfig.h"
 
 #include "Clock.h"
 #include "Detector.h"
-#include "NIDAQ_DeviceImplData.h"
+#include "DeviceImplData.h"
 #include "Scanner.h"
 #include "Waveform.h"
 

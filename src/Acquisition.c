@@ -1,9 +1,9 @@
 #include "Acquisition.h"
 
 #include "Clock.h"
+#include "DAQConfig.h"
 #include "Detector.h"
-#include "NIDAQ_DeviceImplData.h"
-#include "OScNIDAQ.h"
+#include "DeviceImplData.h"
 #include "ParkUnpark.h"
 #include "Scanner.h"
 #include "Waveform.h"
