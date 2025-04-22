@@ -2,6 +2,7 @@
 
 #include "Clock.h"
 #include "DAQConfig.h"
+#include "DAQError.h"
 #include "Detector.h"
 #include "DeviceImplData.h"
 #include "ParkUnpark.h"

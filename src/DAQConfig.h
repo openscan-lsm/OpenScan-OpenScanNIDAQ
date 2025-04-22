@@ -6,9 +6,6 @@
 #include <OpenScanDeviceLib.h>
 #include <ss8str.h>
 
-// Must be called immediately after failed DAQmx function
-OScDev_RichError *CreateDAQmxError(int32 nierr);
-
 void SetWaveformParamsFromDevice(OScDev_Device *device,
                                  struct WaveformParams *parameters,
                                  OScDev_Acquisition *acq);

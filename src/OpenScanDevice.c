@@ -2,6 +2,7 @@
 
 #include "Acquisition.h"
 #include "DAQConfig.h"
+#include "DAQError.h"
 #include "DeviceImplData.h"
 #include "OpenScanSettings.h"
 

@@ -1,6 +1,7 @@
 #include "ParkUnpark.h"
 
 #include "DAQConfig.h"
+#include "DAQError.h"
 #include "DeviceImplData.h"
 #include "Scanner.h"
 #include "Waveform.h"

@@ -1,6 +1,7 @@
 #include "Scanner.h"
 
 #include "DAQConfig.h"
+#include "DAQError.h"
 #include "DeviceImplData.h"
 #include "Waveform.h"
 

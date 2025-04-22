@@ -1,6 +1,7 @@
 #include "Detector.h"
 
 #include "DAQConfig.h"
+#include "DAQError.h"
 #include "DeviceImplData.h"
 
 #include <NIDAQmx.h>
