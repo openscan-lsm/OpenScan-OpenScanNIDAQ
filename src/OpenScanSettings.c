@@ -206,21 +206,6 @@ static OScDev_SettingImpl SettingImpl_EnableChannel = {
     .SetBool = SetEnableChannel,
 };
 
-static OScDev_Error GetScannerOnly(OScDev_Setting *setting, bool *value) {
-    *value = GetSettingDeviceData(setting)->scannerOnly;
-    return OScDev_OK;
-}
-
-static OScDev_Error SetScannerOnly(OScDev_Setting *setting, bool value) {
-    GetSettingDeviceData(setting)->scannerOnly = value;
-    return OScDev_OK;
-}
-
-static OScDev_SettingImpl SettingImpl_ScannerOnly = {
-    .GetBool = GetScannerOnly,
-    .SetBool = SetScannerOnly,
-};
-
 struct OffsetSettingData {
     OScDev_Device *device;
     int axis; // 0 = x, 1 = y
@@ -350,15 +335,6 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
     if (err)
         goto error;
     OScDev_PtrArray_Append(*settings, inputVoltageRange);
-
-    OScDev_Setting *scannerOnly;
-    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
-        &scannerOnly, "ScannerOnly", OScDev_ValueType_Bool,
-        &SettingImpl_ScannerOnly, device));
-    if (err)
-        goto error;
-    OScDev_PtrArray_Append(
-        *settings, scannerOnly); // TODO Remove when supported by OpenScanLib
 
     return OScDev_OK;
 
