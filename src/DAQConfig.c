@@ -67,64 +67,6 @@ void SetWaveformParamsFromDevice(OScDev_Device *device,
     parameters->prevYParkVoltage = GetImplData(device)->prevYParkVoltage;
 }
 
-OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
-                                     OScDev_DeviceImpl *impl) {
-    OScDev_RichError *err = OScDev_RichError_OK;
-
-    ss8str names; // Comma-separated device names
-    ss8_init(&names);
-    ss8_set_len(&names, 4096);
-    err = CreateDAQmxError(DAQmxGetSysDevNames(ss8_mutable_cstr(&names),
-                                               (uInt32)ss8_len(&names)));
-    if (err)
-        goto fail1;
-    ss8_set_len_to_cstrlen(&names);
-
-    *devices = OScDev_PtrArray_Create();
-
-    ss8str name;
-    ss8_init(&name);
-    size_t p = 0;
-    for (;;) {
-        size_t q = ss8_find_ch(&names, p, ',');
-        ss8_copy_substr(&name, &names, p, q - p);
-        ss8_strip_ch(&name, ' ');
-
-        struct DeviceImplData *data = calloc(1, sizeof(struct DeviceImplData));
-        InitializeImplData(data);
-        ss8_copy(&data->deviceName, &name);
-
-        OScDev_Device *device;
-        err = OScDev_Error_AsRichError(
-            OScDev_Device_Create(&device, impl, data));
-        if (err) {
-            ss8str msg;
-            ss8_init_copy_cstr(&msg, "Failed to create device ");
-            ss8_cat(&msg, &name);
-            err = OScDev_Error_Wrap(err, ss8_cstr(&msg));
-            ss8_destroy(&msg);
-            goto fail2;
-        }
-
-        OScDev_PtrArray_Append(*devices, device);
-
-        if (q == SIZE_MAX)
-            break;
-        p = q + 1;
-    }
-
-    goto succeed;
-
-fail2:
-    // TODO We have no way to destroy the already-created devices. Leaking.
-    OScDev_PtrArray_Destroy(*devices);
-succeed:
-    ss8_destroy(&name);
-fail1:
-    ss8_destroy(&names);
-    return err;
-}
-
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device) {
     ss8str *dest = &GetImplData(device)->aiPhysChans;
     ss8_set_len(dest, 1024);

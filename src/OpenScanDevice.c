@@ -10,6 +10,7 @@
 #include <OpenScanDeviceLib.h>
 #include <ss8str.h>
 
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +23,57 @@ static OScDev_Error NIDAQGetModelName(const char **name) {
 }
 
 static OScDev_Error NIDAQEnumerateInstances(OScDev_PtrArray **devices) {
-    OScDev_RichError *err = EnumerateInstances(devices, &NIDAQDeviceImpl);
+    OScDev_RichError *err = OScDev_RichError_OK;
+    ss8str names;
+    ss8_init(&names);
+    ss8str name;
+    ss8_init(&name);
+    ss8str msg;
+    ss8_init(&msg);
+    *devices = OScDev_PtrArray_Create();
+
+    ss8_set_len(&names, 4096);
+    err = CreateDAQmxError(DAQmxGetSysDevNames(ss8_mutable_cstr(&names),
+                                               (uInt32)ss8_len(&names)));
+    if (err)
+        goto finish;
+    ss8_set_len_to_cstrlen(&names);
+
+    size_t start = 0;
+    for (;;) {
+        size_t stop = ss8_find_ch(&names, start, ',');
+        ss8_copy_substr(&name, &names, start, stop - start);
+        ss8_strip_ch(&name, ' ');
+
+        struct DeviceImplData *data = malloc(sizeof(struct DeviceImplData));
+        InitializeImplData(data);
+        ss8_copy(&data->deviceName, &name);
+
+        OScDev_Device *device;
+        err = OScDev_Error_AsRichError(
+            OScDev_Device_Create(&device, &NIDAQDeviceImpl, data));
+        if (err) {
+            ss8_copy_cstr(&msg, "Failed to create device for ");
+            ss8_cat(&msg, &name);
+            err = OScDev_Error_Wrap(err, ss8_cstr(&msg));
+            // TODO We have no way to destroy the already-created devices.
+            // (But this failure is unlikely unless out of memory.)
+            goto finish;
+        }
+        OScDev_PtrArray_Append(*devices, device);
+
+        if (stop == SIZE_MAX)
+            break;
+        start = stop + 1;
+    }
+
+finish:
+    if (err) {
+        OScDev_PtrArray_Destroy(*devices);
+    }
+    ss8_destroy(&msg);
+    ss8_destroy(&name);
+    ss8_destroy(&names);
     return OScDev_Error_ReturnAsCode(err);
 }
 

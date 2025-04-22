@@ -9,8 +9,6 @@
 void SetWaveformParamsFromDevice(OScDev_Device *device,
                                  struct WaveformParams *parameters,
                                  OScDev_Acquisition *acq);
-OScDev_RichError *EnumerateInstances(OScDev_PtrArray **devices,
-                                     OScDev_DeviceImpl *impl);
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device);
 void GetEnabledChannels(OScDev_Device *device, ss8str *chans);
 int GetNumberOfEnabledChannels(OScDev_Device *device);
