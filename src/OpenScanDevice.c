@@ -221,7 +221,7 @@ static OScDev_Error NIDAQStart(OScDev_Device *device) {
     }
     LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
 
-    return OScDev_Error_ReturnAsCode(RunAcquisitionLoop(device));
+    return OScDev_Error_ReturnAsCode(StartAcquisitionLoop(device));
 }
 
 static OScDev_Error NIDAQStop(OScDev_Device *device) {

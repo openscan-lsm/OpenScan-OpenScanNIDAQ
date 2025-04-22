@@ -225,7 +225,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     return 0;
 }
 
-OScDev_RichError *RunAcquisitionLoop(OScDev_Device *device) {
+OScDev_RichError *StartAcquisitionLoop(OScDev_Device *device) {
     DWORD id;
     GetImplData(device)->acquisition.thread =
         CreateThread(NULL, 0, AcquisitionLoop, device, 0, &id);
