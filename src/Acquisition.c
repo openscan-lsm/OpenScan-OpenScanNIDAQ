@@ -18,6 +18,69 @@
 
 #include <Windows.h>
 
+static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
+    OScDev_Acquisition *acq = GetImplData(device)->acquisition.acquisition;
+    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+    double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
+    uint32_t xOffset, yOffset, width, height;
+    OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+    if (pixelRateHz != GetImplData(device)->configuredPixelRateHz) {
+        GetImplData(device)->clockConfig.mustReconfigureTiming = true;
+        GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
+        GetImplData(device)->detectorConfig.mustReconfigureTiming = true;
+    }
+    if (resolution != GetImplData(device)->configuredResolution) {
+        GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
+    }
+    if (zoomFactor != GetImplData(device)->configuredZoomFactor) {
+        GetImplData(device)->clockConfig.mustRewriteOutput = true;
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
+    }
+    if (xOffset != GetImplData(device)->configuredXOffset ||
+        yOffset != GetImplData(device)->configuredYOffset) {
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
+    }
+    if (width != GetImplData(device)->configuredRasterWidth ||
+        height != GetImplData(device)->configuredRasterHeight) {
+        GetImplData(device)->clockConfig.mustReconfigureTiming = true;
+        GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
+        GetImplData(device)->detectorConfig.mustReconfigureTiming = true;
+        GetImplData(device)->clockConfig.mustRewriteOutput = true;
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
+        GetImplData(device)->detectorConfig.mustReconfigureCallback = true;
+    }
+
+    // Note that additional setting of 'mustReconfigure' flags occurs in
+    // settings
+
+    OScDev_RichError *err;
+
+    err = SetUpClock(device, &GetImplData(device)->clockConfig, acq);
+    if (err)
+        return err;
+    if (!GetImplData(device)->scannerOnly) {
+        err = SetUpDetector(device, &GetImplData(device)->detectorConfig, acq);
+        if (err)
+            return err;
+    }
+
+    pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    resolution = OScDev_Acquisition_GetResolution(acq);
+    zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
+    OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+    GetImplData(device)->configuredPixelRateHz = pixelRateHz;
+    GetImplData(device)->configuredResolution = resolution;
+    GetImplData(device)->configuredZoomFactor = zoomFactor;
+    GetImplData(device)->configuredXOffset = xOffset;
+    GetImplData(device)->configuredYOffset = yOffset;
+    GetImplData(device)->configuredRasterWidth = width;
+    GetImplData(device)->configuredRasterHeight = height;
+
+    return OScDev_RichError_OK;
+}
+
 static OScDev_RichError *StartScan(OScDev_Device *device) {
     OScDev_RichError *err;
     if (!GetImplData(device)->scannerOnly) {
@@ -236,7 +299,7 @@ OScDev_RichError *ArmAcquisition(OScDev_Device *device,
 
     GetImplData(device)->acquisition.acquisition = acq;
     GetImplData(device)->scannerOnly = scannerOnly;
-    err = ReconfigDAQ(device);
+    err = SetUpDAQ(device);
     if (err) {
         GetImplData(device)->acquisition.acquisition = NULL;
         EnterCriticalSection(mutex);
