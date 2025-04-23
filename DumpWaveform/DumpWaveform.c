@@ -1,12 +1,13 @@
-#include "../Waveform.h"
+#include "../src/Waveform.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 // write results to binary file
-void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
+static void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
 
     struct WaveformParams params;
     params.width = resolution;
@@ -38,7 +39,7 @@ void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
     free(xyWaveform);
 }
 
-void DumpClockWaveform(uint32_t resolution, uint32_t lineDelay) {
+static void DumpClockWaveform(uint32_t resolution, uint32_t lineDelay) {
     struct WaveformParams WaveformParameters;
     WaveformParameters.width = resolution;
     WaveformParameters.height = resolution;
@@ -76,7 +77,7 @@ void DumpClockWaveform(uint32_t resolution, uint32_t lineDelay) {
     free(frameClockFLIM);
 }
 
-void main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
     if (argc != 4) {
         fprintf(
             stderr,

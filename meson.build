@@ -2,7 +2,8 @@ project(
     'OpenScanNIDAQ',
     'c',
     default_options: [
-        'warning_level=2',
+        'warning_level=3',
+        'werror=true',
     ],
 )
 
@@ -56,20 +57,11 @@ ssstr_dep = dependency(
     fallback: 'ssstr',
 )
 
-src = files(
-    'Clock.c',
-    'Detector.c',
-    'OScNIDAQ.c',
-    'OScNIDAQDevice.c',
-    'OScNIDAQSettings.c',
-    'ParkUnpark.c',
-    'Scanner.c',
-    'Waveform.c',
-)
+subdir('src')
 
-osdev = shared_module(
+shared_module(
     'OpenScanNIDAQ',
-    src,
+    openscan_nidaq_src,
     name_suffix: 'osdev',
     dependencies: [
         daqmx_dep,

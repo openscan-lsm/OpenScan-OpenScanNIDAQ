@@ -1,9 +1,9 @@
 dumpwaveform_src = [
     'DumpWaveform.c',
-    '../Waveform.c',
+    '../src/Waveform.c',
 ]
 
-dumpwaveform_exe = executable(
+executable(
     'DumpWaveform',
     dumpwaveform_src,
     c_args: [

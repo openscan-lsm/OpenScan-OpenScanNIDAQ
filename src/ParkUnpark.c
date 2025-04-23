@@ -1,9 +1,16 @@
-#include "OScNIDAQDevicePrivate.h"
+#include "ParkUnpark.h"
+
+#include "DAQConfig.h"
+#include "DAQError.h"
+#include "DeviceImplData.h"
+#include "Scanner.h"
 #include "Waveform.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
-#include <stdbool.h>
+
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 OScDev_RichError *ConfigureUnparkTiming(OScDev_Device *device,
@@ -51,7 +58,6 @@ OScDev_RichError *ConfigureParkTiming(OScDev_Device *device,
 OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
                                     struct ScannerConfig *config,
                                     OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
@@ -59,12 +65,10 @@ OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
     double *xyWaveformFrame =
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-    err = GenerateGalvoUnparkWaveform(&params, xyWaveformFrame);
-    if (err)
-        return err;
+    GenerateGalvoUnparkWaveform(&params, xyWaveformFrame);
 
     int32 numWritten = 0;
-    err = CreateDAQmxError(DAQmxWriteAnalogF64(
+    OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
         config->aoTask, totalElementsPerFramePerChan, FALSE, 10.0,
         DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
     if (err) {
@@ -85,7 +89,6 @@ cleanup:
 OScDev_RichError *WriteParkOutput(OScDev_Device *device,
                                   struct ScannerConfig *config,
                                   OScDev_Acquisition *acq) {
-    OScDev_RichError *err;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
@@ -93,16 +96,14 @@ OScDev_RichError *WriteParkOutput(OScDev_Device *device,
     double *xyWaveformFrame =
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
 
-    err = GenerateGalvoParkWaveform(&params, xyWaveformFrame);
-    GetData(device)->prevXParkVoltage =
+    GenerateGalvoParkWaveform(&params, xyWaveformFrame);
+    GetImplData(device)->prevXParkVoltage =
         xyWaveformFrame[totalElementsPerFramePerChan - 1];
-    GetData(device)->prevYParkVoltage =
+    GetImplData(device)->prevYParkVoltage =
         xyWaveformFrame[(totalElementsPerFramePerChan * 2) - 1];
-    if (err)
-        return err;
 
     int32 numWritten = 0;
-    err = CreateDAQmxError(DAQmxWriteAnalogF64(
+    OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
         config->aoTask, totalElementsPerFramePerChan, FALSE, 10.0,
         DAQmx_Val_GroupByChannel, xyWaveformFrame, &numWritten, NULL));
     if (err) {
@@ -139,13 +140,13 @@ OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
     err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to start unpark task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
 
     // Wait for scan to complete
     err = CreateDAQmxError(DAQmxWaitUntilTaskDone(
-        GetData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
+        GetImplData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
     if (err) {
         err =
             OScDev_Error_Wrap(err, "Failed to wait for unpark task to finish");
@@ -155,7 +156,7 @@ OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
     err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to stop unpark task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
 
@@ -181,13 +182,13 @@ OScDev_RichError *GenerateParkOutput(OScDev_Device *device,
     err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to start park task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
 
     // Wait for scan to complete
     err = CreateDAQmxError(DAQmxWaitUntilTaskDone(
-        GetData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
+        GetImplData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to wait for park task to finish");
         return err;
@@ -196,7 +197,7 @@ OScDev_RichError *GenerateParkOutput(OScDev_Device *device,
     err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to stop park task");
-        ShutdownScanner(device, config); // Force re-setup next time
+        ShutdownScanner(config); // Force re-setup next time
         return err;
     }
 

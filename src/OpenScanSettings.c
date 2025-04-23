@@ -1,25 +1,34 @@
-#include "OScNIDAQDevicePrivate.h"
+#include "OpenScanSettings.h"
 
+#include "DAQConfig.h"
+#include "DeviceImplData.h"
+
+#include <OpenScanDeviceLib.h>
+
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // For most settings, we set the setting's implData to the device.
 // This function can then be used to retrieve the device implData.
-static inline struct OScNIDAQPrivateData *
+static inline struct DeviceImplData *
 GetSettingDeviceData(OScDev_Setting *setting) {
-    return (struct OScNIDAQPrivateData *)OScDev_Device_GetImplData(
+    return (struct DeviceImplData *)OScDev_Device_GetImplData(
         (OScDev_Device *)OScDev_Setting_GetImplData(setting));
 }
 
-OScDev_Error GetNumericConstraintTypeImpl_DiscreteValues(
+static OScDev_Error GetNumericConstraintTypeImpl_DiscreteValues(
     OScDev_Setting *setting, OScDev_ValueConstraint *constraintType) {
+    (void)setting; // Unused
     *constraintType = OScDev_ValueConstraint_DiscreteValues;
     return OScDev_OK;
 }
 
-OScDev_Error
+static OScDev_Error
 GetNumericConstraintTypeImpl_Range(OScDev_Setting *setting,
                                    OScDev_ValueConstraint *constraintType) {
+    (void)setting; // Unused
     *constraintType = OScDev_ValueConstraint_Range;
     return OScDev_OK;
 }
@@ -43,12 +52,13 @@ static OScDev_Error SetLineDelay(OScDev_Setting *setting, int32_t value) {
 
 static OScDev_Error GetLineDelayRange(OScDev_Setting *setting, int32_t *min,
                                       int32_t *max) {
+    (void)setting; // Unused
     *min = 1;
     *max = 200;
     return OScDev_OK;
 }
 
-OScDev_SettingImpl SettingImpl_LineDelay = {
+static OScDev_SettingImpl SettingImpl_LineDelay = {
     .GetInt32 = GetLineDelay,
     .SetInt32 = SetLineDelay,
     .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
@@ -69,7 +79,7 @@ static OScDev_Error SetParkingPositionX(OScDev_Setting *setting,
     return OScDev_OK;
 }
 
-OScDev_SettingImpl SettingImpl_ParkingPositionX = {
+static OScDev_SettingImpl SettingImpl_ParkingPositionX = {
     .GetInt32 = GetParkingPositionX,
     .SetInt32 = SetParkingPositionX,
 };
@@ -88,7 +98,7 @@ static OScDev_Error SetParkingPositionY(OScDev_Setting *setting,
     return OScDev_OK;
 }
 
-OScDev_SettingImpl SettingImpl_ParkingPositionY = {
+static OScDev_SettingImpl SettingImpl_ParkingPositionY = {
     .GetInt32 = GetParkingPositionY,
     .SetInt32 = SetParkingPositionY,
 };
@@ -110,6 +120,7 @@ static OScDev_Error SetAcqBufferSize(OScDev_Setting *setting, int32_t value) {
 
 static OScDev_Error GetAcqBufferSizeValues(OScDev_Setting *setting,
                                            OScDev_NumArray **values) {
+    (void)setting; // Unused
     static const uint32_t v[] = {
         2, 4, 8, 16, 32, 64, 128, 256,
         0 // End mark
@@ -142,6 +153,7 @@ static OScDev_Error SetInputVoltageRange(OScDev_Setting *setting,
 
 static OScDev_Error GetInputVoltageRangeValues(OScDev_Setting *setting,
                                                OScDev_NumArray **values) {
+    (void)setting; // Unused
     static const double v[] = {
         1.0000, 2.0000, 5.0000, 10.0000,
         0.0 // End mark
@@ -172,7 +184,7 @@ static void ReleaseEnableChannel(OScDev_Setting *setting) {
 static OScDev_Error GetEnableChannel(OScDev_Setting *setting, bool *value) {
     struct EnableChannelData *settingData =
         OScDev_Setting_GetImplData(setting);
-    struct OScNIDAQPrivateData *devData = GetData(settingData->device);
+    struct DeviceImplData *devData = GetImplData(settingData->device);
     *value = devData->channelEnabled[settingData->hwChannel];
     return OScDev_OK;
 }
@@ -180,12 +192,11 @@ static OScDev_Error GetEnableChannel(OScDev_Setting *setting, bool *value) {
 static OScDev_Error SetEnableChannel(OScDev_Setting *setting, bool value) {
     struct EnableChannelData *settingData =
         OScDev_Setting_GetImplData(setting);
-    struct OScNIDAQPrivateData *devData = GetData(settingData->device);
+    struct DeviceImplData *devData = GetImplData(settingData->device);
     devData->channelEnabled[settingData->hwChannel] = value;
 
     // Force recreation of detector task next time
-    OScDev_RichError *err =
-        ShutdownDetector(settingData->device, &devData->detectorConfig);
+    OScDev_RichError *err = ShutdownDetector(&devData->detectorConfig);
     return OScDev_Error_ReturnAsCode(err);
 }
 
@@ -193,21 +204,6 @@ static OScDev_SettingImpl SettingImpl_EnableChannel = {
     .Release = ReleaseEnableChannel,
     .GetBool = GetEnableChannel,
     .SetBool = SetEnableChannel,
-};
-
-static OScDev_Error GetScannerOnly(OScDev_Setting *setting, bool *value) {
-    *value = GetSettingDeviceData(setting)->scannerOnly;
-    return OScDev_OK;
-}
-
-static OScDev_Error SetScannerOnly(OScDev_Setting *setting, bool value) {
-    GetSettingDeviceData(setting)->scannerOnly = value;
-    return OScDev_OK;
-}
-
-static OScDev_SettingImpl SettingImpl_ScannerOnly = {
-    .GetBool = GetScannerOnly,
-    .SetBool = SetScannerOnly,
 };
 
 struct OffsetSettingData {
@@ -218,23 +214,24 @@ struct OffsetSettingData {
 static OScDev_Error GetOffset(OScDev_Setting *setting, double *value) {
     struct OffsetSettingData *data =
         (struct OffsetSettingData *)OScDev_Setting_GetImplData(setting);
-    *value = GetData(data->device)->offsetXY[data->axis];
+    *value = GetImplData(data->device)->offsetXY[data->axis];
     return OScDev_OK;
 }
 
 static OScDev_Error SetOffset(OScDev_Setting *setting, double value) {
     struct OffsetSettingData *data =
         (struct OffsetSettingData *)OScDev_Setting_GetImplData(setting);
-    GetData(data->device)->offsetXY[data->axis] = value;
+    GetImplData(data->device)->offsetXY[data->axis] = value;
 
-    GetData(data->device)->clockConfig.mustRewriteOutput = true;
-    GetData(data->device)->scannerConfig.mustRewriteOutput = true;
+    GetImplData(data->device)->clockConfig.mustRewriteOutput = true;
+    GetImplData(data->device)->scannerConfig.mustRewriteOutput = true;
 
     return OScDev_OK;
 }
 
 static OScDev_Error GetOffsetRange(OScDev_Setting *setting, double *min,
                                    double *max) {
+    (void)setting; // Unused
     /*The galvoOffsetX and galvoOffsetY variables are expressed  in optical
     degrees This is a rough correspondence - it likely needs to be calibrated
     to the actual sensitivity of the galvos*/
@@ -338,15 +335,6 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
     if (err)
         goto error;
     OScDev_PtrArray_Append(*settings, inputVoltageRange);
-
-    OScDev_Setting *scannerOnly;
-    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
-        &scannerOnly, "ScannerOnly", OScDev_ValueType_Bool,
-        &SettingImpl_ScannerOnly, device));
-    if (err)
-        goto error;
-    OScDev_PtrArray_Append(
-        *settings, scannerOnly); // TODO Remove when supported by OpenScanLib
 
     return OScDev_OK;
 
