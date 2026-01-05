@@ -236,9 +236,13 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
     double xParkVoltage = parameters->prevXParkVoltage;
     double yParkVoltage = parameters->prevYParkVoltage;
 
+    double offsetXinDegree = galvoOffsetX / 3.0;
+    double offsetYinDegree = galvoOffsetY / 3.0;
+
     // Voltage ranges of the ROI
-    double xStart = xParkVoltage;
-    double yStart = yParkVoltage;
+    // Remove offset from start (it was baked in from previous park)
+    double xStart = xParkVoltage - offsetXinDegree;
+    double yStart = yParkVoltage - offsetYinDegree;
     double xEnd =
         (-0.5 * resolution + xOffset - undershoot) / (zoom * resolution);
     double yEnd = (-0.5 * resolution + yOffset) / (zoom * resolution);
@@ -249,9 +253,6 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
 
     SplineInterpolate((int32_t)length, xStart, xEnd, 0, 0, xWaveform);
     SplineInterpolate((int32_t)length, yStart, yEnd, 0, 0, yWaveform);
-
-    double offsetXinDegree = galvoOffsetX / 3.0;
-    double offsetYinDegree = galvoOffsetY / 3.0;
 
     // effective scan waveform for a whole frame
     for (unsigned i = 0; i < length; ++i) {
