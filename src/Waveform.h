@@ -10,8 +10,9 @@ struct WaveformParams {
     uint32_t undershoot; // also LineDelay for clock waveforms
     uint32_t xOffset;
     uint32_t yOffset;
-    double galvoOffsetX;
-    double galvoOffsetY;
+    double xformMatrix[4]; // {a, b, c, d} — row-major 2x2
+    double xformOffsetX;   // tx (volts)
+    double xformOffsetY;   // ty (volts)
     int32_t xPark;
     int32_t yPark;
     double prevXParkVoltage;

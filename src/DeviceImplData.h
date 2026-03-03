@@ -44,9 +44,11 @@ struct DeviceImplData {
     double inputVoltageRange;
     uInt32
         numDOChannels; // Number of DO lines under current clock configuration
-    double offsetXY[2];
-    double minVolts_; // min possible for device
-    double maxVolts_; // max possible for device
+    double xformMatrix[4]; // {a, b, c, d} — row-major 2x2
+    double xformOffsetX;   // tx (volts)
+    double xformOffsetY;   // ty (volts)
+    double minVolts_;      // min possible for device
+    double maxVolts_;      // max possible for device
 
     int numAIPhysChans; // Not to exceed MAX_PHYSICAL_CHANS
     ss8str aiPhysChans; // at least numAIPhysChans elements separated by ", "
