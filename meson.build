@@ -71,3 +71,4 @@ shared_module(
 )
 
 subdir('DumpWaveform')
+subdir('WaveformTool')
