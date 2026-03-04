@@ -73,9 +73,18 @@ static void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
         }
     }
 
+    // Smooth Y transitions during each line's X retrace
+    for (int j = 0; j < linesPerFrame - 1; ++j) {
+        double yThis = scanStart + step * j;
+        double yNext = scanStart + step * (j + 1);
+        SplineInterpolate(X_RETRACE_LEN, yThis, yNext, 0, 0,
+                          waveform + (j + 1) * xLength - X_RETRACE_LEN);
+    }
+
     // Generate the rescan curve at end of frame
     if (X_RETRACE_LEN > 0) {
-        SplineInterpolate(X_RETRACE_LEN, scanEnd, scanStart, 0, 0,
+        double lastLineY = scanStart + step * (linesPerFrame - 1);
+        SplineInterpolate(X_RETRACE_LEN, lastLineY, scanStart, 0, 0,
                           waveform + (linesPerFrame * xLength) -
                               X_RETRACE_LEN);
     }
