@@ -180,11 +180,28 @@ def generate_unpark(
         tmp.unlink(missing_ok=True)
 
 
-def on_generate(_sender=None, _data=None):
+def sync_width_height():
     resolution = dpg.get_value("resolution")
-    use_res = dpg.get_value("size_equals_res")
-    width = resolution if use_res else dpg.get_value("width")
-    height = resolution if use_res else dpg.get_value("height")
+    linked = dpg.get_value("size_equals_res")
+    dpg.configure_item("width", max_value=resolution, max_clamped=True,
+                        enabled=not linked)
+    dpg.configure_item("height", max_value=resolution, max_clamped=True,
+                        enabled=not linked)
+    if linked:
+        dpg.set_value("width", resolution)
+        dpg.set_value("height", resolution)
+    else:
+        if dpg.get_value("width") > resolution:
+            dpg.set_value("width", resolution)
+        if dpg.get_value("height") > resolution:
+            dpg.set_value("height", resolution)
+
+
+def on_generate(_sender=None, _data=None):
+    sync_width_height()
+    resolution = dpg.get_value("resolution")
+    width = dpg.get_value("width")
+    height = dpg.get_value("height")
     x_offset = dpg.get_value("x_offset")
     y_offset = dpg.get_value("y_offset")
     zoom = dpg.get_value("zoom")
@@ -315,9 +332,7 @@ def on_generate(_sender=None, _data=None):
 
 
 def on_size_toggle(_sender=None, _data=None):
-    linked = dpg.get_value("size_equals_res")
-    dpg.configure_item("width", enabled=not linked)
-    dpg.configure_item("height", enabled=not linked)
+    sync_width_height()
     on_generate()
 
 
