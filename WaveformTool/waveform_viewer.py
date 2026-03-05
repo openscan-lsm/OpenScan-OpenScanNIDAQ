@@ -283,6 +283,20 @@ def on_generate(_sender=None, _data=None):
         dpg.set_value("clk_line_flim", [[], []])
         dpg.set_value("clk_frame_flim", [[], []])
 
+    # Raster rectangle corners
+    a, b, c, d = tform
+    tx, ty = tform_offset
+    xs = (-0.5 * resolution + x_offset) / (zoom * resolution)
+    ys = (-0.5 * resolution + y_offset) / (zoom * resolution)
+    xe = xs + width / (zoom * resolution)
+    ye = ys + height / (zoom * resolution)
+    corners_pre = [(xs, ys), (xe, ys), (xe, ye), (xs, ye)]
+    corners = [(a * cx + b * cy + tx, c * cx + d * cy + ty)
+               for cx, cy in corners_pre]
+    rect_x = [p[0] for p in corners] + [corners[0][0]]
+    rect_y = [p[1] for p in corners] + [corners[0][1]]
+    dpg.set_value("xy_rect", [rect_x, rect_y])
+
     for ax in ("x_ax_x", "x_ax_y", "y_ax_x", "y_ax_y",
                "xy_ax_x", "xy_ax_y", "clk_ax_x", "clk_ax_y"):
         dpg.fit_axis_data(ax)
@@ -311,6 +325,7 @@ def on_size_toggle(_sender=None, _data=None):
 COLOR_UNPARK = (255, 165, 0, 255)  # orange
 COLOR_RASTER = (0, 120, 255, 255)  # blue
 COLOR_PARK = (255, 60, 60, 255)    # red
+COLOR_RECT = (180, 180, 180, 255)  # gray
 COLOR_LINE_CLK = (0, 200, 100, 255)
 COLOR_LINE_CLK_FLIM = (200, 100, 255, 255)
 COLOR_FRAME_CLK_FLIM = (255, 200, 50, 255)
@@ -323,6 +338,7 @@ def make_theme(color):
     return t
 
 
+
 def main():
     dpg.create_context()
     dpg.create_viewport(title="Waveform Viewer", width=1400, height=900)
@@ -330,6 +346,8 @@ def main():
     theme_unpark = make_theme(COLOR_UNPARK)
     theme_raster = make_theme(COLOR_RASTER)
     theme_park = make_theme(COLOR_PARK)
+    theme_rect = make_theme(COLOR_RECT)
+
     theme_line_clk = make_theme(COLOR_LINE_CLK)
     theme_line_clk_flim = make_theme(COLOR_LINE_CLK_FLIM)
     theme_frame_clk_flim = make_theme(COLOR_FRAME_CLK_FLIM)
@@ -460,6 +478,7 @@ def main():
                 with dpg.plot(label="X-Y Trajectory", height=-1, width=-1, equal_aspects=True):
                     dpg.add_plot_axis(dpg.mvXAxis, label="X (V)", tag="xy_ax_x")
                     with dpg.plot_axis(dpg.mvYAxis, label="Y (V)", tag="xy_ax_y"):
+                        dpg.add_line_series([], [], tag="xy_rect")
                         dpg.add_line_series([], [], tag="xy_unpark")
                         dpg.add_line_series([], [], tag="xy_raster")
                         dpg.add_line_series([], [], tag="xy_park")
@@ -471,6 +490,8 @@ def main():
     dpg.bind_item_theme("y_unpark", theme_unpark)
     dpg.bind_item_theme("y_raster", theme_raster)
     dpg.bind_item_theme("y_park", theme_park)
+
+    dpg.bind_item_theme("xy_rect", theme_rect)
     dpg.bind_item_theme("xy_unpark", theme_unpark)
     dpg.bind_item_theme("xy_raster", theme_raster)
     dpg.bind_item_theme("xy_park", theme_park)
