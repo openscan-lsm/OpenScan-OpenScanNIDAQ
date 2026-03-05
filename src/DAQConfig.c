@@ -59,8 +59,10 @@ void SetWaveformParamsFromDevice(OScDev_Device *device,
     OScDev_Acquisition_GetROI(acq, &parameters->xOffset, &parameters->yOffset,
                               &parameters->width, &parameters->height);
     parameters->undershoot = GetImplData(device)->lineDelay;
-    parameters->galvoOffsetX = GetImplData(device)->offsetXY[0];
-    parameters->galvoOffsetY = GetImplData(device)->offsetXY[1];
+    for (int i = 0; i < 4; ++i)
+        parameters->xformMatrix[i] = GetImplData(device)->xformMatrix[i];
+    parameters->xformOffsetX = GetImplData(device)->xformOffsetX;
+    parameters->xformOffsetY = GetImplData(device)->xformOffsetY;
     parameters->xPark = GetImplData(device)->xPark;
     parameters->yPark = GetImplData(device)->yPark;
     parameters->prevXParkVoltage = GetImplData(device)->prevXParkVoltage;

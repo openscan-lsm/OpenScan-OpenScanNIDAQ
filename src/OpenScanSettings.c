@@ -206,51 +206,60 @@ static OScDev_SettingImpl SettingImpl_EnableChannel = {
     .SetBool = SetEnableChannel,
 };
 
-struct OffsetSettingData {
+struct TransformSettingData {
     OScDev_Device *device;
-    int axis; // 0 = x, 1 = y
+    int index; // 0-3 = matrix[0-3], 4 = offsetX, 5 = offsetY
 };
 
-static OScDev_Error GetOffset(OScDev_Setting *setting, double *value) {
-    struct OffsetSettingData *data =
-        (struct OffsetSettingData *)OScDev_Setting_GetImplData(setting);
-    *value = GetImplData(data->device)->offsetXY[data->axis];
+static double *GetTransformField(struct DeviceImplData *devData, int index) {
+    if (index < 4)
+        return &devData->xformMatrix[index];
+    if (index == 4)
+        return &devData->xformOffsetX;
+    return &devData->xformOffsetY;
+}
+
+static OScDev_Error GetTransform(OScDev_Setting *setting, double *value) {
+    struct TransformSettingData *data = OScDev_Setting_GetImplData(setting);
+    *value = *GetTransformField(GetImplData(data->device), data->index);
     return OScDev_OK;
 }
 
-static OScDev_Error SetOffset(OScDev_Setting *setting, double value) {
-    struct OffsetSettingData *data =
-        (struct OffsetSettingData *)OScDev_Setting_GetImplData(setting);
-    GetImplData(data->device)->offsetXY[data->axis] = value;
+static OScDev_Error SetTransform(OScDev_Setting *setting, double value) {
+    struct TransformSettingData *data = OScDev_Setting_GetImplData(setting);
+    *GetTransformField(GetImplData(data->device), data->index) = value;
 
-    GetImplData(data->device)->clockConfig.mustRewriteOutput = true;
     GetImplData(data->device)->scannerConfig.mustRewriteOutput = true;
 
     return OScDev_OK;
 }
 
-static OScDev_Error GetOffsetRange(OScDev_Setting *setting, double *min,
-                                   double *max) {
-    (void)setting; // Unused
-    /*The galvoOffsetX and galvoOffsetY variables are expressed  in optical
-    degrees This is a rough correspondence - it likely needs to be calibrated
-    to the actual sensitivity of the galvos*/
-    *min = -5.0;
-    *max = +5.0;
+static OScDev_Error GetTransformRange(OScDev_Setting *setting, double *min,
+                                      double *max) {
+    struct TransformSettingData *data = OScDev_Setting_GetImplData(setting);
+    if (data->index == 0 || data->index == 3) {
+        *min = 0.9;
+        *max = 1.1;
+    } else if (data->index < 4) {
+        *min = -0.1;
+        *max = 0.1;
+    } else {
+        *min = -5.0;
+        *max = 5.0;
+    }
     return OScDev_OK;
 }
 
-static void ReleaseOffset(OScDev_Setting *setting) {
-    struct OffsetSettingData *data = OScDev_Setting_GetImplData(setting);
-    free(data);
+static void ReleaseTransform(OScDev_Setting *setting) {
+    free(OScDev_Setting_GetImplData(setting));
 }
 
-static OScDev_SettingImpl SettingImpl_Offset = {
-    .GetFloat64 = GetOffset,
-    .SetFloat64 = SetOffset,
+static OScDev_SettingImpl SettingImpl_Transform = {
+    .GetFloat64 = GetTransform,
+    .SetFloat64 = SetTransform,
     .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
-    .GetFloat64Range = GetOffsetRange,
-    .Release = ReleaseOffset,
+    .GetFloat64Range = GetTransformRange,
+    .Release = ReleaseTransform,
 };
 
 OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
@@ -287,20 +296,28 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
         goto error;
     OScDev_PtrArray_Append(*settings, parkingPositionY);
 
-    for (int i = 0; i < 2; ++i) {
-        OScDev_Setting *offset;
-        struct OffsetSettingData *data =
-            malloc(sizeof(struct OffsetSettingData));
-        data->device = device;
-        data->axis = i;
-        const char *name =
-            i == 0 ? "GalvoOffsetX (degree)" : "GalvoOffsetY (degree)";
-        err = OScDev_Error_AsRichError(
-            OScDev_Setting_Create(&offset, name, OScDev_ValueType_Float64,
-                                  &SettingImpl_Offset, data));
-        if (err)
-            goto error;
-        OScDev_PtrArray_Append(*settings, offset);
+    {
+        static const char *transformNames[] = {
+            "TransformA",
+            "TransformB",
+            "TransformC",
+            "TransformD",
+            "TransformOffsetXVolts",
+            "TransformOffsetYVolts",
+        };
+        for (int i = 0; i < 6; ++i) {
+            OScDev_Setting *xformSetting;
+            struct TransformSettingData *data =
+                malloc(sizeof(struct TransformSettingData));
+            data->device = device;
+            data->index = i;
+            err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+                &xformSetting, transformNames[i], OScDev_ValueType_Float64,
+                &SettingImpl_Transform, data));
+            if (err)
+                goto error;
+            OScDev_PtrArray_Append(*settings, xformSetting);
+        }
     }
 
     OScDev_Setting *numLinesToBuffer;

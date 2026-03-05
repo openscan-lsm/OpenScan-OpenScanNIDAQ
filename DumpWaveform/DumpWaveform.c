@@ -17,8 +17,12 @@ static void DumpXYWaveform(uint32_t resolution, uint32_t undershoot) {
     params.undershoot = undershoot;
     params.xOffset = 0;
     params.yOffset = 0;
-    params.galvoOffsetX = 0;
-    params.galvoOffsetY = 0;
+    params.xformMatrix[0] = 1;
+    params.xformMatrix[1] = 0;
+    params.xformMatrix[2] = 0;
+    params.xformMatrix[3] = 1;
+    params.xformOffsetX = 0;
+    params.xformOffsetY = 0;
 
     uint32_t totalElementsPerFrame = GetScannerWaveformSize(&params);
 

@@ -73,9 +73,18 @@ static void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
         }
     }
 
+    // Smooth Y transitions during each line's X retrace
+    for (int j = 0; j < linesPerFrame - 1; ++j) {
+        double yThis = scanStart + step * j;
+        double yNext = scanStart + step * (j + 1);
+        SplineInterpolate(X_RETRACE_LEN, yThis, yNext, 0, 0,
+                          waveform + (j + 1) * xLength - X_RETRACE_LEN);
+    }
+
     // Generate the rescan curve at end of frame
     if (X_RETRACE_LEN > 0) {
-        SplineInterpolate(X_RETRACE_LEN, scanEnd, scanStart, 0, 0,
+        double lastLineY = scanStart + step * (linesPerFrame - 1);
+        SplineInterpolate(X_RETRACE_LEN, lastLineY, scanStart, 0, 0,
                           waveform + (linesPerFrame * xLength) -
                               X_RETRACE_LEN);
     }
@@ -171,8 +180,9 @@ void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
     uint32_t undershoot = parameters->undershoot;
     uint32_t xOffset = parameters->xOffset; // ROI offset
     uint32_t yOffset = parameters->yOffset;
-    double galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
-    double galvoOffsetY = parameters->galvoOffsetY;
+    const double *m = parameters->xformMatrix;
+    double tx = parameters->xformOffsetX;
+    double ty = parameters->xformOffsetY;
 
     // Voltage ranges of the ROI
     double xStart = (-0.5 * resolution + xOffset) / (zoom * resolution);
@@ -184,33 +194,19 @@ void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
     size_t yLength = linesPerFrame;
 
     double *xWaveform = (double *)malloc(sizeof(double) * xLength);
-    double *yWaveform =
-        (double *)malloc(sizeof(double) * (yLength * xLength)); // change size
+    double *yWaveform = (double *)malloc(sizeof(double) * (yLength * xLength));
     GenerateXGalvoWaveform(pixelsPerLine, X_RETRACE_LEN, undershoot, xStart,
                            xEnd, xWaveform);
     GenerateYGalvoWaveform(linesPerFrame, X_RETRACE_LEN, xLength, yStart, yEnd,
                            yWaveform);
 
-    // convert to optical degree assuming 10V equal to 30 optical degree
-    // TODO We shouldn't make such an assumption! Also I think the variable
-    // names are the other way around ("inDegree" means "in volts" here).
-    double offsetXinDegree = galvoOffsetX / 3.0;
-    double offsetYinDegree = galvoOffsetY / 3.0;
-
-    // effective scan waveform for a whole frame
     for (unsigned j = 0; j < yLength; ++j) {
         for (unsigned i = 0; i < xLength; ++i) {
-            // first half is X waveform,
-            // x line scan repeated yLength times (sawteeth)
-            // galvo x stays at starting position after one frame is scanned
-            xyWaveformFrame[i + j * xLength] = xWaveform[i] + offsetXinDegree;
-
-            // xyWaveformFrame[i + j*xLength] = xWaveform[i];
-            //  second half is Y waveform
-            //  at each x (fast) scan line, y value is constant
-            //  effectively y retrace takes (Y_RETRACE_LENGTH * xLength) steps
+            double x = xWaveform[i];
+            double y = yWaveform[i + j * xLength];
+            xyWaveformFrame[i + j * xLength] = m[0] * x + m[1] * y + tx;
             xyWaveformFrame[i + j * xLength + yLength * xLength] =
-                yWaveform[i + j * xLength] + offsetYinDegree;
+                m[2] * x + m[3] * y + ty;
         }
     }
 
@@ -224,25 +220,31 @@ void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
 }
 
 // Generate waveform from parking to start before one frame
+static void InverseTransform2x2(const double *m, double tx, double ty,
+                                double ox, double oy, double *lx, double *ly) {
+    double det = m[0] * m[3] - m[1] * m[2];
+    double cx = ox - tx;
+    double cy = oy - ty;
+    *lx = (m[3] * cx - m[1] * cy) / det;
+    *ly = (-m[2] * cx + m[0] * cy) / det;
+}
+
 void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
                                  double *xyWaveformFrame) {
     uint32_t resolution = parameters->resolution;
     double zoom = parameters->zoom;
-    uint32_t xOffset = parameters->xOffset; // ROI offset
+    uint32_t xOffset = parameters->xOffset;
     uint32_t yOffset = parameters->yOffset;
-    double galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
-    double galvoOffsetY = parameters->galvoOffsetY;
     int32_t undershoot = parameters->undershoot;
-    double xParkVoltage = parameters->prevXParkVoltage;
-    double yParkVoltage = parameters->prevYParkVoltage;
+    const double *m = parameters->xformMatrix;
+    double tx = parameters->xformOffsetX;
+    double ty = parameters->xformOffsetY;
 
-    double offsetXinDegree = galvoOffsetX / 3.0;
-    double offsetYinDegree = galvoOffsetY / 3.0;
+    // Inverse-transform previous park voltage to logical space
+    double xStart, yStart;
+    InverseTransform2x2(m, tx, ty, parameters->prevXParkVoltage,
+                        parameters->prevYParkVoltage, &xStart, &yStart);
 
-    // Voltage ranges of the ROI
-    // Remove offset from start (it was baked in from previous park)
-    double xStart = xParkVoltage - offsetXinDegree;
-    double yStart = yParkVoltage - offsetYinDegree;
     double xEnd =
         (-0.5 * resolution + xOffset - undershoot) / (zoom * resolution);
     double yEnd = (-0.5 * resolution + yOffset) / (zoom * resolution);
@@ -254,14 +256,11 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
     SplineInterpolate((int32_t)length, xStart, xEnd, 0, 0, xWaveform);
     SplineInterpolate((int32_t)length, yStart, yEnd, 0, 0, yWaveform);
 
-    // effective scan waveform for a whole frame
     for (unsigned i = 0; i < length; ++i) {
-        // first half is X waveform,
-        // x line scan repeated yLength times (sawteeth)
-        xyWaveformFrame[i] = xWaveform[i] + offsetXinDegree;
-
-        // second half is Y waveform
-        xyWaveformFrame[i + length] = yWaveform[i] + offsetYinDegree;
+        double x = xWaveform[i];
+        double y = yWaveform[i];
+        xyWaveformFrame[i] = m[0] * x + m[1] * y + tx;
+        xyWaveformFrame[i + length] = m[2] * x + m[3] * y + ty;
     }
 
     free(xWaveform);
@@ -273,15 +272,15 @@ void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
                                double *xyWaveformFrame) {
     uint32_t resolution = parameters->resolution;
     double zoom = parameters->zoom;
-    uint32_t xOffset = parameters->xOffset; // ROI offset
+    uint32_t xOffset = parameters->xOffset;
     uint32_t yOffset = parameters->yOffset;
-    double galvoOffsetX = parameters->galvoOffsetX; // Adjustment Offset
-    double galvoOffsetY = parameters->galvoOffsetY;
     int32_t undershoot = parameters->undershoot;
     int32_t xPark = parameters->xPark;
     int32_t yPark = parameters->yPark;
+    const double *m = parameters->xformMatrix;
+    double tx = parameters->xformOffsetX;
+    double ty = parameters->xformOffsetY;
 
-    // Voltage ranges of the ROI
     double xStart =
         (-0.5 * resolution + xOffset - undershoot) / (zoom * resolution);
     double yStart = (-0.5 * resolution + yOffset) / (zoom * resolution);
@@ -295,19 +294,11 @@ void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
     SplineInterpolate((int32_t)length, xStart, xEnd, 0, 0, xWaveform);
     SplineInterpolate((int32_t)length, yStart, yEnd, 0, 0, yWaveform);
 
-    double offsetXinDegree = galvoOffsetX / 3.0;
-    double offsetYinDegree = galvoOffsetY / 3.0;
-
-    // effective scan waveform for a whole frame
     for (unsigned i = 0; i < length; ++i) {
-        // first half is X waveform,
-        // x line scan repeated yLength times (sawteeth)
-        // galvo x stays at starting position after one frame is scanned
-        xyWaveformFrame[i] = xWaveform[i] + offsetXinDegree;
-
-        // xyWaveformFrame[i + j*xLength] = xWaveform[i];
-        //  second half is Y waveform
-        xyWaveformFrame[i + length] = yWaveform[i] + offsetYinDegree;
+        double x = xWaveform[i];
+        double y = yWaveform[i];
+        xyWaveformFrame[i] = m[0] * x + m[1] * y + tx;
+        xyWaveformFrame[i + length] = m[2] * x + m[3] * y + ty;
     }
 
     free(xWaveform);
