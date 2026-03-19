@@ -322,9 +322,7 @@ OScDev_RichError *StartAcquisition(OScDev_Device *device) {
             !GetImplData(device)->acquisition.armed) {
             err = OScDev_Error_Create(
                 "Cannot start acquisition without first arming");
-            LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
         } else if (GetImplData(device)->acquisition.started) {
-            LeaveCriticalSection(&(GetImplData(device)->acquisition.mutex));
             err = OScDev_Error_Create(
                 "Cannot start acquisition because acquisition already running");
         } else {
