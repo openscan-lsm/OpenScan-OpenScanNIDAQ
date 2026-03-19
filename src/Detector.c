@@ -20,10 +20,8 @@ GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *maxVolts) {
     float64 ranges[2 * 64];
     memset(ranges, 0, sizeof(ranges));
 
-    // TODO How does this relate to the setting "Input Voltage Range"?
-    // BUG: This should be AIVoltageRngs, but keeping existing behavior for now
     err = CreateDAQmxError(
-        DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetImplData(device)->deviceName),
+        DAQmxGetDevAIVoltageRngs(ss8_cstr(&GetImplData(device)->deviceName),
                                  ranges, sizeof(ranges) / sizeof(float64)));
     if (err) {
         OScDev_Log_Error(device, OScDev_Error_GetMessage(err));
