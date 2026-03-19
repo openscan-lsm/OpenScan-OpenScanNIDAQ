@@ -377,8 +377,6 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
     if (err) {
         err =
             OScDev_Error_Wrap(err, "Failed to register callback for detector");
-        err =
-            OScDev_Error_Wrap(err, "Failed to register callback for detector");
         return err;
     }
 
