@@ -20,10 +20,8 @@ GetAIVoltageRange(OScDev_Device *device, double *minVolts, double *maxVolts) {
     float64 ranges[2 * 64];
     memset(ranges, 0, sizeof(ranges));
 
-    // TODO How does this relate to the setting "Input Voltage Range"?
-    // BUG: This should be AIVoltageRngs, but keeping existing behavior for now
     err = CreateDAQmxError(
-        DAQmxGetDevAOVoltageRngs(ss8_cstr(&GetImplData(device)->deviceName),
+        DAQmxGetDevAIVoltageRngs(ss8_cstr(&GetImplData(device)->deviceName),
                                  ranges, sizeof(ranges) / sizeof(float64)));
     if (err) {
         OScDev_Log_Error(device, OScDev_Error_GetMessage(err));
@@ -375,8 +373,6 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
         config->aiTask, DAQmx_Val_Acquired_Into_Buffer, samplesPerChanPerLine,
         0, DetectorDataCallback, device));
     if (err) {
-        err =
-            OScDev_Error_Wrap(err, "Failed to register callback for detector");
         err =
             OScDev_Error_Wrap(err, "Failed to register callback for detector");
         return err;
