@@ -112,7 +112,7 @@ static int32 HandleRawData(OScDev_Device *device) {
         GetImplData(device)->framePixelsFilled++;
         if (GetImplData(device)->framePixelsFilled == pixelsPerFrame) {
             EnterCriticalSection(&GetImplData(device)->frameMutex);
-            if (GetImplData(device)->oneFrameScanDone) {
+            if (GetImplData(device)->frameAvailable) {
                 OScDev_Log_Warning(
                     device,
                     "Frame dropped: main thread did not consume previous frame");
@@ -122,7 +122,7 @@ static int32 HandleRawData(OScDev_Device *device) {
             GetImplData(device)->activeWriteBuffer =
                 1 - GetImplData(device)->activeWriteBuffer;
             GetImplData(device)->framePixelsFilled = 0;
-            GetImplData(device)->oneFrameScanDone = true;
+            GetImplData(device)->frameAvailable = true;
             LeaveCriticalSection(&GetImplData(device)->frameMutex);
             WakeConditionVariable(&GetImplData(device)->frameReady);
         }

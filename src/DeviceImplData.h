@@ -27,7 +27,7 @@ struct DeviceImplData {
     uint32_t configuredXOffset, configuredYOffset;
     uint32_t configuredRasterWidth, configuredRasterHeight;
 
-    bool oneFrameScanDone;
+    bool frameAvailable;
     bool scannerOnly;
 
     // counted as number of pixels.

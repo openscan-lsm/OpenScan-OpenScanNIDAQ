@@ -133,7 +133,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
 
     SetUpScanner(device, &GetImplData(device)->scannerConfig, acq);
 
-    GetImplData(device)->oneFrameScanDone = false;
+    GetImplData(device)->frameAvailable = false;
     GetImplData(device)->framePixelsFilled = 0;
     GetImplData(device)->activeWriteBuffer = 0;
 
@@ -170,7 +170,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
             int rb = 0;
 
             EnterCriticalSection(&GetImplData(device)->frameMutex);
-            while (!GetImplData(device)->oneFrameScanDone) {
+            while (!GetImplData(device)->frameAvailable) {
                 if (!SleepConditionVariableCS(&GetImplData(device)->frameReady,
                                               &GetImplData(device)->frameMutex,
                                               2 * estFrameTimeMs)) {
@@ -180,10 +180,10 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
                     break;
             }
 
-            bool gotFrame = GetImplData(device)->oneFrameScanDone;
+            bool gotFrame = GetImplData(device)->frameAvailable;
             if (gotFrame) {
                 rb = GetImplData(device)->completedReadBuffer;
-                GetImplData(device)->oneFrameScanDone = false;
+                GetImplData(device)->frameAvailable = false;
             }
             LeaveCriticalSection(&GetImplData(device)->frameMutex);
 
