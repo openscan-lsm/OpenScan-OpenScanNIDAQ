@@ -61,10 +61,12 @@ struct DeviceImplData {
     size_t rawDataSize;     // Current data size
     size_t rawDataCapacity; // Buffer size
 
-    // Per-channel frame buffers that we fill in and pass to OpenScanLib
-    // Index is order among currently enabled channels.
-    // Buffers for unused channels may not be allocated.
-    uint16_t *frameBuffers[MAX_PHYSICAL_CHANS];
+    // Double-buffered per-channel frame buffers.
+    // [0] and [1] are alternated between the detector callback (write) and the
+    // main thread (read). Index is order among currently enabled channels.
+    uint16_t *frameBuffers[2][MAX_PHYSICAL_CHANS];
+    int activeWriteBuffer;
+    int completedReadBuffer;
     size_t framePixelsFilled;
 
     struct {

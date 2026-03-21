@@ -21,12 +21,21 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
     SetWaveformParamsFromDevice(device, &params, acq);
 
     int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
+    uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
+    uInt64 totalSamples = (uInt64)totalFrames * totalElementsPerFramePerChan;
 
     err = CreateDAQmxError(DAQmxCfgSampClkTiming(
         config->aoTask, "", pixelRateHz, DAQmx_Val_Rising,
-        DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
+        DAQmx_Val_FiniteSamps, totalSamples));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
+        return err;
+    }
+
+    err = CreateDAQmxError(
+        DAQmxSetWriteRegenMode(config->aoTask, DAQmx_Val_AllowRegen));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to set regen mode for scanner");
         return err;
     }
 
