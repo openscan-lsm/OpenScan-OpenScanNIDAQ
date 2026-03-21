@@ -111,6 +111,7 @@ static int32 HandleRawData(OScDev_Device *device) {
 
         GetImplData(device)->framePixelsFilled++;
         if (GetImplData(device)->framePixelsFilled == pixelsPerFrame) {
+            EnterCriticalSection(&GetImplData(device)->frameMutex);
             if (GetImplData(device)->oneFrameScanDone) {
                 OScDev_Log_Warning(
                     device,
@@ -122,6 +123,8 @@ static int32 HandleRawData(OScDev_Device *device) {
                 1 - GetImplData(device)->activeWriteBuffer;
             GetImplData(device)->framePixelsFilled = 0;
             GetImplData(device)->oneFrameScanDone = true;
+            LeaveCriticalSection(&GetImplData(device)->frameMutex);
+            WakeConditionVariable(&GetImplData(device)->frameReady);
         }
     }
 

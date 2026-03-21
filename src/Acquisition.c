@@ -167,21 +167,31 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
         OScDev_Log_Debug(device, msg);
 
         if (!GetImplData(device)->scannerOnly) {
-            uint32_t totalWaitTimeMs = 0;
+            int rb = 0;
+
+            EnterCriticalSection(&GetImplData(device)->frameMutex);
             while (!GetImplData(device)->oneFrameScanDone) {
-                Sleep(1);
-                totalWaitTimeMs += 1;
-                if (totalWaitTimeMs > 2 * estFrameTimeMs) {
-                    OScDev_Log_Error(device, "Error: Acquisition timeout!");
-                    break;
+                if (!SleepConditionVariableCS(&GetImplData(device)->frameReady,
+                                              &GetImplData(device)->frameMutex,
+                                              2 * estFrameTimeMs)) {
+                    break; // timeout
                 }
+                if (GetImplData(device)->acquisition.stopRequested)
+                    break;
             }
 
-            if (!GetImplData(device)->oneFrameScanDone)
-                break;
+            bool gotFrame = GetImplData(device)->oneFrameScanDone;
+            if (gotFrame) {
+                rb = GetImplData(device)->completedReadBuffer;
+                GetImplData(device)->oneFrameScanDone = false;
+            }
+            LeaveCriticalSection(&GetImplData(device)->frameMutex);
 
-            int rb = GetImplData(device)->completedReadBuffer;
-            GetImplData(device)->oneFrameScanDone = false;
+            if (!gotFrame) {
+                if (!GetImplData(device)->acquisition.stopRequested)
+                    OScDev_Log_Error(device, "Error: Acquisition timeout!");
+                break;
+            }
 
             int nChans = GetNumberOfEnabledChannels(device);
             for (int ch = 0; ch < nChans; ++ch) {
@@ -280,6 +290,7 @@ OScDev_RichError *StopAcquisitionAndWait(OScDev_Device *device) {
     EnterCriticalSection(mutex);
     if (GetImplData(device)->acquisition.started) {
         GetImplData(device)->acquisition.stopRequested = true;
+        WakeConditionVariable(&GetImplData(device)->frameReady);
     } else { // Armed but not started
         GetImplData(device)->acquisition.running = false;
     }

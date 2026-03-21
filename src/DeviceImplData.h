@@ -68,6 +68,8 @@ struct DeviceImplData {
     int activeWriteBuffer;
     int completedReadBuffer;
     size_t framePixelsFilled;
+    CRITICAL_SECTION frameMutex;
+    CONDITION_VARIABLE frameReady;
 
     struct {
         CRITICAL_SECTION mutex;
