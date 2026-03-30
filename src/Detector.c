@@ -112,6 +112,13 @@ static int32 HandleRawData(OScDev_Device *device) {
         GetImplData(device)->framePixelsFilled++;
         if (GetImplData(device)->framePixelsFilled == pixelsPerFrame) {
             EnterCriticalSection(&GetImplData(device)->frameMutex);
+            if (GetImplData(device)->consumerReading) {
+                OScDev_Log_Error(
+                    device,
+                    "Buffer overrun: consumer still reading frame buffer");
+                LeaveCriticalSection(&GetImplData(device)->frameMutex);
+                return OScDev_Error_Unknown;
+            }
             if (GetImplData(device)->frameAvailable) {
                 OScDev_Log_Warning(
                     device,

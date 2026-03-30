@@ -67,6 +67,7 @@ struct DeviceImplData {
     uint16_t *frameBuffers[2][MAX_PHYSICAL_CHANS];
     int activeWriteBuffer;
     int completedReadBuffer;
+    bool consumerReading;
     size_t framePixelsFilled;
     CRITICAL_SECTION frameMutex;
     CONDITION_VARIABLE frameReady;

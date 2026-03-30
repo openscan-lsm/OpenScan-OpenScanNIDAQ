@@ -136,6 +136,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     GetImplData(device)->frameAvailable = false;
     GetImplData(device)->framePixelsFilled = 0;
     GetImplData(device)->activeWriteBuffer = 0;
+    GetImplData(device)->consumerReading = false;
 
     double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
     struct WaveformParams params;
@@ -184,6 +185,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
             if (gotFrame) {
                 rb = GetImplData(device)->completedReadBuffer;
                 GetImplData(device)->frameAvailable = false;
+                GetImplData(device)->consumerReading = true;
             }
             LeaveCriticalSection(&GetImplData(device)->frameMutex);
 
@@ -198,6 +200,10 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
                 OScDev_Acquisition_CallFrameCallback(
                     acq, ch, GetImplData(device)->frameBuffers[rb][ch]);
             }
+
+            EnterCriticalSection(&GetImplData(device)->frameMutex);
+            GetImplData(device)->consumerReading = false;
+            LeaveCriticalSection(&GetImplData(device)->frameMutex);
         } else {
             Sleep(estFrameTimeMs);
         }
