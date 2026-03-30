@@ -133,11 +133,10 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
 
     SetUpScanner(device, &GetImplData(device)->scannerConfig, acq);
 
-    GetImplData(device)->frameAvailable = false;
+    GetImplData(device)->readBufferState = READ_BUFFER_IDLE;
     GetImplData(device)->framePixelsFilled = 0;
     GetImplData(device)->rawDataSize = 0;
     GetImplData(device)->activeWriteBuffer = 0;
-    GetImplData(device)->consumerReading = false;
 
     double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
     struct WaveformParams params;
@@ -172,7 +171,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
             int rb = 0;
 
             EnterCriticalSection(&GetImplData(device)->frameMutex);
-            while (!GetImplData(device)->frameAvailable) {
+            while (GetImplData(device)->readBufferState != READ_BUFFER_READY) {
                 if (!SleepConditionVariableCS(&GetImplData(device)->frameReady,
                                               &GetImplData(device)->frameMutex,
                                               2 * estFrameTimeMs)) {
@@ -186,11 +185,11 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
                     break;
             }
 
-            bool gotFrame = GetImplData(device)->frameAvailable;
+            bool gotFrame =
+                GetImplData(device)->readBufferState == READ_BUFFER_READY;
             if (gotFrame) {
-                rb = GetImplData(device)->completedReadBuffer;
-                GetImplData(device)->frameAvailable = false;
-                GetImplData(device)->consumerReading = true;
+                rb = 1 - GetImplData(device)->activeWriteBuffer;
+                GetImplData(device)->readBufferState = READ_BUFFER_READING;
             }
             LeaveCriticalSection(&GetImplData(device)->frameMutex);
 
@@ -210,7 +209,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
             }
 
             EnterCriticalSection(&GetImplData(device)->frameMutex);
-            GetImplData(device)->consumerReading = false;
+            GetImplData(device)->readBufferState = READ_BUFFER_IDLE;
             LeaveCriticalSection(&GetImplData(device)->frameMutex);
         } else {
             Sleep(estFrameTimeMs);

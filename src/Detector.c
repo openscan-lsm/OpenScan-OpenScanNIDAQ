@@ -112,24 +112,17 @@ static int32 HandleRawData(OScDev_Device *device) {
         GetImplData(device)->framePixelsFilled++;
         if (GetImplData(device)->framePixelsFilled == pixelsPerFrame) {
             EnterCriticalSection(&GetImplData(device)->frameMutex);
-            if (GetImplData(device)->consumerReading) {
+            if (GetImplData(device)->readBufferState != READ_BUFFER_IDLE) {
                 OScDev_Log_Error(
                     device,
-                    "Buffer overrun: consumer still reading frame buffer");
+                    "Buffer overrun: previous frame could not be transmitted in time");
                 LeaveCriticalSection(&GetImplData(device)->frameMutex);
                 return OScDev_Error_Unknown;
             }
-            if (GetImplData(device)->frameAvailable) {
-                OScDev_Log_Warning(
-                    device,
-                    "Frame dropped: main thread did not consume previous frame");
-            }
-            GetImplData(device)->completedReadBuffer =
-                GetImplData(device)->activeWriteBuffer;
             GetImplData(device)->activeWriteBuffer =
                 1 - GetImplData(device)->activeWriteBuffer;
             GetImplData(device)->framePixelsFilled = 0;
-            GetImplData(device)->frameAvailable = true;
+            GetImplData(device)->readBufferState = READ_BUFFER_READY;
             LeaveCriticalSection(&GetImplData(device)->frameMutex);
             WakeConditionVariable(&GetImplData(device)->frameReady);
         }

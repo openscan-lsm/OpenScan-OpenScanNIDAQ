@@ -12,6 +12,12 @@
 
 #define MAX_PHYSICAL_CHANS 8
 
+enum ReadBufferState {
+    READ_BUFFER_IDLE,
+    READ_BUFFER_READY,
+    READ_BUFFER_READING,
+};
+
 // This struct holds the NIDAQ-specific device state and is associated with the
 // OpenScan device through the "impl data" mechanism.
 struct DeviceImplData {
@@ -27,7 +33,6 @@ struct DeviceImplData {
     uint32_t configuredXOffset, configuredYOffset;
     uint32_t configuredRasterWidth, configuredRasterHeight;
 
-    bool frameAvailable;
     bool scannerOnly;
 
     // counted as number of pixels.
@@ -66,8 +71,7 @@ struct DeviceImplData {
     // main thread (read). Index is order among currently enabled channels.
     uint16_t *frameBuffers[2][MAX_PHYSICAL_CHANS];
     int activeWriteBuffer;
-    int completedReadBuffer;
-    bool consumerReading;
+    enum ReadBufferState readBufferState;
     size_t framePixelsFilled;
     CRITICAL_SECTION frameMutex;
     CONDITION_VARIABLE frameReady;
