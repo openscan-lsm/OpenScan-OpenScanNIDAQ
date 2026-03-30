@@ -177,7 +177,11 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
                                               2 * estFrameTimeMs)) {
                     break; // timeout
                 }
-                if (GetImplData(device)->acquisition.stopRequested)
+                bool stopReq;
+                EnterCriticalSection(&GetImplData(device)->acquisition.mutex);
+                stopReq = GetImplData(device)->acquisition.stopRequested;
+                LeaveCriticalSection(&GetImplData(device)->acquisition.mutex);
+                if (stopReq)
                     break;
             }
 
@@ -190,7 +194,10 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
             LeaveCriticalSection(&GetImplData(device)->frameMutex);
 
             if (!gotFrame) {
-                if (!GetImplData(device)->acquisition.stopRequested)
+                EnterCriticalSection(&GetImplData(device)->acquisition.mutex);
+                stopRequested = GetImplData(device)->acquisition.stopRequested;
+                LeaveCriticalSection(&GetImplData(device)->acquisition.mutex);
+                if (!stopRequested)
                     OScDev_Log_Error(device, "Error: Acquisition timeout!");
                 break;
             }
