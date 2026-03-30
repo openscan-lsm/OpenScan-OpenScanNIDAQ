@@ -135,6 +135,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
 
     GetImplData(device)->frameAvailable = false;
     GetImplData(device)->framePixelsFilled = 0;
+    GetImplData(device)->rawDataSize = 0;
     GetImplData(device)->activeWriteBuffer = 0;
     GetImplData(device)->consumerReading = false;
 
