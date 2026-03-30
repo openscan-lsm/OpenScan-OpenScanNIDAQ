@@ -203,14 +203,28 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
             }
 
             int nChans = GetNumberOfEnabledChannels(device);
+            bool ok = true;
             for (int ch = 0; ch < nChans; ++ch) {
-                OScDev_Acquisition_CallFrameCallback(
+                ok = OScDev_Acquisition_CallFrameCallback(
                     acq, ch, GetImplData(device)->frameBuffers[rb][ch]);
+                if (!ok) {
+                    break;
+                }
             }
 
+            // Mark buffer finished even if we fail (!ok), so that the producer
+            // thread (DAQmx callback) won't have a buffer overflow error in
+            // the meantime.
             EnterCriticalSection(&GetImplData(device)->frameMutex);
             GetImplData(device)->readBufferState = READ_BUFFER_IDLE;
             LeaveCriticalSection(&GetImplData(device)->frameMutex);
+
+            if (!ok) {
+                OScDev_Log_Error(
+                    device,
+                    "Stopping acquisition because frame could not be transmitted");
+                break;
+            }
         } else {
             Sleep(estFrameTimeMs);
         }
