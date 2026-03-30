@@ -120,18 +120,50 @@ static OScDev_RichError *StopScan(OScDev_Device *device) {
     return lastErr;
 }
 
+static void LogRichError(OScDev_Device *device, OScDev_RichError *err) {
+    char msg[OScDev_MAX_STR_LEN + 1];
+    OScDev_Error_FormatRecursive(err, msg, sizeof(msg));
+    OScDev_Log_Error(device, msg);
+}
+
 static DWORD WINAPI AcquisitionLoop(void *param) {
     OScDev_Device *device = (OScDev_Device *)param;
     OScDev_Acquisition *acq = GetImplData(device)->acquisition.acquisition;
 
     uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
+    OScDev_RichError *err;
 
-    CreateScannerTask(device, &GetImplData(device)->scannerConfig);
-    ConfigureUnparkTiming(device, &GetImplData(device)->scannerConfig, acq);
-    WriteUnparkOutput(device, &GetImplData(device)->scannerConfig, acq);
-    GenerateUnparkOutput(device, &GetImplData(device)->scannerConfig, acq);
+    err = CreateScannerTask(device, &GetImplData(device)->scannerConfig);
+    if (err) {
+        LogRichError(device, err);
+        goto finish;
+    }
 
-    SetUpScanner(device, &GetImplData(device)->scannerConfig, acq);
+    err = ConfigureUnparkTiming(device, &GetImplData(device)->scannerConfig,
+                                acq);
+    if (err) {
+        LogRichError(device, err);
+        goto finish;
+    }
+
+    err = WriteUnparkOutput(device, &GetImplData(device)->scannerConfig, acq);
+    if (err) {
+        LogRichError(device, err);
+        goto finish;
+    }
+
+    err =
+        GenerateUnparkOutput(device, &GetImplData(device)->scannerConfig, acq);
+    if (err) {
+        LogRichError(device, err);
+        goto finish;
+    }
+
+    err = SetUpScanner(device, &GetImplData(device)->scannerConfig, acq);
+    if (err) {
+        LogRichError(device, err);
+        goto finish;
+    }
 
     GetImplData(device)->readBufferState = READ_BUFFER_IDLE;
     GetImplData(device)->framePixelsFilled = 0;
@@ -145,13 +177,12 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     uint32_t estFrameTimeMs =
         (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
 
-    OScDev_RichError *err;
     err = StartScan(device);
     if (err) {
-        char msg[OScDev_MAX_STR_LEN + 1];
-        OScDev_Error_FormatRecursive(err, msg, sizeof(msg));
-        OScDev_Log_Error(device, msg);
-        StopScan(device);
+        LogRichError(device, err);
+        err = StopScan(device);
+        if (err)
+            LogRichError(device, err);
         goto finish;
     }
 
@@ -230,11 +261,26 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
         }
     }
 
-    StopScan(device);
+    err = StopScan(device);
+    if (err)
+        LogRichError(device, err);
 
-    ConfigureParkTiming(device, &GetImplData(device)->scannerConfig, acq);
-    WriteParkOutput(device, &GetImplData(device)->scannerConfig, acq);
-    GenerateParkOutput(device, &GetImplData(device)->scannerConfig, acq);
+    err =
+        ConfigureParkTiming(device, &GetImplData(device)->scannerConfig, acq);
+    if (err) {
+        LogRichError(device, err);
+        goto finish;
+    }
+
+    err = WriteParkOutput(device, &GetImplData(device)->scannerConfig, acq);
+    if (err) {
+        LogRichError(device, err);
+        goto finish;
+    }
+
+    err = GenerateParkOutput(device, &GetImplData(device)->scannerConfig, acq);
+    if (err)
+        LogRichError(device, err);
 
 finish:
     EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
