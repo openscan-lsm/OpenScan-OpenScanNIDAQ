@@ -162,7 +162,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     err = SetUpScanner(device, &GetImplData(device)->scannerConfig, acq);
     if (err) {
         LogRichError(device, err);
-        goto finish;
+        goto park;
     }
 
     GetImplData(device)->readBufferState = READ_BUFFER_IDLE;
@@ -183,7 +183,7 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
         err = StopScan(device);
         if (err)
             LogRichError(device, err);
-        goto finish;
+        goto park;
     }
 
     for (uint32_t frame = 0; frame < totalFrames; ++frame) {
@@ -264,6 +264,13 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     err = StopScan(device);
     if (err)
         LogRichError(device, err);
+
+park:
+    err = CreateScannerTask(device, &GetImplData(device)->scannerConfig);
+    if (err) {
+        LogRichError(device, err);
+        goto finish;
+    }
 
     err =
         ConfigureParkTiming(device, &GetImplData(device)->scannerConfig, acq);
