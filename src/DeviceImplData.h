@@ -78,7 +78,6 @@ struct DeviceImplData {
 
     struct {
         CRITICAL_SECTION mutex;
-        HANDLE thread;
         CONDITION_VARIABLE acquisitionFinishCondition;
         bool running;
         bool armed;         // Valid when running == true

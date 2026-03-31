@@ -362,8 +362,15 @@ OScDev_RichError *StartAcquisition(OScDev_Device *device) {
         return err;
 
     DWORD id;
-    GetImplData(device)->acquisition.thread =
-        CreateThread(NULL, 0, AcquisitionLoop, device, 0, &id);
+    HANDLE thread = CreateThread(NULL, 0, AcquisitionLoop, device, 0, &id);
+    if (!thread) {
+        EnterCriticalSection(&GetImplData(device)->acquisition.mutex);
+        GetImplData(device)->acquisition.started = false;
+        GetImplData(device)->acquisition.running = false;
+        LeaveCriticalSection(&GetImplData(device)->acquisition.mutex);
+        return OScDev_Error_Create("Failed to create acquisition thread");
+    }
+    CloseHandle(thread);
     return OScDev_RichError_OK;
 }
 
