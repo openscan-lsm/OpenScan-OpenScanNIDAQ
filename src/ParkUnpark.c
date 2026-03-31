@@ -76,8 +76,7 @@ OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
         goto cleanup;
     }
     if (numWritten != totalElementsPerFramePerChan) {
-        err =
-            OScDev_Error_Wrap(err, "Failed to write complete unpark waveform");
+        err = OScDev_Error_Create("Failed to write complete unpark waveform");
         goto cleanup;
     }
 
@@ -111,7 +110,7 @@ OScDev_RichError *WriteParkOutput(OScDev_Device *device,
         goto cleanup;
     }
     if (numWritten != totalElementsPerFramePerChan) {
-        err = OScDev_Error_Wrap(err, "Failed to write complete park waveform");
+        err = OScDev_Error_Create("Failed to write complete park waveform");
         goto cleanup;
     }
 

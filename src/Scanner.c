@@ -63,7 +63,7 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
         goto cleanup;
     }
     if (numWritten != totalElementsPerFramePerChan) {
-        err = OScDev_Error_Wrap(err, "Failed to write complete scan waveform");
+        err = OScDev_Error_Create("Failed to write complete scan waveform");
         goto cleanup;
     }
 

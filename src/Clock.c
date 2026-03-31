@@ -223,8 +223,7 @@ static OScDev_RichError *WriteClockOutput(OScDev_Device *device,
         goto cleanup;
     }
     if (numWritten != elementsPerFramePerChan) {
-        err =
-            OScDev_Error_Wrap(err, "Failed to write complete clock waveform");
+        err = OScDev_Error_Create("Failed to write complete clock waveform");
         goto cleanup;
     }
 
