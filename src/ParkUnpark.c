@@ -149,6 +149,8 @@ OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
     if (err) {
         err =
             OScDev_Error_Wrap(err, "Failed to wait for unpark task to finish");
+        DAQmxStopTask(config->aoTask);
+        ShutdownScanner(config);
         return err;
     }
 
@@ -190,6 +192,8 @@ OScDev_RichError *GenerateParkOutput(OScDev_Device *device,
         GetImplData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to wait for park task to finish");
+        DAQmxStopTask(config->aoTask);
+        ShutdownScanner(config);
         return err;
     }
 
