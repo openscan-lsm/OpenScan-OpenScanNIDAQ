@@ -91,13 +91,21 @@ static OScDev_RichError *StartScan(OScDev_Device *device) {
 
     err = StartClock(&GetImplData(device)->clockConfig);
     if (err)
-        return err;
+        goto stop_detector;
 
     err = StartScanner(&GetImplData(device)->scannerConfig);
     if (err)
-        return err;
+        goto stop_clock;
 
     return OScDev_RichError_OK;
+
+stop_clock:
+    OScDev_Error_Destroy(StopClock(&GetImplData(device)->clockConfig));
+stop_detector:
+    if (!GetImplData(device)->scannerOnly)
+        OScDev_Error_Destroy(
+            StopDetector(&GetImplData(device)->detectorConfig));
+    return err;
 }
 
 static OScDev_RichError *StopScan(OScDev_Device *device) {
@@ -180,9 +188,6 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     err = StartScan(device);
     if (err) {
         LogRichError(device, err);
-        err = StopScan(device);
-        if (err)
-            LogRichError(device, err);
         goto park;
     }
 
