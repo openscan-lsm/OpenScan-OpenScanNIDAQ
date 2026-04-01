@@ -9,6 +9,7 @@
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
 
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,7 +60,9 @@ static void AdjustParamsForSpiralCenter(OScDev_Device *device,
                                         struct WaveformParams *params) {
     if (GetImplData(device)->spiralScanEnabled) {
         // Fermat spiral scan starts (and ends) at center of ROI.
-        params->xOffset += params->width / 2;
+        params->xOffset +=
+            params->width / 2 +
+            (int32_t)lround(GetImplData(device)->spiralXCenterOffset);
         params->yOffset += params->height / 2;
         params->undershoot = 0;
     }

@@ -79,8 +79,9 @@ void SetSpiralWaveformParamsFromDevice(OScDev_Device *device,
 
     uint32_t minDim = (width < height) ? width : height;
     params->radius = minDim / (2.0 * zoom * resolution);
-    params->centerX =
-        (-0.5 * resolution + xOffset + width / 2.0) / (zoom * resolution);
+    params->centerX = (-0.5 * resolution + xOffset + width / 2.0 +
+                       GetImplData(device)->spiralXCenterOffset) /
+                      (zoom * resolution);
     params->centerY =
         (-0.5 * resolution + yOffset + height / 2.0) / (zoom * resolution);
     params->turnSpacing =

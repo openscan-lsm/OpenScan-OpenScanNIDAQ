@@ -310,6 +310,35 @@ static OScDev_SettingImpl SettingImpl_SpiralNumPairs = {
     .GetInt32Range = GetSpiralNumPairsRange,
 };
 
+static OScDev_Error GetSpiralXCenterOffset(OScDev_Setting *setting,
+                                           double *value) {
+    *value = GetSettingDeviceData(setting)->spiralXCenterOffset;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetSpiralXCenterOffset(OScDev_Setting *setting,
+                                           double value) {
+    GetSettingDeviceData(setting)->spiralXCenterOffset = value;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetSpiralXCenterOffsetRange(OScDev_Setting *setting,
+                                                double *min, double *max) {
+    (void)setting;
+    *min = -50.0;
+    *max = 50.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_SpiralXCenterOffset = {
+    .GetFloat64 = GetSpiralXCenterOffset,
+    .SetFloat64 = SetSpiralXCenterOffset,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetSpiralXCenterOffsetRange,
+};
+
 struct TransformSettingData {
     OScDev_Device *device;
     int index; // 0-3 = matrix[0-3], 4 = offsetX, 5 = offsetY
@@ -488,6 +517,14 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
     if (err)
         goto error;
     OScDev_PtrArray_Append(*settings, spiralNumPairs);
+
+    OScDev_Setting *spiralXCenterOffset;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &spiralXCenterOffset, "Fermat Spiral X Center Offset (pixels)",
+        OScDev_ValueType_Float64, &SettingImpl_SpiralXCenterOffset, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, spiralXCenterOffset);
 
     return OScDev_OK;
 
