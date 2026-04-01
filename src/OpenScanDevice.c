@@ -207,8 +207,8 @@ static OScDev_Error NIDAQArm(OScDev_Device *device, OScDev_Acquisition *acq) {
         return OScDev_Error_ReturnAsCode(OScDev_Error_Create(
             "Unsupported operation (clock source must be internal)"));
 
-    return OScDev_Error_ReturnAsCode(
-        ArmAcquisition(device, acq, !useDetector));
+    bool scannerOnly = !useDetector;
+    return OScDev_Error_ReturnAsCode(ArmAcquisition(device, acq, scannerOnly));
 }
 
 static OScDev_Error NIDAQStart(OScDev_Device *device) {

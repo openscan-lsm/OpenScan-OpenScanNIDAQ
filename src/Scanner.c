@@ -17,11 +17,21 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
                                                 struct ScannerConfig *config,
                                                 OScDev_Acquisition *acq) {
     OScDev_RichError *err;
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-    struct WaveformParams params;
-    SetWaveformParamsFromDevice(device, &params, acq);
+    double sampleRateHz;
+    int32 totalElementsPerFramePerChan;
 
-    int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
+    if (GetImplData(device)->spiralScanEnabled) {
+        sampleRateHz = SPIRAL_SAMPLE_RATE_HZ;
+        struct SpiralWaveformParams spiralParams;
+        SetSpiralWaveformParamsFromDevice(device, &spiralParams, acq);
+        totalElementsPerFramePerChan = GetSpiralWaveformSize(&spiralParams);
+    } else {
+        sampleRateHz = OScDev_Acquisition_GetPixelRate(acq);
+        struct WaveformParams params;
+        SetWaveformParamsFromDevice(device, &params, acq);
+        totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
+    }
+
     uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
 
     int sampleMode;
@@ -40,7 +50,7 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
     }
 
     err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "",
-                                                 pixelRateHz, DAQmx_Val_Rising,
+                                                 sampleRateHz, DAQmx_Val_Rising,
                                                  sampleMode, samplesPerChan));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
@@ -60,14 +70,24 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
 static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
                                             struct ScannerConfig *config,
                                             OScDev_Acquisition *acq) {
-    struct WaveformParams params;
-    SetWaveformParamsFromDevice(device, &params, acq);
+    int32 totalElementsPerFramePerChan;
+    double *xyWaveformFrame;
 
-    int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
-    double *xyWaveformFrame =
-        (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
-
-    GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
+    if (GetImplData(device)->spiralScanEnabled) {
+        struct SpiralWaveformParams spiralParams;
+        SetSpiralWaveformParamsFromDevice(device, &spiralParams, acq);
+        totalElementsPerFramePerChan = GetSpiralWaveformSize(&spiralParams);
+        xyWaveformFrame = (double *)malloc(sizeof(double) *
+                                           totalElementsPerFramePerChan * 2);
+        GenerateSpiralWaveform(&spiralParams, xyWaveformFrame);
+    } else {
+        struct WaveformParams params;
+        SetWaveformParamsFromDevice(device, &params, acq);
+        totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
+        xyWaveformFrame = (double *)malloc(sizeof(double) *
+                                           totalElementsPerFramePerChan * 2);
+        GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
+    }
 
     int32 numWritten = 0;
     OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(

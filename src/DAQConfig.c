@@ -69,6 +69,30 @@ void SetWaveformParamsFromDevice(OScDev_Device *device,
     parameters->prevYParkVoltage = GetImplData(device)->prevYParkVoltage;
 }
 
+void SetSpiralWaveformParamsFromDevice(OScDev_Device *device,
+                                       struct SpiralWaveformParams *params,
+                                       OScDev_Acquisition *acq) {
+    uint32_t xOffset, yOffset, width, height;
+    OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+    uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
+    double zoom = OScDev_Acquisition_GetZoomFactor(acq);
+
+    uint32_t minDim = (width < height) ? width : height;
+    params->radius = minDim / (2.0 * zoom * resolution);
+    params->centerX =
+        (-0.5 * resolution + xOffset + width / 2.0) / (zoom * resolution);
+    params->centerY =
+        (-0.5 * resolution + yOffset + height / 2.0) / (zoom * resolution);
+    params->turnSpacing =
+        GetImplData(device)->spiralTurnSpacing / (zoom * resolution);
+    params->turnDurationMs = GetImplData(device)->spiralTurnDurationMs;
+    params->numPairs = GetImplData(device)->spiralNumPairs;
+    for (int i = 0; i < 4; ++i)
+        params->xformMatrix[i] = GetImplData(device)->xformMatrix[i];
+    params->xformOffsetX = GetImplData(device)->xformOffsetX;
+    params->xformOffsetY = GetImplData(device)->xformOffsetY;
+}
+
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device) {
     ss8str *dest = &GetImplData(device)->aiPhysChans;
     ss8_set_len(dest, 1024);

@@ -206,6 +206,110 @@ static OScDev_SettingImpl SettingImpl_EnableChannel = {
     .SetBool = SetEnableChannel,
 };
 
+static OScDev_Error GetSpiralScanEnabled(OScDev_Setting *setting,
+                                         bool *value) {
+    *value = GetSettingDeviceData(setting)->spiralScanEnabled;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetSpiralScanEnabled(OScDev_Setting *setting, bool value) {
+    GetSettingDeviceData(setting)->spiralScanEnabled = value;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_SpiralScanEnabled = {
+    .GetBool = GetSpiralScanEnabled,
+    .SetBool = SetSpiralScanEnabled,
+};
+
+static OScDev_Error GetSpiralTurnDuration(OScDev_Setting *setting,
+                                          double *value) {
+    *value = GetSettingDeviceData(setting)->spiralTurnDurationMs;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetSpiralTurnDuration(OScDev_Setting *setting,
+                                          double value) {
+    GetSettingDeviceData(setting)->spiralTurnDurationMs = value;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetSpiralTurnDurationRange(OScDev_Setting *setting,
+                                               double *min, double *max) {
+    (void)setting;
+    *min = 0.5;
+    *max = 1000.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_SpiralTurnDuration = {
+    .GetFloat64 = GetSpiralTurnDuration,
+    .SetFloat64 = SetSpiralTurnDuration,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetSpiralTurnDurationRange,
+};
+
+static OScDev_Error GetSpiralTurnSpacing(OScDev_Setting *setting,
+                                         double *value) {
+    *value = GetSettingDeviceData(setting)->spiralTurnSpacing;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetSpiralTurnSpacing(OScDev_Setting *setting,
+                                         double value) {
+    GetSettingDeviceData(setting)->spiralTurnSpacing = value;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetSpiralTurnSpacingRange(OScDev_Setting *setting,
+                                              double *min, double *max) {
+    (void)setting;
+    *min = 1.0;
+    *max = 200.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_SpiralTurnSpacing = {
+    .GetFloat64 = GetSpiralTurnSpacing,
+    .SetFloat64 = SetSpiralTurnSpacing,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetSpiralTurnSpacingRange,
+};
+
+static OScDev_Error GetSpiralNumPairs(OScDev_Setting *setting,
+                                      int32_t *value) {
+    *value = GetSettingDeviceData(setting)->spiralNumPairs;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetSpiralNumPairs(OScDev_Setting *setting, int32_t value) {
+    GetSettingDeviceData(setting)->spiralNumPairs = value;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetSpiralNumPairsRange(OScDev_Setting *setting,
+                                           int32_t *min, int32_t *max) {
+    (void)setting;
+    *min = 1;
+    *max = 50;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_SpiralNumPairs = {
+    .GetInt32 = GetSpiralNumPairs,
+    .SetInt32 = SetSpiralNumPairs,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetInt32Range = GetSpiralNumPairsRange,
+};
+
 struct TransformSettingData {
     OScDev_Device *device;
     int index; // 0-3 = matrix[0-3], 4 = offsetX, 5 = offsetY
@@ -352,6 +456,38 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
     if (err)
         goto error;
     OScDev_PtrArray_Append(*settings, inputVoltageRange);
+
+    OScDev_Setting *spiralScan;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &spiralScan, "Fermat Spiral Scan", OScDev_ValueType_Bool,
+        &SettingImpl_SpiralScanEnabled, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, spiralScan);
+
+    OScDev_Setting *spiralTurnDuration;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &spiralTurnDuration, "Fermat Spiral Turn Duration (ms)",
+        OScDev_ValueType_Float64, &SettingImpl_SpiralTurnDuration, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, spiralTurnDuration);
+
+    OScDev_Setting *spiralTurnSpacing;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &spiralTurnSpacing, "Fermat Spiral Turn Spacing (pixels)",
+        OScDev_ValueType_Float64, &SettingImpl_SpiralTurnSpacing, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, spiralTurnSpacing);
+
+    OScDev_Setting *spiralNumPairs;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &spiralNumPairs, "Fermat Spiral Num Angles", OScDev_ValueType_Int32,
+        &SettingImpl_SpiralNumPairs, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, spiralNumPairs);
 
     return OScDev_OK;
 

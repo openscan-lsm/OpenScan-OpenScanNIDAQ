@@ -1,5 +1,7 @@
 #include "Waveform.h"
 
+#define _USE_MATH_DEFINES
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -265,6 +267,103 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
 
     free(xWaveform);
     free(yWaveform);
+}
+
+//
+// Fermat spiral scans
+//
+
+static void ComputeSpiralInternals(const struct SpiralWaveformParams *params,
+                                   double *c_out, double *thetaMax_out,
+                                   int32_t *samplesPerArm_out,
+                                   int32_t *samplesPerArc_out) {
+    double c = params->turnSpacing / sqrt(2.0 * M_PI);
+    double thetaMax = 0.0;
+    if (c > 0.0)
+        thetaMax = (params->radius / c) * (params->radius / c);
+    double numTurns = thetaMax / (2.0 * M_PI);
+    double samplesPerTurn =
+        params->turnDurationMs * 1e-3 * SPIRAL_SAMPLE_RATE_HZ;
+    int32_t samplesPerArm = (int32_t)(numTurns * samplesPerTurn);
+    if (samplesPerArm < 1)
+        samplesPerArm = 1;
+    int32_t N = 2 * params->numPairs;
+    int32_t samplesPerArc = (int32_t)(samplesPerTurn / N);
+    if (samplesPerArc < 1)
+        samplesPerArc = 1;
+
+    *c_out = c;
+    *thetaMax_out = thetaMax;
+    *samplesPerArm_out = samplesPerArm;
+    *samplesPerArc_out = samplesPerArc;
+}
+
+int32_t GetSpiralWaveformSize(const struct SpiralWaveformParams *params) {
+    double c, thetaMax;
+    int32_t samplesPerArm, samplesPerArc;
+    ComputeSpiralInternals(params, &c, &thetaMax, &samplesPerArm,
+                           &samplesPerArc);
+    return params->numPairs * (2 * samplesPerArm + samplesPerArc);
+}
+
+void GenerateSpiralWaveform(const struct SpiralWaveformParams *params,
+                            double *xyWaveform) {
+    double c, thetaMax;
+    int32_t samplesPerArm, samplesPerArc;
+    ComputeSpiralInternals(params, &c, &thetaMax, &samplesPerArm,
+                           &samplesPerArc);
+
+    int32_t N = 2 * params->numPairs;
+    int32_t totalSamples = GetSpiralWaveformSize(params);
+    const double *m = params->xformMatrix;
+    double tx = params->xformOffsetX;
+    double ty = params->xformOffsetY;
+    double cx = params->centerX;
+    double cy = params->centerY;
+    double R = params->radius;
+
+    int32_t idx = 0;
+    for (int32_t p = 0; p < params->numPairs; ++p) {
+        int32_t armOut = 2 * p;
+        int32_t armIn = 2 * p + 1;
+
+        // Outward arm: center to edge
+        for (int32_t i = 0; i < samplesPerArm; ++i) {
+            double theta = thetaMax * i / samplesPerArm;
+            double r = c * sqrt(theta);
+            double angle = theta + 2.0 * M_PI * armOut / N;
+            double lx = cx + r * cos(angle);
+            double ly = cy + r * sin(angle);
+            xyWaveform[idx] = m[0] * lx + m[1] * ly + tx;
+            xyWaveform[idx + totalSamples] = m[2] * lx + m[3] * ly + ty;
+            ++idx;
+        }
+
+        // Peripheral arc: outward arm endpoint to inward arm startpoint
+        double outEndAngle = thetaMax + 2.0 * M_PI * armOut / N;
+        double inStartAngle = thetaMax + 2.0 * M_PI * armIn / N;
+        for (int32_t i = 0; i < samplesPerArc; ++i) {
+            double t = (double)(i + 1) / (samplesPerArc + 1);
+            double angle = outEndAngle + t * (inStartAngle - outEndAngle);
+            double lx = cx + R * cos(angle);
+            double ly = cy + R * sin(angle);
+            xyWaveform[idx] = m[0] * lx + m[1] * ly + tx;
+            xyWaveform[idx + totalSamples] = m[2] * lx + m[3] * ly + ty;
+            ++idx;
+        }
+
+        // Inward arm: edge to center
+        for (int32_t i = samplesPerArm - 1; i >= 0; --i) {
+            double theta = thetaMax * i / samplesPerArm;
+            double r = c * sqrt(theta);
+            double angle = theta + 2.0 * M_PI * armIn / N;
+            double lx = cx + r * cos(angle);
+            double ly = cy + r * sin(angle);
+            xyWaveform[idx] = m[0] * lx + m[1] * ly + tx;
+            xyWaveform[idx + totalSamples] = m[2] * lx + m[3] * ly + ty;
+            ++idx;
+        }
+    }
 }
 
 // Generate waveform from start to parking after one frame

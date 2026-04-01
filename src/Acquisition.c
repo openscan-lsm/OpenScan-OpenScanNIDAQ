@@ -61,10 +61,13 @@ static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
 
     OScDev_RichError *err;
 
-    err = SetUpClock(device, &GetImplData(device)->clockConfig, acq);
-    if (err)
-        return err;
-    if (!GetImplData(device)->scannerOnly) {
+    if (!GetImplData(device)->spiralScanEnabled) {
+        err = SetUpClock(device, &GetImplData(device)->clockConfig, acq);
+        if (err)
+            return err;
+    }
+    if (!GetImplData(device)->scannerOnly &&
+        !GetImplData(device)->spiralScanEnabled) {
         err = SetUpDetector(device, &GetImplData(device)->detectorConfig, acq);
         if (err)
             return err;
@@ -88,16 +91,19 @@ static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
 
 static OScDev_RichError *StartScan(OScDev_Device *device) {
     OScDev_RichError *err;
-    if (!GetImplData(device)->scannerOnly) {
+    if (!GetImplData(device)->scannerOnly &&
+        !GetImplData(device)->spiralScanEnabled) {
         err = StartDetector(&GetImplData(device)->detectorConfig);
         if (err)
             return err;
     } else
         OScDev_Log_Debug(device, "DAQ not used as detector");
 
-    err = StartClock(&GetImplData(device)->clockConfig);
-    if (err)
-        goto stop_detector;
+    if (!GetImplData(device)->spiralScanEnabled) {
+        err = StartClock(&GetImplData(device)->clockConfig);
+        if (err)
+            goto stop_detector;
+    }
 
     err = StartScanner(&GetImplData(device)->scannerConfig);
     if (err)
@@ -106,9 +112,11 @@ static OScDev_RichError *StartScan(OScDev_Device *device) {
     return OScDev_RichError_OK;
 
 stop_clock:
-    OScDev_Error_Destroy(StopClock(&GetImplData(device)->clockConfig));
+    if (!GetImplData(device)->spiralScanEnabled)
+        OScDev_Error_Destroy(StopClock(&GetImplData(device)->clockConfig));
 stop_detector:
-    if (!GetImplData(device)->scannerOnly)
+    if (!GetImplData(device)->scannerOnly &&
+        !GetImplData(device)->spiralScanEnabled)
         OScDev_Error_Destroy(
             StopDetector(&GetImplData(device)->detectorConfig));
     return err;
@@ -117,15 +125,18 @@ stop_detector:
 static OScDev_RichError *StopScan(OScDev_Device *device) {
     OScDev_RichError *err, *lastErr = OScDev_RichError_OK;
 
-    if (!GetImplData(device)->scannerOnly) {
+    if (!GetImplData(device)->scannerOnly &&
+        !GetImplData(device)->spiralScanEnabled) {
         err = StopDetector(&GetImplData(device)->detectorConfig);
         if (err)
             lastErr = err;
     }
 
-    err = StopClock(&GetImplData(device)->clockConfig);
-    if (err)
-        lastErr = err;
+    if (!GetImplData(device)->spiralScanEnabled) {
+        err = StopClock(&GetImplData(device)->clockConfig);
+        if (err)
+            lastErr = err;
+    }
 
     err = StopScanner(&GetImplData(device)->scannerConfig);
     if (err)
@@ -184,12 +195,23 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     GetImplData(device)->rawDataSize = 0;
     GetImplData(device)->activeWriteBuffer = 0;
 
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-    struct WaveformParams params;
-    SetWaveformParamsFromDevice(device, &params, acq);
-    uint32_t totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
-    uint32_t estFrameTimeMs =
-        (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
+    uint32_t estFrameTimeMs;
+    if (GetImplData(device)->spiralScanEnabled) {
+        struct SpiralWaveformParams spiralParams;
+        SetSpiralWaveformParamsFromDevice(device, &spiralParams, acq);
+        uint32_t totalElementsPerFramePerChan =
+            GetSpiralWaveformSize(&spiralParams);
+        estFrameTimeMs = (uint32_t)(1e3 * totalElementsPerFramePerChan /
+                                    SPIRAL_SAMPLE_RATE_HZ);
+    } else {
+        double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+        struct WaveformParams params;
+        SetWaveformParamsFromDevice(device, &params, acq);
+        uint32_t totalElementsPerFramePerChan =
+            GetScannerWaveformSize(&params);
+        estFrameTimeMs =
+            (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
+    }
 
     err = StartScan(device);
     if (err) {
@@ -210,7 +232,23 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
         snprintf(msg, OScDev_MAX_STR_LEN, "Acquiring frame # %u", frame);
         OScDev_Log_Debug(device, msg);
 
-        if (!GetImplData(device)->scannerOnly) {
+        if (GetImplData(device)->scannerOnly) {
+            Sleep(estFrameTimeMs);
+        } else if (GetImplData(device)->spiralScanEnabled) {
+            Sleep(estFrameTimeMs);
+            // Emit dummy (blank) images in case spiral scan is run with
+            // detector(s) enabled.
+            uint32_t xOff, yOff, w, h;
+            OScDev_Acquisition_GetROI(acq, &xOff, &yOff, &w, &h);
+            uint16_t *zeroBuffer =
+                (uint16_t *)calloc((size_t)w * h, sizeof(uint16_t));
+            int nChans = GetNumberOfEnabledChannels(device);
+            for (int ch = 0; ch < nChans; ++ch) {
+                if (!OScDev_Acquisition_CallFrameCallback(acq, ch, zeroBuffer))
+                    break;
+            }
+            free(zeroBuffer);
+        } else {
             int rb = 0;
 
             EnterCriticalSection(&GetImplData(device)->frameMutex);
@@ -268,8 +306,6 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
                     "Stopping acquisition because frame could not be transmitted");
                 break;
             }
-        } else {
-            Sleep(estFrameTimeMs);
         }
     }
 

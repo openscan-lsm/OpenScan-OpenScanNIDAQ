@@ -53,8 +53,13 @@ struct DeviceImplData {
     double xformMatrix[4]; // {a, b, c, d} — row-major 2x2
     double xformOffsetX;   // tx (volts)
     double xformOffsetY;   // ty (volts)
-    double minVolts_;      // min possible for device
-    double maxVolts_;      // max possible for device
+
+    bool spiralScanEnabled;
+    double spiralTurnDurationMs; // ms per revolution
+    double spiralTurnSpacing;    // pixels (at current zoom/resolution)
+    int32_t spiralNumPairs;      // number of interlocking spiral pairs
+    double minVolts_;            // min possible for device
+    double maxVolts_;            // max possible for device
 
     int numAIPhysChans; // Not to exceed MAX_PHYSICAL_CHANS
     ss8str aiPhysChans; // at least numAIPhysChans elements separated by ", "

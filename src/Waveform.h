@@ -33,6 +33,24 @@ GetScannerWaveformSizeAfterLastPixel(const struct WaveformParams *parameters);
 int32_t GetParkWaveformSize(const struct WaveformParams *parameters);
 void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
                                 double *xyWaveformFrame);
+#define SPIRAL_SAMPLE_RATE_HZ 100000.0
+
+struct SpiralWaveformParams {
+    double radius;
+    double centerX;
+    double centerY;
+    double turnSpacing;
+    double turnDurationMs;
+    int32_t numPairs;
+    double xformMatrix[4];
+    double xformOffsetX;
+    double xformOffsetY;
+};
+
+int32_t GetSpiralWaveformSize(const struct SpiralWaveformParams *params);
+void GenerateSpiralWaveform(const struct SpiralWaveformParams *params,
+                            double *xyWaveform);
+
 void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
                                  double *xyWaveformFrame);
 void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,

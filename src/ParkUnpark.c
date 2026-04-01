@@ -55,11 +55,22 @@ OScDev_RichError *ConfigureParkTiming(OScDev_Device *device,
     return OScDev_RichError_OK;
 }
 
+static void AdjustParamsForSpiralCenter(OScDev_Device *device,
+                                        struct WaveformParams *params) {
+    if (GetImplData(device)->spiralScanEnabled) {
+        // Fermat spiral scan starts (and ends) at center of ROI.
+        params->xOffset += params->width / 2;
+        params->yOffset += params->height / 2;
+        params->undershoot = 0;
+    }
+}
+
 OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
                                     struct ScannerConfig *config,
                                     OScDev_Acquisition *acq) {
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
+    AdjustParamsForSpiralCenter(device, &params);
 
     int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
     double *xyWaveformFrame =
@@ -90,6 +101,7 @@ OScDev_RichError *WriteParkOutput(OScDev_Device *device,
                                   OScDev_Acquisition *acq) {
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
+    AdjustParamsForSpiralCenter(device, &params);
 
     int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
     double *xyWaveformFrame =

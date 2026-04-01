@@ -17,6 +17,10 @@ void InitializeImplData(struct DeviceImplData *data) {
     data->xformMatrix[3] = 1.0;
     data->xformOffsetX = 0.0;
     data->xformOffsetY = 0.0;
+    data->spiralScanEnabled = false;
+    data->spiralTurnDurationMs = 10.0;
+    data->spiralTurnSpacing = 20.0;
+    data->spiralNumPairs = 3;
     data->numLinesToBuffer = 8;
     data->inputVoltageRange = 10.0;
     data->minVolts_ = -10.0;
