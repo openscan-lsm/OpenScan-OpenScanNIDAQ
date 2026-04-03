@@ -33,36 +33,120 @@ GetNumericConstraintTypeImpl_Range(OScDev_Setting *setting,
     return OScDev_OK;
 }
 
-static OScDev_Error GetLineDelay(OScDev_Setting *setting, int32_t *value) {
-    *value = GetSettingDeviceData(setting)->lineDelay;
-
+static OScDev_Error GetAOSampleRate(OScDev_Setting *setting, double *value) {
+    *value = GetSettingDeviceData(setting)->aoRateHz;
     return OScDev_OK;
 }
 
-static OScDev_Error SetLineDelay(OScDev_Setting *setting, int32_t value) {
-    GetSettingDeviceData(setting)->lineDelay = value;
-
+static OScDev_Error SetAOSampleRate(OScDev_Setting *setting, double value) {
+    GetSettingDeviceData(setting)->aoRateHz = value;
     GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
     GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
     GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
     GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
-
     return OScDev_OK;
 }
 
-static OScDev_Error GetLineDelayRange(OScDev_Setting *setting, int32_t *min,
-                                      int32_t *max) {
-    (void)setting; // Unused
-    *min = 1;
-    *max = 200;
+static OScDev_Error GetAOSampleRateRange(OScDev_Setting *setting, double *min,
+                                         double *max) {
+    (void)setting;
+    *min = 100000.0;
+    *max = 1000000.0;
     return OScDev_OK;
 }
 
-static OScDev_SettingImpl SettingImpl_LineDelay = {
-    .GetInt32 = GetLineDelay,
-    .SetInt32 = SetLineDelay,
+static OScDev_SettingImpl SettingImpl_AOSampleRate = {
+    .GetFloat64 = GetAOSampleRate,
+    .SetFloat64 = SetAOSampleRate,
     .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
-    .GetInt32Range = GetLineDelayRange,
+    .GetFloat64Range = GetAOSampleRateRange,
+};
+
+static OScDev_Error GetUndershoot(OScDev_Setting *setting, double *value) {
+    *value = GetSettingDeviceData(setting)->undershootUs;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetUndershoot(OScDev_Setting *setting, double value) {
+    GetSettingDeviceData(setting)->undershootUs = value;
+    GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetUndershootRange(OScDev_Setting *setting, double *min,
+                                       double *max) {
+    (void)setting;
+    *min = 0.0;
+    *max = 5000.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_Undershoot = {
+    .GetFloat64 = GetUndershoot,
+    .SetFloat64 = SetUndershoot,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetUndershootRange,
+};
+
+static OScDev_Error GetScanPhase(OScDev_Setting *setting, double *value) {
+    *value = GetSettingDeviceData(setting)->scanPhaseUs;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetScanPhase(OScDev_Setting *setting, double value) {
+    GetSettingDeviceData(setting)->scanPhaseUs = value;
+    GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetScanPhaseRange(OScDev_Setting *setting, double *min,
+                                      double *max) {
+    (void)setting;
+    *min = 0.0;
+    *max = 1000.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_ScanPhase = {
+    .GetFloat64 = GetScanPhase,
+    .SetFloat64 = SetScanPhase,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetScanPhaseRange,
+};
+
+static OScDev_Error GetRetraceScale(OScDev_Setting *setting, double *value) {
+    *value = GetSettingDeviceData(setting)->retraceScaleUsPerVolt;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetRetraceScale(OScDev_Setting *setting, double value) {
+    GetSettingDeviceData(setting)->retraceScaleUsPerVolt = value;
+    GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetRetraceScaleRange(OScDev_Setting *setting, double *min,
+                                         double *max) {
+    (void)setting;
+    *min = 100.0;
+    *max = 10000.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_RetraceScale = {
+    .GetFloat64 = GetRetraceScale,
+    .SetFloat64 = SetRetraceScale,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetRetraceScaleRange,
 };
 
 static OScDev_Error GetParkingPositionX(OScDev_Setting *setting,
@@ -272,13 +356,37 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
 
     *settings = OScDev_PtrArray_Create();
 
-    OScDev_Setting *lineDelay;
+    OScDev_Setting *aoSampleRate;
     err = OScDev_Error_AsRichError(OScDev_Setting_Create(
-        &lineDelay, "Line Delay (pixels)", OScDev_ValueType_Int32,
-        &SettingImpl_LineDelay, device));
+        &aoSampleRate, "AO Sample Rate (Hz)", OScDev_ValueType_Float64,
+        &SettingImpl_AOSampleRate, device));
     if (err)
         goto error;
-    OScDev_PtrArray_Append(*settings, lineDelay);
+    OScDev_PtrArray_Append(*settings, aoSampleRate);
+
+    OScDev_Setting *undershoot;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &undershoot, "Undershoot (us)", OScDev_ValueType_Float64,
+        &SettingImpl_Undershoot, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, undershoot);
+
+    OScDev_Setting *scanPhase;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &scanPhase, "Scan Phase (us)", OScDev_ValueType_Float64,
+        &SettingImpl_ScanPhase, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, scanPhase);
+
+    OScDev_Setting *retraceScale;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &retraceScale, "Retrace Scale (us/V)", OScDev_ValueType_Float64,
+        &SettingImpl_RetraceScale, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, retraceScale);
 
     OScDev_Setting *parkingPositionX;
     err = OScDev_Error_AsRichError(OScDev_Setting_Create(

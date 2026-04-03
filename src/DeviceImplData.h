@@ -36,10 +36,10 @@ struct DeviceImplData {
 
     bool scannerOnly;
 
-    // counted as number of pixels.
-    // to adjust for the lag between the mirror control signal and the actual
-    // position of the mirror scan phase (uSec) = line delay / scan rate
-    uint32_t lineDelay;
+    double aoRateHz;
+    double undershootUs;
+    double scanPhaseUs;
+    double retraceScaleUsPerVolt;
 
     int32_t xPark;
     int32_t yPark;

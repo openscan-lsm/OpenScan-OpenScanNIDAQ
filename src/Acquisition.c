@@ -33,6 +33,8 @@ static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
         GetImplData(device)->clockConfig.mustReconfigureTiming = true;
         GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
         GetImplData(device)->detectorConfig.mustReconfigureTiming = true;
+        GetImplData(device)->clockConfig.mustRewriteOutput = true;
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
     }
     if (resolution != GetImplData(device)->configuredResolution) {
         GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
@@ -184,12 +186,11 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     GetImplData(device)->rawDataSize = 0;
     GetImplData(device)->activeWriteBuffer = 0;
 
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
     uint32_t totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
     uint32_t estFrameTimeMs =
-        (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
+        (uint32_t)(1e3 * totalElementsPerFramePerChan / params.aoRateHz);
 
     err = StartScan(device);
     if (err) {

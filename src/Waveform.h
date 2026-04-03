@@ -3,13 +3,19 @@
 #include <stdint.h>
 
 struct WaveformParams {
-    uint32_t width;  // PixelsPerLine
+    uint32_t width;  // PixelsPerLine (ROI)
     uint32_t height; // numScanLines
     uint32_t resolution;
     double zoom;
-    uint32_t undershoot; // also LineDelay for clock waveforms
     uint32_t xOffset;
     uint32_t yOffset;
+
+    double aoRateHz;
+    double pixelRateHz;
+    double undershootUs;
+    double scanPhaseUs;
+    double retraceScaleUsPerVolt;
+
     double xformMatrix[4]; // {a, b, c, d} — row-major 2x2
     double xformOffsetX;   // tx (volts)
     double xformOffsetY;   // ty (volts)
@@ -18,6 +24,12 @@ struct WaveformParams {
     double prevXParkVoltage;
     double prevYParkVoltage;
 };
+
+uint32_t UndershootSamples(const struct WaveformParams *params);
+uint32_t ScanSamples(const struct WaveformParams *params);
+uint32_t ScanPhaseSamples(const struct WaveformParams *params);
+uint32_t RetraceSamples(const struct WaveformParams *params);
+uint32_t ParkSamples(const struct WaveformParams *params);
 
 void GenerateLineClock(const struct WaveformParams *parameters,
                        uint8_t *lineClock);
