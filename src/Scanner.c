@@ -9,6 +9,7 @@
 #include <OpenScanDeviceLib.h>
 #include <ss8str.h>
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,11 +23,25 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
 
     int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
     uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
-    uInt64 totalSamples = (uInt64)totalFrames * totalElementsPerFramePerChan;
 
-    err = CreateDAQmxError(DAQmxCfgSampClkTiming(
-        config->aoTask, "", pixelRateHz, DAQmx_Val_Rising,
-        DAQmx_Val_FiniteSamps, totalSamples));
+    int sampleMode;
+    uInt64 samplesPerChan;
+    if (totalFrames >= INT32_MAX) {
+        sampleMode = DAQmx_Val_ContSamps;
+        samplesPerChan = totalElementsPerFramePerChan;
+    } else {
+        uInt64 totalSamples =
+            (uInt64)totalFrames * totalElementsPerFramePerChan;
+        if (totalSamples > UINT32_MAX)
+            return OScDev_Error_Create(
+                "Total scanner samples exceed maximum for finite mode");
+        sampleMode = DAQmx_Val_FiniteSamps;
+        samplesPerChan = totalSamples;
+    }
+
+    err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "",
+                                                 pixelRateHz, DAQmx_Val_Rising,
+                                                 sampleMode, samplesPerChan));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
         return err;

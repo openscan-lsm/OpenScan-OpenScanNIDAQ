@@ -24,6 +24,11 @@ static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
     double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
     uint32_t xOffset, yOffset, width, height;
     OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+    uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
+    if (totalFrames != GetImplData(device)->configuredTotalFrames) {
+        GetImplData(device)->clockConfig.mustReconfigureTiming = true;
+        GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
+    }
     if (pixelRateHz != GetImplData(device)->configuredPixelRateHz) {
         GetImplData(device)->clockConfig.mustReconfigureTiming = true;
         GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
@@ -69,6 +74,7 @@ static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
     resolution = OScDev_Acquisition_GetResolution(acq);
     zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
     OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+    GetImplData(device)->configuredTotalFrames = totalFrames;
     GetImplData(device)->configuredPixelRateHz = pixelRateHz;
     GetImplData(device)->configuredResolution = resolution;
     GetImplData(device)->configuredZoomFactor = zoomFactor;
@@ -191,7 +197,8 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
         goto park;
     }
 
-    for (uint32_t frame = 0; frame < totalFrames; ++frame) {
+    for (uint32_t frame = 0; totalFrames >= INT32_MAX || frame < totalFrames;
+         ++frame) {
         bool stopRequested;
         EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
         stopRequested = GetImplData(device)->acquisition.stopRequested;

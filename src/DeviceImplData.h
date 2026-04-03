@@ -27,6 +27,7 @@ struct DeviceImplData {
     struct ClockConfig clockConfig;
     struct ScannerConfig scannerConfig;
     struct DetectorConfig detectorConfig;
+    uint32_t configuredTotalFrames;
     double configuredPixelRateHz;
     uint32_t configuredResolution;
     double configuredZoomFactor;
