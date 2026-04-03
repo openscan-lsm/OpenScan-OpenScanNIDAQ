@@ -58,7 +58,12 @@ void SetWaveformParamsFromDevice(OScDev_Device *device,
     parameters->zoom = OScDev_Acquisition_GetZoomFactor(acq);
     OScDev_Acquisition_GetROI(acq, &parameters->xOffset, &parameters->yOffset,
                               &parameters->width, &parameters->height);
-    parameters->undershoot = GetImplData(device)->lineDelay;
+    parameters->pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    parameters->aoRateHz = GetImplData(device)->aoRateHz;
+    parameters->undershootUs = GetImplData(device)->undershootUs;
+    parameters->scanPhaseUs = GetImplData(device)->scanPhaseUs;
+    parameters->retraceScaleUsPerVolt =
+        GetImplData(device)->retraceScaleUsPerVolt;
     for (int i = 0; i < 4; ++i)
         parameters->xformMatrix[i] = GetImplData(device)->xformMatrix[i];
     parameters->xformOffsetX = GetImplData(device)->xformOffsetX;
