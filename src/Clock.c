@@ -91,13 +91,39 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device,
 
     uint32_t elementsPerLine = GetLineWaveformSize(&params);
     int32 elementsPerFramePerChan = GetClockWaveformSize(&params);
+    uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
 
-    err = CreateDAQmxError(DAQmxCfgSampClkTiming(
-        config->doTask, "", pixelRateHz, DAQmx_Val_Rising,
-        DAQmx_Val_FiniteSamps, elementsPerFramePerChan));
+    int sampleMode;
+    if (totalFrames >= INT32_MAX) {
+        sampleMode = DAQmx_Val_ContSamps;
+    } else {
+        sampleMode = DAQmx_Val_FiniteSamps;
+    }
+
+    uInt64 doSamplesPerChan;
+    if (sampleMode == DAQmx_Val_ContSamps) {
+        doSamplesPerChan = elementsPerFramePerChan;
+    } else {
+        uInt64 totalDOSamples = (uInt64)totalFrames * elementsPerFramePerChan;
+        if (totalDOSamples > UINT32_MAX)
+            return OScDev_Error_Create(
+                "Total clock DO samples exceed maximum for finite mode");
+        doSamplesPerChan = totalDOSamples;
+    }
+    err = CreateDAQmxError(
+        DAQmxCfgSampClkTiming(config->doTask, "", pixelRateHz,
+                              DAQmx_Val_Rising, sampleMode, doSamplesPerChan));
     if (err) {
         err = OScDev_Error_Wrap(
             err, "Failed to configure timing for clock do task");
+        return err;
+    }
+
+    err = CreateDAQmxError(
+        DAQmxSetWriteRegenMode(config->doTask, DAQmx_Val_AllowRegen));
+    if (err) {
+        err = OScDev_Error_Wrap(err,
+                                "Failed to set regen mode for clock do task");
         return err;
     }
 
@@ -128,8 +154,18 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device,
         return err;
     }
 
+    uInt64 ctrSamplesPerChan;
+    if (sampleMode == DAQmx_Val_ContSamps) {
+        ctrSamplesPerChan = height;
+    } else {
+        uInt64 totalCtrPulses = (uInt64)totalFrames * height;
+        if (totalCtrPulses > UINT32_MAX)
+            return OScDev_Error_Create(
+                "Total clock counter pulses exceed maximum for finite mode");
+        ctrSamplesPerChan = totalCtrPulses;
+    }
     err = CreateDAQmxError(DAQmxCfgImplicitTiming(
-        config->lineCtrTask, DAQmx_Val_FiniteSamps, height));
+        config->lineCtrTask, sampleMode, ctrSamplesPerChan));
     if (err) {
         err = OScDev_Error_Wrap(
             err, "Failed to configure timing for clock lineCtr");
@@ -153,14 +189,6 @@ static OScDev_RichError *ConfigureClockTriggers(OScDev_Device *device,
         ss8_destroy(&trigSrc);
         err = OScDev_Error_Wrap(
             err, "Failed to configure trigger for clock do task");
-        return err;
-    }
-
-    err = CreateDAQmxError(DAQmxSetStartTrigRetriggerable(config->doTask, 1));
-    if (err) {
-        ss8_destroy(&trigSrc);
-        err = OScDev_Error_Wrap(err,
-                                "Failed to set retriggerable clock do task");
         return err;
     }
 
@@ -220,8 +248,7 @@ static OScDev_RichError *WriteClockOutput(OScDev_Device *device,
         goto cleanup;
     }
     if (numWritten != elementsPerFramePerChan) {
-        err =
-            OScDev_Error_Wrap(err, "Failed to write complete clock waveform");
+        err = OScDev_Error_Create("Failed to write complete clock waveform");
         goto cleanup;
     }
 

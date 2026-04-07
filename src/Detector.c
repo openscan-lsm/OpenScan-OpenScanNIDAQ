@@ -74,10 +74,18 @@ static int32 HandleRawData(OScDev_Device *device) {
     // | ch0_samp0 ch1_samp0 ch0_samp1 ch1_samp1 | ch0_samp0 ...
     // We need to transfer this into per-channel frame buffers.
 
+    // TODO Cleaner to get raster size from the OScDev_Acquisition (a future
+    // OpenScanLib should allow getting the current device from the
+    // acquisition, so that we can pass the acquisition as callback data)
+    uint32_t pixelsPerLine = GetImplData(device)->configuredRasterWidth;
+    uint32_t linesPerFrame = GetImplData(device)->configuredRasterHeight;
+    size_t pixelsPerFrame = pixelsPerLine * linesPerFrame;
+
     // Process raw data and fill in frame buffers
     for (size_t p = 0; p < pixelsToProducePerChan; ++p) {
         size_t rawPixelStart = p * numChannels;
-        size_t pixelIndex = GetImplData(device)->framePixelsFilled++;
+        size_t pixelIndex = GetImplData(device)->framePixelsFilled;
+        int wb = GetImplData(device)->activeWriteBuffer;
 
         for (size_t ch = 0; ch < numChannels; ++ch) {
             size_t rawChannelStart = rawPixelStart + ch;
@@ -98,7 +106,25 @@ static int32 HandleRawData(OScDev_Device *device) {
             }
             uint16_t pixel = (uint16_t)dpixel;
 
-            GetImplData(device)->frameBuffers[ch][pixelIndex] = pixel;
+            GetImplData(device)->frameBuffers[wb][ch][pixelIndex] = pixel;
+        }
+
+        GetImplData(device)->framePixelsFilled++;
+        if (GetImplData(device)->framePixelsFilled == pixelsPerFrame) {
+            EnterCriticalSection(&GetImplData(device)->frameMutex);
+            if (GetImplData(device)->readBufferState != READ_BUFFER_IDLE) {
+                OScDev_Log_Error(
+                    device,
+                    "Buffer overrun: previous frame could not be transmitted in time");
+                LeaveCriticalSection(&GetImplData(device)->frameMutex);
+                return OScDev_Error_Unknown;
+            }
+            GetImplData(device)->activeWriteBuffer =
+                1 - GetImplData(device)->activeWriteBuffer;
+            GetImplData(device)->framePixelsFilled = 0;
+            GetImplData(device)->readBufferState = READ_BUFFER_READY;
+            LeaveCriticalSection(&GetImplData(device)->frameMutex);
+            WakeConditionVariable(&GetImplData(device)->frameReady);
         }
     }
 
@@ -108,26 +134,10 @@ static int32 HandleRawData(OScDev_Device *device) {
             sizeof(float64) * leftoverSamples);
     GetImplData(device)->rawDataSize = leftoverSamples;
 
-    // TODO Cleaner to get raster size from the OScDev_Acquisition (a future
-    // OpenScanLib should allow getting the current device from the
-    // acquisition, so that we can pass the acquisition as callback data)
-    uint32_t pixelsPerLine = GetImplData(device)->configuredRasterWidth;
-    uint32_t linesPerFrame = GetImplData(device)->configuredRasterHeight;
-
-    size_t pixelsPerFrame = pixelsPerLine * linesPerFrame;
     char msg[OScDev_MAX_STR_LEN + 1];
     snprintf(msg, OScDev_MAX_STR_LEN, "Read %zd pixels",
              GetImplData(device)->framePixelsFilled);
     OScDev_Log_Debug(device, msg);
-
-    if (GetImplData(device)->framePixelsFilled == pixelsPerFrame) {
-        // TODO This method of communication is unreliable without a mutex
-        // TODO But we should use a condition variable in any case
-        GetImplData(device)->oneFrameScanDone = true;
-
-        // TODO This reset should occur at start of frame
-        GetImplData(device)->framePixelsFilled = 0;
-    }
 
     return OScDev_OK;
 }
@@ -343,17 +353,18 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
         realloc(GetImplData(device)->rawDataBuffer,
                 sizeof(float64) * GetImplData(device)->rawDataCapacity);
 
-    // Allocate frame buffers for the enabled channels
-    for (uint32_t ch = 0; ch < numChannels; ++ch) {
-        GetImplData(device)->frameBuffers[ch] =
-            realloc(GetImplData(device)->frameBuffers[ch],
-                    sizeof(uint16_t) * pixelsPerFrame);
+    for (int buf = 0; buf < 2; ++buf) {
+        for (uint32_t ch = 0; ch < numChannels; ++ch) {
+            GetImplData(device)->frameBuffers[buf][ch] =
+                realloc(GetImplData(device)->frameBuffers[buf][ch],
+                        sizeof(uint16_t) * pixelsPerFrame);
+        }
+        for (uint32_t ch = numChannels; ch < MAX_PHYSICAL_CHANS; ++ch) {
+            free(GetImplData(device)->frameBuffers[buf][ch]);
+            GetImplData(device)->frameBuffers[buf][ch] = NULL;
+        }
     }
-    // Free the frame buffers for unused channels
-    for (uint32_t ch = numChannels; ch < MAX_PHYSICAL_CHANS; ++ch) {
-        free(GetImplData(device)->frameBuffers[ch]);
-        GetImplData(device)->frameBuffers[ch] = NULL;
-    }
+    GetImplData(device)->activeWriteBuffer = 0;
 
     // Set DAQmxRead*() with DAQmx_Val_Auto to immediately return all
     // available samples instead of waiting for the requested number of

@@ -268,7 +268,7 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
 
     err = EnumerateAIPhysChans(device);
     if (err)
-        OScDev_Error_ReturnAsCode(err);
+        return OScDev_Error_ReturnAsCode(err);
 
     *settings = OScDev_PtrArray_Create();
 

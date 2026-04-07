@@ -24,6 +24,9 @@ void InitializeImplData(struct DeviceImplData *data) {
     ss8_init(&data->aiPhysChans);
     data->channelEnabled[0] = true;
 
+    InitializeCriticalSection(&data->frameMutex);
+    InitializeConditionVariable(&data->frameReady);
+
     InitializeCriticalSection(&(data->acquisition.mutex));
     InitializeConditionVariable(
         &(data->acquisition.acquisitionFinishCondition));

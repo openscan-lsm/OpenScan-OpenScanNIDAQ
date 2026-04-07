@@ -76,8 +76,7 @@ OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
         goto cleanup;
     }
     if (numWritten != totalElementsPerFramePerChan) {
-        err =
-            OScDev_Error_Wrap(err, "Failed to write complete unpark waveform");
+        err = OScDev_Error_Create("Failed to write complete unpark waveform");
         goto cleanup;
     }
 
@@ -111,7 +110,7 @@ OScDev_RichError *WriteParkOutput(OScDev_Device *device,
         goto cleanup;
     }
     if (numWritten != totalElementsPerFramePerChan) {
-        err = OScDev_Error_Wrap(err, "Failed to write complete park waveform");
+        err = OScDev_Error_Create("Failed to write complete park waveform");
         goto cleanup;
     }
 
@@ -150,6 +149,8 @@ OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
     if (err) {
         err =
             OScDev_Error_Wrap(err, "Failed to wait for unpark task to finish");
+        DAQmxStopTask(config->aoTask);
+        ShutdownScanner(config);
         return err;
     }
 
@@ -191,6 +192,8 @@ OScDev_RichError *GenerateParkOutput(OScDev_Device *device,
         GetImplData(device)->scannerConfig.aoTask, maxWaitTimeMs * 1e-3));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to wait for park task to finish");
+        DAQmxStopTask(config->aoTask);
+        ShutdownScanner(config);
         return err;
     }
 

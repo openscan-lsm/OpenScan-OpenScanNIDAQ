@@ -9,6 +9,7 @@
 #include <OpenScanDeviceLib.h>
 #include <ss8str.h>
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,12 +22,35 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
     SetWaveformParamsFromDevice(device, &params, acq);
 
     int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
+    uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
 
-    err = CreateDAQmxError(DAQmxCfgSampClkTiming(
-        config->aoTask, "", pixelRateHz, DAQmx_Val_Rising,
-        DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
+    int sampleMode;
+    uInt64 samplesPerChan;
+    if (totalFrames >= INT32_MAX) {
+        sampleMode = DAQmx_Val_ContSamps;
+        samplesPerChan = totalElementsPerFramePerChan;
+    } else {
+        uInt64 totalSamples =
+            (uInt64)totalFrames * totalElementsPerFramePerChan;
+        if (totalSamples > UINT32_MAX)
+            return OScDev_Error_Create(
+                "Total scanner samples exceed maximum for finite mode");
+        sampleMode = DAQmx_Val_FiniteSamps;
+        samplesPerChan = totalSamples;
+    }
+
+    err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "",
+                                                 pixelRateHz, DAQmx_Val_Rising,
+                                                 sampleMode, samplesPerChan));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
+        return err;
+    }
+
+    err = CreateDAQmxError(
+        DAQmxSetWriteRegenMode(config->aoTask, DAQmx_Val_AllowRegen));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to set regen mode for scanner");
         return err;
     }
 
@@ -54,7 +78,7 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
         goto cleanup;
     }
     if (numWritten != totalElementsPerFramePerChan) {
-        err = OScDev_Error_Wrap(err, "Failed to write complete scan waveform");
+        err = OScDev_Error_Create("Failed to write complete scan waveform");
         goto cleanup;
     }
 

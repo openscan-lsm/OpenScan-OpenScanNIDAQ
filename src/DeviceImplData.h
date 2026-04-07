@@ -12,6 +12,12 @@
 
 #define MAX_PHYSICAL_CHANS 8
 
+enum ReadBufferState {
+    READ_BUFFER_IDLE,
+    READ_BUFFER_READY,
+    READ_BUFFER_READING,
+};
+
 // This struct holds the NIDAQ-specific device state and is associated with the
 // OpenScan device through the "impl data" mechanism.
 struct DeviceImplData {
@@ -21,13 +27,13 @@ struct DeviceImplData {
     struct ClockConfig clockConfig;
     struct ScannerConfig scannerConfig;
     struct DetectorConfig detectorConfig;
+    uint32_t configuredTotalFrames;
     double configuredPixelRateHz;
     uint32_t configuredResolution;
     double configuredZoomFactor;
     uint32_t configuredXOffset, configuredYOffset;
     uint32_t configuredRasterWidth, configuredRasterHeight;
 
-    bool oneFrameScanDone;
     bool scannerOnly;
 
     // counted as number of pixels.
@@ -61,15 +67,18 @@ struct DeviceImplData {
     size_t rawDataSize;     // Current data size
     size_t rawDataCapacity; // Buffer size
 
-    // Per-channel frame buffers that we fill in and pass to OpenScanLib
-    // Index is order among currently enabled channels.
-    // Buffers for unused channels may not be allocated.
-    uint16_t *frameBuffers[MAX_PHYSICAL_CHANS];
+    // Double-buffered per-channel frame buffers.
+    // [0] and [1] are alternated between the detector callback (write) and the
+    // main thread (read). Index is order among currently enabled channels.
+    uint16_t *frameBuffers[2][MAX_PHYSICAL_CHANS];
+    int activeWriteBuffer;
+    enum ReadBufferState readBufferState;
     size_t framePixelsFilled;
+    CRITICAL_SECTION frameMutex;
+    CONDITION_VARIABLE frameReady;
 
     struct {
         CRITICAL_SECTION mutex;
-        HANDLE thread;
         CONDITION_VARIABLE acquisitionFinishCondition;
         bool running;
         bool armed;         // Valid when running == true
