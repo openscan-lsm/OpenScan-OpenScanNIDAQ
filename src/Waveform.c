@@ -515,6 +515,14 @@ bool SpiralGenStateAtCycleBoundary(const struct SpiralGenState *state) {
     return state->phase == SPIRAL_PHASE_OUTWARD && state->sampleInPhase == 0;
 }
 
+int32_t GetSpiralSamplesPerArm(const struct SpiralGenState *state) {
+    return state->samplesPerArm;
+}
+
+int32_t GetSpiralCenterConnSamples(const struct SpiralGenState *state) {
+    return state->centerConnSamples;
+}
+
 // Generate waveform from start to parking after one frame
 void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
                                double *xyWaveformFrame) {

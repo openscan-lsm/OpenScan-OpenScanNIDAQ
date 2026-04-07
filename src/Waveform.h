@@ -59,6 +59,8 @@ void GenerateSpiralChunk(struct SpiralGenState *state, double *xyBuffer,
 int32_t GetSpiralArmCycleSamples(const struct SpiralGenState *state);
 int32_t GetSpiralArmCycleIndex(const struct SpiralGenState *state);
 bool SpiralGenStateAtCycleBoundary(const struct SpiralGenState *state);
+int32_t GetSpiralSamplesPerArm(const struct SpiralGenState *state);
+int32_t GetSpiralCenterConnSamples(const struct SpiralGenState *state);
 
 void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
                                  double *xyWaveformFrame);
