@@ -18,8 +18,8 @@ void InitializeImplData(struct DeviceImplData *data) {
     data->xformOffsetX = 0.0;
     data->xformOffsetY = 0.0;
     data->spiralScanEnabled = false;
-    data->spiralTurnDurationMs = 10.0;
-    data->spiralTurnSpacing = 20.0;
+    data->spiralTurnDurationMs = 5.0;
+    data->spiralTurnSpacing = 10.0;
     data->spiralMinRadius = 2.0;
     data->spiralXCenterOffset = 0.0;
     data->numLinesToBuffer = 8;
