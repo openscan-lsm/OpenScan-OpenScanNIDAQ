@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct WaveformParams {
@@ -34,6 +35,7 @@ int32_t GetParkWaveformSize(const struct WaveformParams *parameters);
 void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
                                 double *xyWaveformFrame);
 #define SPIRAL_SAMPLE_RATE_HZ 100000.0
+#define SPIRAL_CONN_SAMPLES 128
 
 struct SpiralWaveformParams {
     double radius;
@@ -41,15 +43,22 @@ struct SpiralWaveformParams {
     double centerY;
     double turnSpacing;
     double turnDurationMs;
-    int32_t numPairs;
+    double rMin;
     double xformMatrix[4];
     double xformOffsetX;
     double xformOffsetY;
 };
 
-int32_t GetSpiralWaveformSize(const struct SpiralWaveformParams *params);
-void GenerateSpiralWaveform(const struct SpiralWaveformParams *params,
-                            double *xyWaveform);
+struct SpiralGenState;
+
+struct SpiralGenState *
+CreateSpiralGenState(const struct SpiralWaveformParams *params);
+void DestroySpiralGenState(struct SpiralGenState *state);
+void GenerateSpiralChunk(struct SpiralGenState *state, double *xyBuffer,
+                         int32_t count);
+int32_t GetSpiralArmCycleSamples(const struct SpiralGenState *state);
+int32_t GetSpiralArmCycleIndex(const struct SpiralGenState *state);
+bool SpiralGenStateAtCycleBoundary(const struct SpiralGenState *state);
 
 void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
                                  double *xyWaveformFrame);

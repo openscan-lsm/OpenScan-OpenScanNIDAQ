@@ -105,7 +105,7 @@ static OScDev_RichError *StartScan(OScDev_Device *device) {
             goto stop_detector;
     }
 
-    err = StartScanner(&GetImplData(device)->scannerConfig);
+    err = StartScanner(device, &GetImplData(device)->scannerConfig);
     if (err)
         goto stop_clock;
 
@@ -138,7 +138,7 @@ static OScDev_RichError *StopScan(OScDev_Device *device) {
             lastErr = err;
     }
 
-    err = StopScanner(&GetImplData(device)->scannerConfig);
+    err = StopScanner(device, &GetImplData(device)->scannerConfig);
     if (err)
         lastErr = err;
 
@@ -197,10 +197,8 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
 
     uint32_t estFrameTimeMs;
     if (GetImplData(device)->spiralScanEnabled) {
-        struct SpiralWaveformParams spiralParams;
-        SetSpiralWaveformParamsFromDevice(device, &spiralParams, acq);
-        uint32_t totalElementsPerFramePerChan =
-            GetSpiralWaveformSize(&spiralParams);
+        uint32_t totalElementsPerFramePerChan = GetSpiralArmCycleSamples(
+            GetImplData(device)->scannerConfig.spiralState);
         estFrameTimeMs = (uint32_t)(1e3 * totalElementsPerFramePerChan /
                                     SPIRAL_SAMPLE_RATE_HZ);
     } else {

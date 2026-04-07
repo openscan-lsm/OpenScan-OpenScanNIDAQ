@@ -57,7 +57,7 @@ struct DeviceImplData {
     bool spiralScanEnabled;
     double spiralTurnDurationMs; // ms per revolution
     double spiralTurnSpacing;    // pixels (at current zoom/resolution)
-    int32_t spiralNumPairs;      // number of interlocking spiral pairs
+    double spiralMinRadius;      // pixels; truncate spiral at this radius
     double spiralXCenterOffset;  // pixels; shift spiral center horizontally
     double minVolts_;            // min possible for device
     double maxVolts_;            // max possible for device

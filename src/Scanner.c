@@ -18,76 +18,107 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
                                                 OScDev_Acquisition *acq) {
     OScDev_RichError *err;
     double sampleRateHz;
-    int32 totalElementsPerFramePerChan;
 
     if (GetImplData(device)->spiralScanEnabled) {
         sampleRateHz = SPIRAL_SAMPLE_RATE_HZ;
-        struct SpiralWaveformParams spiralParams;
-        SetSpiralWaveformParamsFromDevice(device, &spiralParams, acq);
-        totalElementsPerFramePerChan = GetSpiralWaveformSize(&spiralParams);
+
+        uInt64 bufferSize = 100000;
+        err = CreateDAQmxError(DAQmxCfgSampClkTiming(
+            config->aoTask, "", sampleRateHz, DAQmx_Val_Rising,
+            DAQmx_Val_ContSamps, bufferSize));
+        if (err) {
+            err = OScDev_Error_Wrap(err,
+                                    "Failed to configure timing for scanner");
+            return err;
+        }
+
+        err = CreateDAQmxError(
+            DAQmxSetWriteRegenMode(config->aoTask, DAQmx_Val_DoNotAllowRegen));
+        if (err) {
+            err =
+                OScDev_Error_Wrap(err, "Failed to set regen mode for scanner");
+            return err;
+        }
     } else {
         sampleRateHz = OScDev_Acquisition_GetPixelRate(acq);
         struct WaveformParams params;
         SetWaveformParamsFromDevice(device, &params, acq);
-        totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
-    }
+        int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
 
-    uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
+        uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
 
-    int sampleMode;
-    uInt64 samplesPerChan;
-    if (totalFrames >= INT32_MAX) {
-        sampleMode = DAQmx_Val_ContSamps;
-        samplesPerChan = totalElementsPerFramePerChan;
-    } else {
-        uInt64 totalSamples =
-            (uInt64)totalFrames * totalElementsPerFramePerChan;
-        if (totalSamples > UINT32_MAX)
-            return OScDev_Error_Create(
-                "Total scanner samples exceed maximum for finite mode");
-        sampleMode = DAQmx_Val_FiniteSamps;
-        samplesPerChan = totalSamples;
-    }
+        int sampleMode;
+        uInt64 samplesPerChan;
+        if (totalFrames >= INT32_MAX) {
+            sampleMode = DAQmx_Val_ContSamps;
+            samplesPerChan = totalElementsPerFramePerChan;
+        } else {
+            uInt64 totalSamples =
+                (uInt64)totalFrames * totalElementsPerFramePerChan;
+            if (totalSamples > UINT32_MAX)
+                return OScDev_Error_Create(
+                    "Total scanner samples exceed maximum for finite mode");
+            sampleMode = DAQmx_Val_FiniteSamps;
+            samplesPerChan = totalSamples;
+        }
 
-    err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "",
-                                                 sampleRateHz, DAQmx_Val_Rising,
-                                                 sampleMode, samplesPerChan));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
-        return err;
-    }
+        err = CreateDAQmxError(DAQmxCfgSampClkTiming(
+            config->aoTask, "", sampleRateHz, DAQmx_Val_Rising, sampleMode,
+            samplesPerChan));
+        if (err) {
+            err = OScDev_Error_Wrap(err,
+                                    "Failed to configure timing for scanner");
+            return err;
+        }
 
-    err = CreateDAQmxError(
-        DAQmxSetWriteRegenMode(config->aoTask, DAQmx_Val_AllowRegen));
-    if (err) {
-        err = OScDev_Error_Wrap(err, "Failed to set regen mode for scanner");
-        return err;
+        err = CreateDAQmxError(
+            DAQmxSetWriteRegenMode(config->aoTask, DAQmx_Val_AllowRegen));
+        if (err) {
+            err =
+                OScDev_Error_Wrap(err, "Failed to set regen mode for scanner");
+            return err;
+        }
     }
 
     return OScDev_RichError_OK;
 }
 
+static const int32_t SPIRAL_CHUNK_SIZE = 10000;
+
 static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
                                             struct ScannerConfig *config,
                                             OScDev_Acquisition *acq) {
-    int32 totalElementsPerFramePerChan;
-    double *xyWaveformFrame;
-
     if (GetImplData(device)->spiralScanEnabled) {
         struct SpiralWaveformParams spiralParams;
         SetSpiralWaveformParamsFromDevice(device, &spiralParams, acq);
-        totalElementsPerFramePerChan = GetSpiralWaveformSize(&spiralParams);
-        xyWaveformFrame = (double *)malloc(sizeof(double) *
-                                           totalElementsPerFramePerChan * 2);
-        GenerateSpiralWaveform(&spiralParams, xyWaveformFrame);
-    } else {
-        struct WaveformParams params;
-        SetWaveformParamsFromDevice(device, &params, acq);
-        totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
-        xyWaveformFrame = (double *)malloc(sizeof(double) *
-                                           totalElementsPerFramePerChan * 2);
-        GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
+
+        if (config->spiralState)
+            DestroySpiralGenState(config->spiralState);
+        config->spiralState = CreateSpiralGenState(&spiralParams);
+        config->spiralTotalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
+
+        double *buf = (double *)malloc(sizeof(double) * SPIRAL_CHUNK_SIZE * 2);
+        GenerateSpiralChunk(config->spiralState, buf, SPIRAL_CHUNK_SIZE);
+
+        int32 numWritten = 0;
+        OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
+            config->aoTask, SPIRAL_CHUNK_SIZE, FALSE, 10.0,
+            DAQmx_Val_GroupByChannel, buf, &numWritten, NULL));
+        free(buf);
+        if (err)
+            return OScDev_Error_Wrap(err, "Failed to write scanner waveforms");
+        if (numWritten != SPIRAL_CHUNK_SIZE)
+            return OScDev_Error_Create(
+                "Failed to write complete scan waveform");
+        return OScDev_RichError_OK;
     }
+
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
+    int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
+    double *xyWaveformFrame =
+        (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
+    GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
 
     int32 numWritten = 0;
     OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
@@ -105,6 +136,59 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
 cleanup:
     free(xyWaveformFrame);
     return err;
+}
+
+static DWORD WINAPI SpiralWriterThreadFunc(void *param) {
+    struct ScannerConfig *config = (struct ScannerConfig *)param;
+
+    double *buf = (double *)malloc(sizeof(double) * SPIRAL_CHUNK_SIZE * 2);
+
+    while (!config->spiralStopRequested) {
+        if (config->spiralTotalFrames < (uint32_t)INT32_MAX &&
+            GetSpiralArmCycleIndex(config->spiralState) >=
+                (int32_t)config->spiralTotalFrames) {
+            break;
+        }
+
+        GenerateSpiralChunk(config->spiralState, buf, SPIRAL_CHUNK_SIZE);
+
+        int32 numWritten = 0;
+        int32 nierr = DAQmxWriteAnalogF64(
+            config->aoTask, SPIRAL_CHUNK_SIZE, FALSE, DAQmx_Val_WaitInfinitely,
+            DAQmx_Val_GroupByChannel, buf, &numWritten, NULL);
+        if (nierr < 0)
+            break;
+    }
+
+    free(buf);
+    return 0;
+}
+
+static OScDev_RichError *StartSpiralStreaming(struct ScannerConfig *config) {
+    config->spiralStopRequested = false;
+    DWORD id;
+    config->spiralWriterThread =
+        CreateThread(NULL, 0, SpiralWriterThreadFunc, config, 0, &id);
+    if (!config->spiralWriterThread)
+        return OScDev_Error_Create("Failed to create spiral writer thread");
+    return OScDev_RichError_OK;
+}
+
+static void StopSpiralStreaming(struct ScannerConfig *config) {
+    if (!config->spiralWriterThread)
+        return;
+
+    config->spiralStopRequested = true;
+    DAQmxStopTask(config->aoTask);
+
+    WaitForSingleObject(config->spiralWriterThread, INFINITE);
+    CloseHandle(config->spiralWriterThread);
+    config->spiralWriterThread = NULL;
+
+    if (config->spiralState) {
+        DestroySpiralGenState(config->spiralState);
+        config->spiralState = NULL;
+    }
 }
 
 // Initialize, configure, and arm the scanner, whatever its current state
@@ -183,7 +267,8 @@ OScDev_RichError *ShutdownScanner(struct ScannerConfig *config) {
     return OScDev_RichError_OK;
 }
 
-OScDev_RichError *StartScanner(struct ScannerConfig *config) {
+OScDev_RichError *StartScanner(OScDev_Device *device,
+                               struct ScannerConfig *config) {
     OScDev_RichError *err;
     err = CreateDAQmxError(DAQmxStartTask(config->aoTask));
     if (err) {
@@ -191,10 +276,26 @@ OScDev_RichError *StartScanner(struct ScannerConfig *config) {
         ShutdownScanner(config); // Force re-setup next time
         return err;
     }
+
+    if (GetImplData(device)->spiralScanEnabled) {
+        err = StartSpiralStreaming(config);
+        if (err) {
+            DAQmxStopTask(config->aoTask);
+            ShutdownScanner(config);
+            return err;
+        }
+    }
+
     return OScDev_RichError_OK;
 }
 
-OScDev_RichError *StopScanner(struct ScannerConfig *config) {
+OScDev_RichError *StopScanner(OScDev_Device *device,
+                              struct ScannerConfig *config) {
+    if (GetImplData(device)->spiralScanEnabled) {
+        StopSpiralStreaming(config);
+        return OScDev_RichError_OK;
+    }
+
     OScDev_RichError *err;
     err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
     if (err) {

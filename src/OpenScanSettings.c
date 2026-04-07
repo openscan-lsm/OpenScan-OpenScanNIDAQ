@@ -282,32 +282,32 @@ static OScDev_SettingImpl SettingImpl_SpiralTurnSpacing = {
     .GetFloat64Range = GetSpiralTurnSpacingRange,
 };
 
-static OScDev_Error GetSpiralNumPairs(OScDev_Setting *setting,
-                                      int32_t *value) {
-    *value = GetSettingDeviceData(setting)->spiralNumPairs;
+static OScDev_Error GetSpiralMinRadius(OScDev_Setting *setting,
+                                       double *value) {
+    *value = GetSettingDeviceData(setting)->spiralMinRadius;
     return OScDev_OK;
 }
 
-static OScDev_Error SetSpiralNumPairs(OScDev_Setting *setting, int32_t value) {
-    GetSettingDeviceData(setting)->spiralNumPairs = value;
+static OScDev_Error SetSpiralMinRadius(OScDev_Setting *setting, double value) {
+    GetSettingDeviceData(setting)->spiralMinRadius = value;
     GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
     GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
     return OScDev_OK;
 }
 
-static OScDev_Error GetSpiralNumPairsRange(OScDev_Setting *setting,
-                                           int32_t *min, int32_t *max) {
+static OScDev_Error GetSpiralMinRadiusRange(OScDev_Setting *setting,
+                                            double *min, double *max) {
     (void)setting;
-    *min = 1;
-    *max = 50;
+    *min = 0.5;
+    *max = 10.0;
     return OScDev_OK;
 }
 
-static OScDev_SettingImpl SettingImpl_SpiralNumPairs = {
-    .GetInt32 = GetSpiralNumPairs,
-    .SetInt32 = SetSpiralNumPairs,
+static OScDev_SettingImpl SettingImpl_SpiralMinRadius = {
+    .GetFloat64 = GetSpiralMinRadius,
+    .SetFloat64 = SetSpiralMinRadius,
     .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
-    .GetInt32Range = GetSpiralNumPairsRange,
+    .GetFloat64Range = GetSpiralMinRadiusRange,
 };
 
 static OScDev_Error GetSpiralXCenterOffset(OScDev_Setting *setting,
@@ -510,13 +510,13 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
         goto error;
     OScDev_PtrArray_Append(*settings, spiralTurnSpacing);
 
-    OScDev_Setting *spiralNumPairs;
+    OScDev_Setting *spiralMinRadius;
     err = OScDev_Error_AsRichError(OScDev_Setting_Create(
-        &spiralNumPairs, "Fermat Spiral Num Angles", OScDev_ValueType_Int32,
-        &SettingImpl_SpiralNumPairs, device));
+        &spiralMinRadius, "Fermat Spiral Min Radius (pixels)",
+        OScDev_ValueType_Float64, &SettingImpl_SpiralMinRadius, device));
     if (err)
         goto error;
-    OScDev_PtrArray_Append(*settings, spiralNumPairs);
+    OScDev_PtrArray_Append(*settings, spiralMinRadius);
 
     OScDev_Setting *spiralXCenterOffset;
     err = OScDev_Error_AsRichError(OScDev_Setting_Create(

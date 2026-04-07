@@ -87,7 +87,7 @@ void SetSpiralWaveformParamsFromDevice(OScDev_Device *device,
     params->turnSpacing =
         GetImplData(device)->spiralTurnSpacing / (zoom * resolution);
     params->turnDurationMs = GetImplData(device)->spiralTurnDurationMs;
-    params->numPairs = GetImplData(device)->spiralNumPairs;
+    params->rMin = GetImplData(device)->spiralMinRadius / (zoom * resolution);
     for (int i = 0; i < 4; ++i)
         params->xformMatrix[i] = GetImplData(device)->xformMatrix[i];
     params->xformOffsetX = GetImplData(device)->xformOffsetX;

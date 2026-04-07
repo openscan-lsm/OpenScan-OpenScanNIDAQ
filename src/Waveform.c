@@ -273,97 +273,246 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
 // Fermat spiral scans
 //
 
-static void ComputeSpiralInternals(const struct SpiralWaveformParams *params,
-                                   double *c_out, double *thetaMax_out,
-                                   int32_t *samplesPerArm_out,
-                                   int32_t *samplesPerArc_out) {
-    double c = params->turnSpacing / sqrt(2.0 * M_PI);
-    double thetaMax = 0.0;
-    if (c > 0.0)
-        thetaMax = (params->radius / c) * (params->radius / c);
-    double numTurns = thetaMax / (2.0 * M_PI);
+static const double GOLDEN_ANGLE = 2.39996322972865332; // M_PI * (3 - sqrt(5))
+
+enum SpiralPhase {
+    SPIRAL_PHASE_OUTWARD,
+    SPIRAL_PHASE_PERIPH_CONN,
+    SPIRAL_PHASE_INWARD,
+    SPIRAL_PHASE_CENTER_CONN,
+};
+
+struct SpiralGenState {
+    double c;
+    double thetaMin;
+    double thetaMax;
+    int32_t samplesPerArm;
+    int32_t centerConnSamples;
+    double centerX;
+    double centerY;
+    double dtheta;
+    double xformMatrix[4];
+    double xformOffsetX;
+    double xformOffsetY;
+
+    int32_t armCycleIndex;
+    enum SpiralPhase phase;
+    int32_t sampleInPhase;
+
+    double *connX;
+    double *connY;
+};
+
+static void OutwardVelocity(const struct SpiralGenState *s, double theta,
+                            double angle, double *dxdi, double *dydi) {
+    double sqrtTh = sqrt(theta);
+    double drdt = s->c / (2.0 * sqrtTh);
+    double r = s->c * sqrtTh;
+    *dxdi = (drdt * cos(angle) - r * sin(angle)) * s->dtheta;
+    *dydi = (drdt * sin(angle) + r * cos(angle)) * s->dtheta;
+}
+
+static void InwardVelocity(const struct SpiralGenState *s, double theta,
+                           double angle, double *dxdi, double *dydi) {
+    double sqrtTh = sqrt(theta);
+    double drdt = s->c / (2.0 * sqrtTh);
+    double r = s->c * sqrtTh;
+    // Inward: dangle/dtheta = -1, dtheta/di = -dtheta
+    *dxdi = -(drdt * cos(angle) + r * sin(angle)) * s->dtheta;
+    *dydi = -(drdt * sin(angle) - r * cos(angle)) * s->dtheta;
+}
+
+static double InwardPsi(const struct SpiralGenState *s) {
+    return 2.0 * s->thetaMax + s->armCycleIndex * GOLDEN_ANGLE +
+           SPIRAL_CONN_SAMPLES * s->dtheta;
+}
+
+static void ComputePeriphConn(struct SpiralGenState *s) {
+    double outAngle = s->thetaMax + s->armCycleIndex * GOLDEN_ANGLE;
+    double R = s->c * sqrt(s->thetaMax);
+    double x0 = s->centerX + R * cos(outAngle);
+    double y0 = s->centerY + R * sin(outAngle);
+    double dx0, dy0;
+    OutwardVelocity(s, s->thetaMax, outAngle, &dx0, &dy0);
+
+    double psi = InwardPsi(s);
+    double inAngle = -s->thetaMax + psi;
+    double x1 = s->centerX + R * cos(inAngle);
+    double y1 = s->centerY + R * sin(inAngle);
+    double dx1, dy1;
+    InwardVelocity(s, s->thetaMax, inAngle, &dx1, &dy1);
+
+    SplineInterpolate(SPIRAL_CONN_SAMPLES, x0, x1, dx0, dx1, s->connX);
+    SplineInterpolate(SPIRAL_CONN_SAMPLES, y0, y1, dy0, dy1, s->connY);
+}
+
+static void ComputeCenterConn(struct SpiralGenState *s) {
+    double psi = InwardPsi(s);
+    double inAngle = -s->thetaMin + psi;
+    double rMin = s->c * sqrt(s->thetaMin);
+    double x0 = s->centerX + rMin * cos(inAngle);
+    double y0 = s->centerY + rMin * sin(inAngle);
+    double dx0, dy0;
+    InwardVelocity(s, s->thetaMin, inAngle, &dx0, &dy0);
+
+    int32_t nextCycle = s->armCycleIndex + 1;
+    double outAngle = s->thetaMin + nextCycle * GOLDEN_ANGLE;
+    double x1 = s->centerX + rMin * cos(outAngle);
+    double y1 = s->centerY + rMin * sin(outAngle);
+    double dx1, dy1;
+    OutwardVelocity(s, s->thetaMin, outAngle, &dx1, &dy1);
+
+    SplineInterpolate(s->centerConnSamples, x0, x1, dx0, dx1, s->connX);
+    SplineInterpolate(s->centerConnSamples, y0, y1, dy0, dy1, s->connY);
+}
+
+struct SpiralGenState *
+CreateSpiralGenState(const struct SpiralWaveformParams *params) {
+    struct SpiralGenState *s =
+        (struct SpiralGenState *)calloc(1, sizeof(struct SpiralGenState));
+
+    s->c = params->turnSpacing / sqrt(2.0 * M_PI);
+    if (s->c <= 0.0)
+        s->c = 1e-9;
+    s->thetaMax = (params->radius / s->c) * (params->radius / s->c);
+
+    double rMin = params->rMin;
+    if (rMin < 1e-6)
+        rMin = 1e-6;
+    if (rMin > params->radius * 0.9)
+        rMin = params->radius * 0.9;
+    s->thetaMin = (rMin / s->c) * (rMin / s->c);
+
+    double numTurns = (s->thetaMax - s->thetaMin) / (2.0 * M_PI);
     double samplesPerTurn =
         params->turnDurationMs * 1e-3 * SPIRAL_SAMPLE_RATE_HZ;
-    int32_t samplesPerArm = (int32_t)(numTurns * samplesPerTurn);
-    if (samplesPerArm < 1)
-        samplesPerArm = 1;
-    int32_t N = 2 * params->numPairs;
-    int32_t samplesPerArc = (int32_t)(samplesPerTurn / N);
-    if (samplesPerArc < 1)
-        samplesPerArc = 1;
+    s->samplesPerArm = (int32_t)(numTurns * samplesPerTurn);
+    if (s->samplesPerArm < 2)
+        s->samplesPerArm = 2;
 
-    *c_out = c;
-    *thetaMax_out = thetaMax;
-    *samplesPerArm_out = samplesPerArm;
-    *samplesPerArc_out = samplesPerArc;
+    s->dtheta = (s->thetaMax - s->thetaMin) / (double)s->samplesPerArm;
+
+    double delta_c = GOLDEN_ANGLE - 2.0 * (s->thetaMax - s->thetaMin) -
+                     SPIRAL_CONN_SAMPLES * s->dtheta;
+    delta_c = fmod(delta_c, 2.0 * M_PI);
+    if (delta_c < 0.0)
+        delta_c += 2.0 * M_PI;
+    s->centerConnSamples = (int32_t)ceil(delta_c / s->dtheta);
+    if (s->centerConnSamples < 2)
+        s->centerConnSamples = 2;
+
+    s->centerX = params->centerX;
+    s->centerY = params->centerY;
+    for (int i = 0; i < 4; ++i)
+        s->xformMatrix[i] = params->xformMatrix[i];
+    s->xformOffsetX = params->xformOffsetX;
+    s->xformOffsetY = params->xformOffsetY;
+
+    s->armCycleIndex = 0;
+    s->phase = SPIRAL_PHASE_OUTWARD;
+    s->sampleInPhase = 0;
+
+    int32_t maxConn = SPIRAL_CONN_SAMPLES;
+    if (s->centerConnSamples > maxConn)
+        maxConn = s->centerConnSamples;
+    s->connX = (double *)malloc(sizeof(double) * maxConn);
+    s->connY = (double *)malloc(sizeof(double) * maxConn);
+
+    return s;
 }
 
-int32_t GetSpiralWaveformSize(const struct SpiralWaveformParams *params) {
-    double c, thetaMax;
-    int32_t samplesPerArm, samplesPerArc;
-    ComputeSpiralInternals(params, &c, &thetaMax, &samplesPerArm,
-                           &samplesPerArc);
-    return params->numPairs * (2 * samplesPerArm + samplesPerArc);
-}
-
-void GenerateSpiralWaveform(const struct SpiralWaveformParams *params,
-                            double *xyWaveform) {
-    double c, thetaMax;
-    int32_t samplesPerArm, samplesPerArc;
-    ComputeSpiralInternals(params, &c, &thetaMax, &samplesPerArm,
-                           &samplesPerArc);
-
-    int32_t N = 2 * params->numPairs;
-    int32_t totalSamples = GetSpiralWaveformSize(params);
-    const double *m = params->xformMatrix;
-    double tx = params->xformOffsetX;
-    double ty = params->xformOffsetY;
-    double cx = params->centerX;
-    double cy = params->centerY;
-    double R = params->radius;
-
-    int32_t idx = 0;
-    for (int32_t p = 0; p < params->numPairs; ++p) {
-        int32_t armOut = 2 * p;
-        int32_t armIn = 2 * p + 1;
-
-        // Outward arm: center to edge
-        for (int32_t i = 0; i < samplesPerArm; ++i) {
-            double theta = thetaMax * i / samplesPerArm;
-            double r = c * sqrt(theta);
-            double angle = theta + 2.0 * M_PI * armOut / N;
-            double lx = cx + r * cos(angle);
-            double ly = cy + r * sin(angle);
-            xyWaveform[idx] = m[0] * lx + m[1] * ly + tx;
-            xyWaveform[idx + totalSamples] = m[2] * lx + m[3] * ly + ty;
-            ++idx;
-        }
-
-        // Peripheral arc: outward arm endpoint to inward arm startpoint
-        double outEndAngle = thetaMax + 2.0 * M_PI * armOut / N;
-        double inStartAngle = thetaMax + 2.0 * M_PI * armIn / N;
-        for (int32_t i = 0; i < samplesPerArc; ++i) {
-            double t = (double)(i + 1) / (samplesPerArc + 1);
-            double angle = outEndAngle + t * (inStartAngle - outEndAngle);
-            double lx = cx + R * cos(angle);
-            double ly = cy + R * sin(angle);
-            xyWaveform[idx] = m[0] * lx + m[1] * ly + tx;
-            xyWaveform[idx + totalSamples] = m[2] * lx + m[3] * ly + ty;
-            ++idx;
-        }
-
-        // Inward arm: edge to center
-        for (int32_t i = samplesPerArm - 1; i >= 0; --i) {
-            double theta = thetaMax * i / samplesPerArm;
-            double r = c * sqrt(theta);
-            double angle = theta + 2.0 * M_PI * armIn / N;
-            double lx = cx + r * cos(angle);
-            double ly = cy + r * sin(angle);
-            xyWaveform[idx] = m[0] * lx + m[1] * ly + tx;
-            xyWaveform[idx + totalSamples] = m[2] * lx + m[3] * ly + ty;
-            ++idx;
-        }
+void DestroySpiralGenState(struct SpiralGenState *state) {
+    if (state) {
+        free(state->connX);
+        free(state->connY);
+        free(state);
     }
+}
+
+void GenerateSpiralChunk(struct SpiralGenState *state, double *xyBuffer,
+                         int32_t count) {
+    const double *m = state->xformMatrix;
+    double tx = state->xformOffsetX;
+    double ty = state->xformOffsetY;
+
+    for (int32_t i = 0; i < count; ++i) {
+        double lx = 0.0, ly = 0.0;
+
+        switch (state->phase) {
+        case SPIRAL_PHASE_OUTWARD: {
+            double theta =
+                state->thetaMin + state->sampleInPhase * state->dtheta;
+            double r = state->c * sqrt(theta);
+            double angle = theta + state->armCycleIndex * GOLDEN_ANGLE;
+            lx = state->centerX + r * cos(angle);
+            ly = state->centerY + r * sin(angle);
+
+            state->sampleInPhase++;
+            if (state->sampleInPhase >= state->samplesPerArm) {
+                ComputePeriphConn(state);
+                state->phase = SPIRAL_PHASE_PERIPH_CONN;
+                state->sampleInPhase = 0;
+            }
+            break;
+        }
+        case SPIRAL_PHASE_PERIPH_CONN: {
+            lx = state->connX[state->sampleInPhase];
+            ly = state->connY[state->sampleInPhase];
+
+            state->sampleInPhase++;
+            if (state->sampleInPhase >= SPIRAL_CONN_SAMPLES) {
+                state->phase = SPIRAL_PHASE_INWARD;
+                state->sampleInPhase = 0;
+            }
+            break;
+        }
+        case SPIRAL_PHASE_INWARD: {
+            double theta =
+                state->thetaMax - state->sampleInPhase * state->dtheta;
+            double r = state->c * sqrt(theta);
+            double psi = InwardPsi(state);
+            double angle = -theta + psi;
+            lx = state->centerX + r * cos(angle);
+            ly = state->centerY + r * sin(angle);
+
+            state->sampleInPhase++;
+            if (state->sampleInPhase >= state->samplesPerArm) {
+                ComputeCenterConn(state);
+                state->phase = SPIRAL_PHASE_CENTER_CONN;
+                state->sampleInPhase = 0;
+            }
+            break;
+        }
+        case SPIRAL_PHASE_CENTER_CONN: {
+            lx = state->connX[state->sampleInPhase];
+            ly = state->connY[state->sampleInPhase];
+
+            state->sampleInPhase++;
+            if (state->sampleInPhase >= state->centerConnSamples) {
+                state->armCycleIndex++;
+                state->phase = SPIRAL_PHASE_OUTWARD;
+                state->sampleInPhase = 0;
+            }
+            break;
+        }
+        }
+
+        xyBuffer[i] = m[0] * lx + m[1] * ly + tx;
+        xyBuffer[i + count] = m[2] * lx + m[3] * ly + ty;
+    }
+}
+
+int32_t GetSpiralArmCycleSamples(const struct SpiralGenState *state) {
+    return 2 * state->samplesPerArm + SPIRAL_CONN_SAMPLES +
+           state->centerConnSamples;
+}
+
+int32_t GetSpiralArmCycleIndex(const struct SpiralGenState *state) {
+    return state->armCycleIndex;
+}
+
+bool SpiralGenStateAtCycleBoundary(const struct SpiralGenState *state) {
+    return state->phase == SPIRAL_PHASE_OUTWARD && state->sampleInPhase == 0;
 }
 
 // Generate waveform from start to parking after one frame
