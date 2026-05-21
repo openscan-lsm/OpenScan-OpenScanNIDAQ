@@ -17,15 +17,15 @@ OScDev_RichError *ConfigureUnparkTiming(OScDev_Device *device,
                                         struct ScannerConfig *config,
                                         OScDev_Acquisition *acq) {
     OScDev_RichError *err;
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    double aoRateHz = GetImplData(device)->aoRateHz;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
     int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
 
     err = CreateDAQmxError(DAQmxCfgSampClkTiming(
-        config->aoTask, "", pixelRateHz, DAQmx_Val_Rising,
-        DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
+        config->aoTask, "", aoRateHz, DAQmx_Val_Rising, DAQmx_Val_FiniteSamps,
+        totalElementsPerFramePerChan));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to configure timing for unpark");
         return err;
@@ -38,15 +38,15 @@ OScDev_RichError *ConfigureParkTiming(OScDev_Device *device,
                                       struct ScannerConfig *config,
                                       OScDev_Acquisition *acq) {
     OScDev_RichError *err;
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    double aoRateHz = GetImplData(device)->aoRateHz;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
     int32 totalElementsPerFramePerChan = GetParkWaveformSize(&params);
 
     err = CreateDAQmxError(DAQmxCfgSampClkTiming(
-        config->aoTask, "", pixelRateHz, DAQmx_Val_Rising,
-        DAQmx_Val_FiniteSamps, totalElementsPerFramePerChan));
+        config->aoTask, "", aoRateHz, DAQmx_Val_Rising, DAQmx_Val_FiniteSamps,
+        totalElementsPerFramePerChan));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to configure timing for park");
         return err;
@@ -123,13 +123,12 @@ OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
                                        struct ScannerConfig *config,
                                        OScDev_Acquisition *acq) {
     OScDev_RichError *err;
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    double aoRateHz = GetImplData(device)->aoRateHz;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
     uint32_t totalElementsPerFramePerChan = GetParkWaveformSize(&params);
-    // changed from 1e3 to 1e4 - works but does not reconfigure timing
     uint32_t estFrameTimeMs =
-        (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
+        (uint32_t)(1e3 * totalElementsPerFramePerChan / aoRateHz);
     uint32_t maxWaitTimeMs = 2 * estFrameTimeMs;
     if (maxWaitTimeMs < 1000) {
         maxWaitTimeMs = 1000;
@@ -168,12 +167,12 @@ OScDev_RichError *GenerateParkOutput(OScDev_Device *device,
                                      struct ScannerConfig *config,
                                      OScDev_Acquisition *acq) {
     OScDev_RichError *err;
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    double aoRateHz = GetImplData(device)->aoRateHz;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
     uint32_t totalElementsPerFramePerChan = GetParkWaveformSize(&params);
     uint32_t estFrameTimeMs =
-        (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
+        (uint32_t)(1e3 * totalElementsPerFramePerChan / aoRateHz);
     uint32_t maxWaitTimeMs = 2 * estFrameTimeMs;
     if (maxWaitTimeMs < 1000) {
         maxWaitTimeMs = 1000;
