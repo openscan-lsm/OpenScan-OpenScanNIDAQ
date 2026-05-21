@@ -24,6 +24,14 @@ uint32_t ScanPhaseSamples(const struct WaveformParams *params) {
     return (uint32_t)round(params->scanPhaseUs * 1e-6 * params->aoRateHz);
 }
 
+uint32_t LaserOnLeadSamples(const struct WaveformParams *params) {
+    return (uint32_t)round(params->laserOnLeadUs * 1e-6 * params->aoRateHz);
+}
+
+uint32_t LaserOnLagSamples(const struct WaveformParams *params) {
+    return (uint32_t)round(params->laserOnLagUs * 1e-6 * params->aoRateHz);
+}
+
 uint32_t RetraceSamples(const struct WaveformParams *params) {
     double amplitude = ScanAmplitude(params);
     double retraceUs = params->retraceScaleUsPerVolt * amplitude;
@@ -232,6 +240,43 @@ void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
 
     free(xWaveform);
     free(yWaveform);
+}
+
+void GenerateLaserBlankingWaveform(const struct WaveformParams *params,
+                                   double *blanking) {
+    uint32_t lineLength = (uint32_t)GetLineWaveformSize(params);
+    uint32_t height = params->height;
+    double onV = params->laserOnVoltage;
+
+    if (params->laserManualOn) {
+        for (uint32_t i = 0; i < lineLength * height; ++i)
+            blanking[i] = onV;
+        return;
+    }
+
+    double offV = params->laserOffVoltage;
+    uint32_t highStart = UndershootSamples(params) + ScanPhaseSamples(params);
+    uint32_t scanSmp = ScanSamples(params);
+    uint32_t leadSmp = LaserOnLeadSamples(params);
+    uint32_t lagSmp = LaserOnLagSamples(params);
+
+    uint32_t onStart = highStart > leadSmp ? highStart - leadSmp : 0;
+    uint32_t onEnd = highStart + scanSmp + lagSmp;
+    if (onEnd > lineLength)
+        onEnd = lineLength;
+
+    for (uint32_t j = 0; j < height; ++j)
+        for (uint32_t i = 0; i < lineLength; ++i)
+            blanking[i + j * lineLength] =
+                (i >= onStart && i < onEnd) ? onV : offV;
+}
+
+void GenerateLaserBlankingConstant(const struct WaveformParams *params,
+                                   uint32_t length, double *out) {
+    double v = params->laserManualOn ? params->laserOnVoltage
+                                     : params->laserOffVoltage;
+    for (uint32_t i = 0; i < length; ++i)
+        out[i] = v;
 }
 
 static void InverseTransform2x2(const double *m, double tx, double ty,

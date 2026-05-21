@@ -64,6 +64,13 @@ struct DeviceImplData {
     ss8str aiPhysChans; // at least numAIPhysChans elements separated by ", "
     bool channelEnabled[MAX_PHYSICAL_CHANS];
 
+    ss8str aoPhysChans; // analogous to aiPhysChans
+    bool laserManualOn; // "Laser On (Disable Blanking)"
+    double laserOnVoltage;
+    double laserOffVoltage;
+    double laserOnLeadUs;
+    double laserOnLagUs;
+
     // Read, but unprocessed, raw samples; channels interleaved
     // Leftover data from the previous read, if any, is at the start of the
     // buffer and consists of rawDataSize samples.
