@@ -36,10 +36,14 @@ struct DeviceImplData {
 
     bool scannerOnly;
 
-    // counted as number of pixels.
-    // to adjust for the lag between the mirror control signal and the actual
-    // position of the mirror scan phase (uSec) = line delay / scan rate
-    uint32_t lineDelay;
+    bool timingCapsQueried;   // guards the one-time query
+    double sampClkTimebaseHz; // from DAQmxGetSampClkTimebaseRate
+    double aoMaxRateHz;       // from DAQmxGetDevAOMaxRate
+
+    double aoRateHz; // Derived from pixel rate; overwritten per acquisition
+    double undershootUs;
+    double scanPhaseUs;
+    double retraceScaleUsPerVolt;
 
     int32_t xPark;
     int32_t yPark;
@@ -59,6 +63,13 @@ struct DeviceImplData {
     int numAIPhysChans; // Not to exceed MAX_PHYSICAL_CHANS
     ss8str aiPhysChans; // at least numAIPhysChans elements separated by ", "
     bool channelEnabled[MAX_PHYSICAL_CHANS];
+
+    ss8str aoPhysChans; // analogous to aiPhysChans
+    bool laserManualOn; // "Laser On (Disable Blanking)"
+    double laserOnVoltage;
+    double laserOffVoltage;
+    double laserOnLeadUs;
+    double laserOnLagUs;
 
     // Read, but unprocessed, raw samples; channels interleaved
     // Leftover data from the previous read, if any, is at the start of the

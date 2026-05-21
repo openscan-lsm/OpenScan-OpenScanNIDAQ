@@ -133,15 +133,22 @@ static OScDev_Error NIDAQHasDetector(OScDev_Device *device,
 
 static OScDev_Error NIDAQGetPixelRates(OScDev_Device *device,
                                        OScDev_NumRange **pixelRatesHz) {
-    (void)device; // Unused
     static const double ratesMHz[] = {
         0.0500, 0.1000, 0.1250, 0.2000, 0.2500,
         0.4000, 0.5000, 0.6250, 1.0000, 1.2500,
         0.0 // End mark
     };
+    OScDev_RichError *err = EnsureTimingCapsQueried(device);
+    if (err)
+        return OScDev_Error_ReturnAsCode(err);
+    double timebaseHz = GetImplData(device)->sampClkTimebaseHz;
+    double aoMaxHz = GetImplData(device)->aoMaxRateHz;
     *pixelRatesHz = OScDev_NumRange_CreateDiscrete();
     for (size_t i = 0; ratesMHz[i] != 0.0; ++i) {
-        OScDev_NumRange_AppendDiscrete(*pixelRatesHz, 1e6 * ratesMHz[i]);
+        double rate = 1e6 * ratesMHz[i];
+        double aoRate;
+        if (ComputeAORateHz(rate, timebaseHz, aoMaxHz, &aoRate))
+            OScDev_NumRange_AppendDiscrete(*pixelRatesHz, rate);
     }
     return OScDev_OK;
 }

@@ -10,7 +10,10 @@ void InitializeImplData(struct DeviceImplData *data) {
     memset(data, 0, sizeof(*data));
 
     ss8_init(&data->deviceName);
-    data->lineDelay = 50;
+    data->aoRateHz = 200000.0;
+    data->undershootUs = 250.0;
+    data->scanPhaseUs = 0.0;
+    data->retraceScaleUsPerVolt = 640.0;
     data->xformMatrix[0] = 1.0;
     data->xformMatrix[1] = 0.0;
     data->xformMatrix[2] = 0.0;
@@ -23,6 +26,13 @@ void InitializeImplData(struct DeviceImplData *data) {
     data->maxVolts_ = 10.0;
     ss8_init(&data->aiPhysChans);
     data->channelEnabled[0] = true;
+
+    ss8_init(&data->aoPhysChans);
+    data->laserManualOn = false;
+    data->laserOnVoltage = 0.1; // Avoid high default to reduce danger
+    data->laserOffVoltage = 0.0;
+    data->laserOnLeadUs = 5.0;
+    data->laserOnLagUs = 5.0;
 
     InitializeCriticalSection(&data->frameMutex);
     InitializeConditionVariable(&data->frameReady);
