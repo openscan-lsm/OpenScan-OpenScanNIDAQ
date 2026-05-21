@@ -18,3 +18,8 @@ OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device);
 void GetEnabledChannels(OScDev_Device *device, ss8str *chans);
 int GetNumberOfEnabledChannels(OScDev_Device *device);
 int GetNumberOfAIPhysChans(OScDev_Device *device);
+
+OScDev_RichError *EnumerateAOPhysChans(OScDev_Device *device);
+int GetNumberOfAOPhysChans(OScDev_Device *device);
+bool LaserBlankingSupported(OScDev_Device *device);
+int GetNumberOfScannerAOChannels(OScDev_Device *device);

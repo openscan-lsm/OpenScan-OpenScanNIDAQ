@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct WaveformParams {
@@ -23,6 +24,13 @@ struct WaveformParams {
     int32_t yPark;
     double prevXParkVoltage;
     double prevYParkVoltage;
+
+    bool laserBlankingSupported; // device has >=3 AO
+    bool laserManualOn;          // laser always on (blanking disabled)
+    double laserOnVoltage;
+    double laserOffVoltage;
+    double laserOnLeadUs;
+    double laserOnLagUs;
 };
 
 uint32_t UndershootSamples(const struct WaveformParams *params);
@@ -49,3 +57,10 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
                                  double *xyWaveformFrame);
 void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
                                double *xyWaveformFrame);
+
+uint32_t LaserOnLeadSamples(const struct WaveformParams *params);
+uint32_t LaserOnLagSamples(const struct WaveformParams *params);
+void GenerateLaserBlankingWaveform(const struct WaveformParams *params,
+                                   double *blanking);
+void GenerateLaserBlankingConstant(const struct WaveformParams *params,
+                                   uint32_t length, double *out);

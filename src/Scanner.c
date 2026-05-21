@@ -13,6 +13,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Append the scanner AO channel range ("<dev>/ao0:1" or "<dev>/ao0:2") to
+// terms
+static void AppendScannerAOTerms(OScDev_Device *device, ss8str *terms) {
+    ss8_cat(terms, &GetImplData(device)->deviceName);
+    int nch = GetNumberOfScannerAOChannels(device);
+    ss8_cat_cstr(terms, nch >= 3 ? "/ao0:2" : "/ao0:1");
+}
+
 static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
                                                 struct ScannerConfig *config,
                                                 OScDev_Acquisition *acq) {
@@ -39,9 +47,9 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
         samplesPerChan = totalSamples;
     }
 
-    err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "",
-                                                 aoRateHz, DAQmx_Val_Rising,
-                                                 sampleMode, samplesPerChan));
+    err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "", aoRateHz,
+                                                 DAQmx_Val_Rising, sampleMode,
+                                                 samplesPerChan));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");
         return err;
@@ -63,11 +71,15 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
+    int nch = GetNumberOfScannerAOChannels(device);
     int32 totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
     double *xyWaveformFrame =
-        (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * 2);
+        (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * nch);
 
     GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
+    if (nch == 3)
+        GenerateLaserBlankingWaveform(
+            &params, xyWaveformFrame + 2 * totalElementsPerFramePerChan);
 
     int32 numWritten = 0;
     OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
@@ -102,8 +114,8 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device,
         }
 
         ss8str aoTerms;
-        ss8_init_copy(&aoTerms, &GetImplData(device)->deviceName);
-        ss8_cat_cstr(&aoTerms, "/ao0:1");
+        ss8_init(&aoTerms);
+        AppendScannerAOTerms(device, &aoTerms);
         err = CreateDAQmxError(DAQmxCreateAOVoltageChan(
             config->aoTask, ss8_cstr(&aoTerms), "Galvos", -10.0, 10.0,
             DAQmx_Val_Volts, NULL));
@@ -196,8 +208,8 @@ OScDev_RichError *CreateScannerTask(OScDev_Device *device,
         }
 
         ss8str aoTerms;
-        ss8_init_copy(&aoTerms, &GetImplData(device)->deviceName);
-        ss8_cat_cstr(&aoTerms, "/ao0:1");
+        ss8_init(&aoTerms);
+        AppendScannerAOTerms(device, &aoTerms);
         err = CreateDAQmxError(DAQmxCreateAOVoltageChan(
             config->aoTask, ss8_cstr(&aoTerms), "Galvos", -10.0, 10.0,
             DAQmx_Val_Volts, NULL));
@@ -212,4 +224,60 @@ OScDev_RichError *CreateScannerTask(OScDev_Device *device,
         }
     }
     return OScDev_RichError_OK;
+}
+
+OScDev_RichError *ApplyIdleLaserOutput(OScDev_Device *device) {
+    if (!LaserBlankingSupported(device))
+        return OScDev_RichError_OK;
+
+    CRITICAL_SECTION *mutex = &GetImplData(device)->acquisition.mutex;
+    EnterCriticalSection(mutex);
+    if (GetImplData(device)->acquisition.running) {
+        LeaveCriticalSection(mutex);
+        return OScDev_RichError_OK;
+    }
+
+    struct ScannerConfig *config = &GetImplData(device)->scannerConfig;
+    OScDev_RichError *err;
+
+    // Recreate the task to drop any leftover sample-clock timing from a prior
+    // scan; the on-demand task has no timing configured.
+    err = ShutdownScanner(config);
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to reset scanner task for idle "
+                                     "laser output");
+        goto cleanup;
+    }
+    err = CreateScannerTask(device, config);
+    if (err)
+        goto cleanup;
+
+    float64 buf[3] = {
+        GetImplData(device)->prevXParkVoltage,
+        GetImplData(device)->prevYParkVoltage,
+        GetImplData(device)->laserManualOn
+            ? GetImplData(device)->laserOnVoltage
+            : GetImplData(device)->laserOffVoltage,
+    };
+
+    int32 numWritten = 0;
+    err = CreateDAQmxError(DAQmxWriteAnalogF64(config->aoTask, 1, TRUE, 10.0,
+                                               DAQmx_Val_GroupByChannel, buf,
+                                               &numWritten, NULL));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to write idle laser output");
+        ShutdownScanner(config);
+        goto cleanup;
+    }
+
+    err = CreateDAQmxError(DAQmxStopTask(config->aoTask));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to stop idle laser output task");
+        ShutdownScanner(config);
+        goto cleanup;
+    }
+
+cleanup:
+    LeaveCriticalSection(mutex);
+    return err;
 }

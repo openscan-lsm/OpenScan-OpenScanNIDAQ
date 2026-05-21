@@ -168,6 +168,12 @@ void SetWaveformParamsFromDevice(OScDev_Device *device,
     parameters->yPark = GetImplData(device)->yPark;
     parameters->prevXParkVoltage = GetImplData(device)->prevXParkVoltage;
     parameters->prevYParkVoltage = GetImplData(device)->prevYParkVoltage;
+    parameters->laserBlankingSupported = LaserBlankingSupported(device);
+    parameters->laserManualOn = GetImplData(device)->laserManualOn;
+    parameters->laserOnVoltage = GetImplData(device)->laserOnVoltage;
+    parameters->laserOffVoltage = GetImplData(device)->laserOffVoltage;
+    parameters->laserOnLeadUs = GetImplData(device)->laserOnLeadUs;
+    parameters->laserOnLagUs = GetImplData(device)->laserOnLagUs;
 }
 
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device) {
@@ -218,4 +224,39 @@ int GetNumberOfAIPhysChans(OScDev_Device *device) {
             return i;
     }
     return MAX_PHYSICAL_CHANS;
+}
+
+OScDev_RichError *EnumerateAOPhysChans(OScDev_Device *device) {
+    ss8str *dest = &GetImplData(device)->aoPhysChans;
+    ss8_set_len(dest, 1024);
+    ss8_set_front(dest, '\0');
+    int32 nierr = DAQmxGetDevAOPhysicalChans(
+        ss8_cstr(&GetImplData(device)->deviceName), ss8_mutable_cstr(dest),
+        (uInt32)ss8_len(dest));
+    ss8_set_len_to_cstrlen(dest);
+    ss8_shrink_to_fit(dest);
+    if (nierr < 0)
+        return CreateDAQmxError(nierr);
+    if (ss8_is_empty(dest))
+        return OScDev_Error_Create("Device has no AO physical channels");
+    return OScDev_RichError_OK;
+}
+
+int GetNumberOfAOPhysChans(OScDev_Device *device) {
+    const ss8str *chans = &GetImplData(device)->aoPhysChans;
+    if (ss8_is_empty(chans))
+        return 0;
+    int count = 1;
+    for (size_t p = ss8_find_ch(chans, 0, ','); p != SIZE_MAX;
+         p = ss8_find_ch(chans, p + 1, ','))
+        ++count;
+    return count;
+}
+
+bool LaserBlankingSupported(OScDev_Device *device) {
+    return GetNumberOfAOPhysChans(device) >= 3;
+}
+
+int GetNumberOfScannerAOChannels(OScDev_Device *device) {
+    return LaserBlankingSupported(device) ? 3 : 2;
 }

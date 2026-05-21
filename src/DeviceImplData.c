@@ -27,6 +27,13 @@ void InitializeImplData(struct DeviceImplData *data) {
     ss8_init(&data->aiPhysChans);
     data->channelEnabled[0] = true;
 
+    ss8_init(&data->aoPhysChans);
+    data->laserManualOn = false;
+    data->laserOnVoltage = 0.1; // Avoid high default to reduce danger
+    data->laserOffVoltage = 0.0;
+    data->laserOnLeadUs = 5.0;
+    data->laserOnLagUs = 5.0;
+
     InitializeCriticalSection(&data->frameMutex);
     InitializeConditionVariable(&data->frameReady);
 
