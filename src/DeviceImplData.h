@@ -36,7 +36,11 @@ struct DeviceImplData {
 
     bool scannerOnly;
 
-    double aoRateHz;
+    bool timingCapsQueried;   // guards the one-time query
+    double sampClkTimebaseHz; // from DAQmxGetSampClkTimebaseRate
+    double aoMaxRateHz;       // from DAQmxGetDevAOMaxRate
+
+    double aoRateHz; // Derived from pixel rate; overwritten per acquisition
     double undershootUs;
     double scanPhaseUs;
     double retraceScaleUsPerVolt;

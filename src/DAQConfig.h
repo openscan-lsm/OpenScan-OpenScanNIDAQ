@@ -6,6 +6,11 @@
 #include <OpenScanDeviceLib.h>
 #include <ss8str.h>
 
+#include <stdbool.h>
+
+bool ComputeAORateHz(double pixelRateHz, double timebaseHz, double aoMaxHz,
+                     double *aoRateHz);
+OScDev_RichError *EnsureTimingCapsQueried(OScDev_Device *device);
 void SetWaveformParamsFromDevice(OScDev_Device *device,
                                  struct WaveformParams *parameters,
                                  OScDev_Acquisition *acq);

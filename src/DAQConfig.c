@@ -12,8 +12,104 @@
 #include <ss8str.h>
 
 #include <limits.h>
+#include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+static const double MIN_AO_RATE_HZ = 100.0e3;    // keep galvo waveform smooth
+static const double TARGET_AO_RATE_HZ = 200.0e3; // galvo BW ~kHz; higher
+                                                 // wastes memory/CPU
+
+// Choose aoRate = timebaseHz / t, where t (AO period in ticks) divides the
+// pixel period in ticks. Among candidates within [MIN_AO_RATE_HZ, aoMaxHz],
+// pick the frequency closest to TARGET_AO_RATE_HZ; tie -> higher frequency.
+// Returns false when no valid AO rate exists for this pixel rate.
+bool ComputeAORateHz(double pixelRateHz, double timebaseHz, double aoMaxHz,
+                     double *aoRateHz) {
+    long pixelPeriodTicks = lround(timebaseHz / pixelRateHz);
+    bool found = false;
+    double bestFreq = 0.0, bestDist = 0.0;
+    for (long t = 1; t <= pixelPeriodTicks; ++t) {
+        if (pixelPeriodTicks % t != 0)
+            continue; // K = pixelPeriodTicks / t must be integer
+        double f = timebaseHz / (double)t;
+        if (f < MIN_AO_RATE_HZ || f > aoMaxHz)
+            continue;
+        double d = fabs(f - TARGET_AO_RATE_HZ);
+        if (!found || d < bestDist || (d == bestDist && f > bestFreq)) {
+            found = true;
+            bestDist = d;
+            bestFreq = f;
+        }
+    }
+    if (found)
+        *aoRateHz = bestFreq;
+    return found;
+}
+
+// Populate GetImplData(device)->sampClkTimebaseHz and ->aoMaxRateHz on first
+// call; no-op afterwards (guarded by ->timingCapsQueried).
+OScDev_RichError *EnsureTimingCapsQueried(OScDev_Device *device) {
+    if (GetImplData(device)->timingCapsQueried)
+        return OScDev_RichError_OK;
+
+    const char *dev = ss8_cstr(&GetImplData(device)->deviceName);
+    OScDev_RichError *err;
+
+    // AO max rate: plain device attribute, no task needed.
+    float64 aoMax;
+    err = CreateDAQmxError(DAQmxGetDevAOMaxRate(dev, &aoMax));
+    if (err)
+        return OScDev_Error_Wrap(err,
+                                 "Failed to query AO maximum sample rate");
+
+    // Timebase: throwaway committed AO task.
+    ss8str aoChan;
+    ss8_init_copy(&aoChan, &GetImplData(device)->deviceName);
+    ss8_cat_cstr(&aoChan, "/ao0");
+
+    TaskHandle task = 0;
+    float64 timebase = 0.0;
+    err = CreateDAQmxError(DAQmxCreateTask("", &task));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to create timing-query task");
+        goto cleanup;
+    }
+    err = CreateDAQmxError(DAQmxCreateAOVoltageChan(
+        task, ss8_cstr(&aoChan), "", -10.0, 10.0, DAQmx_Val_Volts, NULL));
+    if (err) {
+        err = OScDev_Error_Wrap(
+            err, "Failed to create ao channel for timing query");
+        goto cleanup;
+    }
+    err = CreateDAQmxError(DAQmxCfgSampClkTiming(
+        task, "", 100000.0, DAQmx_Val_Rising, DAQmx_Val_ContSamps, 1000));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to configure timing-query task");
+        goto cleanup;
+    }
+    err = CreateDAQmxError(DAQmxTaskControl(task, DAQmx_Val_Task_Commit));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to commit timing-query task");
+        goto cleanup;
+    }
+    err = CreateDAQmxError(DAQmxGetSampClkTimebaseRate(task, &timebase));
+    if (err) {
+        err = OScDev_Error_Wrap(err, "Failed to query samp clk timebase rate");
+        goto cleanup;
+    }
+
+    GetImplData(device)->aoMaxRateHz = aoMax;
+    GetImplData(device)->sampClkTimebaseHz = timebase;
+    GetImplData(device)->timingCapsQueried = true;
+
+cleanup:
+    if (task)
+        DAQmxClearTask(task);
+    ss8_destroy(&aoChan);
+    return err;
+}
 
 // Return the index-th physical channel, or empty string if no such channel
 static bool GetAIPhysChan(OScDev_Device *device, int index, ss8str *chan) {

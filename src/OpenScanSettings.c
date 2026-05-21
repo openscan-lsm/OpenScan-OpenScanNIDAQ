@@ -33,35 +33,6 @@ GetNumericConstraintTypeImpl_Range(OScDev_Setting *setting,
     return OScDev_OK;
 }
 
-static OScDev_Error GetAOSampleRate(OScDev_Setting *setting, double *value) {
-    *value = GetSettingDeviceData(setting)->aoRateHz;
-    return OScDev_OK;
-}
-
-static OScDev_Error SetAOSampleRate(OScDev_Setting *setting, double value) {
-    GetSettingDeviceData(setting)->aoRateHz = value;
-    GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
-    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
-    GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
-    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
-    return OScDev_OK;
-}
-
-static OScDev_Error GetAOSampleRateRange(OScDev_Setting *setting, double *min,
-                                         double *max) {
-    (void)setting;
-    *min = 100000.0;
-    *max = 1000000.0;
-    return OScDev_OK;
-}
-
-static OScDev_SettingImpl SettingImpl_AOSampleRate = {
-    .GetFloat64 = GetAOSampleRate,
-    .SetFloat64 = SetAOSampleRate,
-    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
-    .GetFloat64Range = GetAOSampleRateRange,
-};
-
 static OScDev_Error GetUndershoot(OScDev_Setting *setting, double *value) {
     *value = GetSettingDeviceData(setting)->undershootUs;
     return OScDev_OK;
@@ -355,14 +326,6 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
         return OScDev_Error_ReturnAsCode(err);
 
     *settings = OScDev_PtrArray_Create();
-
-    OScDev_Setting *aoSampleRate;
-    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
-        &aoSampleRate, "AO Sample Rate (Hz)", OScDev_ValueType_Float64,
-        &SettingImpl_AOSampleRate, device));
-    if (err)
-        goto error;
-    OScDev_PtrArray_Append(*settings, aoSampleRate);
 
     OScDev_Setting *undershoot;
     err = OScDev_Error_AsRichError(OScDev_Setting_Create(

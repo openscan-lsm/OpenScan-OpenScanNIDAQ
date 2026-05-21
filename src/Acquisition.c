@@ -20,6 +20,17 @@
 static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
     OScDev_Acquisition *acq = GetImplData(device)->acquisition.acquisition;
     double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+
+    OScDev_RichError *err = EnsureTimingCapsQueried(device);
+    if (err)
+        return err;
+    double aoRateHz;
+    if (!ComputeAORateHz(pixelRateHz, GetImplData(device)->sampClkTimebaseHz,
+                         GetImplData(device)->aoMaxRateHz, &aoRateHz))
+        return OScDev_Error_Create(
+            "No valid AO sample rate for the selected pixel rate");
+    GetImplData(device)->aoRateHz = aoRateHz;
+
     uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
     double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
     uint32_t xOffset, yOffset, width, height;
@@ -60,8 +71,6 @@ static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
 
     // Note that additional setting of 'mustReconfigure' flags occurs in
     // settings
-
-    OScDev_RichError *err;
 
     err = SetUpClock(device, &GetImplData(device)->clockConfig, acq);
     if (err)
