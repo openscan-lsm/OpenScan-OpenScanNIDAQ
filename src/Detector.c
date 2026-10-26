@@ -134,17 +134,14 @@ static int32 HandleRawData(OScDev_Device *device) {
             sizeof(float64) * leftoverSamples);
     GetImplData(device)->rawDataSize = leftoverSamples;
 
-    char msg[OScDev_MAX_STR_LEN + 1];
-    snprintf(msg, OScDev_MAX_STR_LEN, "Read %zd pixels",
-             GetImplData(device)->framePixelsFilled);
-    OScDev_Log_Debug(device, msg);
-
     return OScDev_OK;
 }
 
 static int32 DetectorDataCallback(TaskHandle taskHandle,
                                   int32 everyNsamplesEventType,
                                   uInt32 nSamples, void *callbackData) {
+    (void)nSamples;
+
     OScDev_Error errCode;
     OScDev_Device *device = (OScDev_Device *)(callbackData);
 
@@ -152,10 +149,6 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
         return OScDev_OK;
     if (everyNsamplesEventType != DAQmx_Val_Acquired_Into_Buffer)
         return OScDev_OK;
-
-    char msg[1024];
-    snprintf(msg, sizeof(msg) - 1, "Detector callback (%d samples)", nSamples);
-    OScDev_Log_Debug(device, msg);
 
     uint32_t numChannels = GetNumberOfEnabledChannels(device);
 
