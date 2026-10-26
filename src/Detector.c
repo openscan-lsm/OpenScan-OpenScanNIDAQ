@@ -178,10 +178,9 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
         goto error;
     }
 
-    if (samplesPerChanRead == 0) {
-        OScDev_Log_Error(device, "Error: DAQ failed to read any sample");
+    // Pending events find nothing left after an earlier read took everything
+    if (samplesPerChanRead == 0)
         return OScDev_OK;
-    }
 
     GetImplData(device)->rawDataSize += samplesPerChanRead * numChannels;
 
@@ -205,6 +204,20 @@ static OScDev_RichError *CreateDetectorTask(OScDev_Device *device,
         err = OScDev_Error_Wrap(err, "Failed to create detector task");
         return err;
     }
+
+    bool32 isSimulated;
+    err = CreateDAQmxError(DAQmxGetDevIsSimulated(
+        ss8_cstr(&GetImplData(device)->deviceName), &isSimulated));
+    if (err) {
+        err = OScDev_Error_Wrap(err,
+                                "Failed to query whether device is simulated");
+        goto error;
+    }
+    config->isSimulatedDevice = isSimulated != 0;
+    if (config->isSimulatedDevice)
+        OScDev_Log_Debug(
+            device,
+            "Simulated device: detector will acquire continuously without line triggering");
 
     double minVolts, maxVolts;
     err = GetAIVoltageRange(device, &minVolts, &maxVolts);
@@ -240,9 +253,13 @@ static OScDev_RichError *ConfigureDetectorTiming(struct DetectorConfig *config,
     uint32_t xOffset, yOffset, width, height;
     OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-    err = CreateDAQmxError(
-        DAQmxCfgSampClkTiming(config->aiTask, "", pixelRateHz,
-                              DAQmx_Val_Rising, DAQmx_Val_FiniteSamps, width));
+    // Simulated devices do not honor (re)triggering, so a finite
+    // retriggerable task would acquire only the first line. Acquire
+    // continuously instead (lines will not be aligned to the scan).
+    int32 sampleMode = config->isSimulatedDevice ? DAQmx_Val_ContSamps
+                                                 : DAQmx_Val_FiniteSamps;
+    err = CreateDAQmxError(DAQmxCfgSampClkTiming(
+        config->aiTask, "", pixelRateHz, DAQmx_Val_Rising, sampleMode, width));
     if (err) {
         err =
             OScDev_Error_Wrap(err, "Failed to configure timing for detector");
@@ -271,7 +288,9 @@ ConfigureDetectorTrigger(OScDev_Device *device,
         return err;
     }
 
-    err = CreateDAQmxError(DAQmxSetStartTrigRetriggerable(config->aiTask, 1));
+    // See ConfigureDetectorTiming() regarding simulated devices
+    err = CreateDAQmxError(DAQmxSetStartTrigRetriggerable(
+        config->aiTask, !config->isSimulatedDevice));
     if (err) {
         err = OScDev_Error_Wrap(err,
                                 "Failed to set detector task retriggerable");

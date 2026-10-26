@@ -7,6 +7,7 @@
 // See Detector.c
 struct DetectorConfig {
     TaskHandle aiTask;
+    bool isSimulatedDevice;
     bool mustReconfigureTiming;
     bool mustReconfigureTrigger;
     bool mustReconfigureCallback;
