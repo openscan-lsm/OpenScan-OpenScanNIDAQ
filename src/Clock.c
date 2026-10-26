@@ -52,22 +52,21 @@ static OScDev_RichError *CreateClockTasks(OScDev_Device *device,
         return err;
     }
 
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
-    uint32_t xOffset, yOffset, width, height;
-    OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
-    uint32_t elementsPerLine = GetLineWaveformSize(&params);
-    double effectiveScanPortion = (double)width / elementsPerLine;
-    double lineFreqHz = pixelRateHz / elementsPerLine;
-    double scanPhase = 1.0 / pixelRateHz * GetImplData(device)->lineDelay;
+    uint32_t elementsPerLine = (uint32_t)GetLineWaveformSize(&params);
+    double initialDelay =
+        (double)(UndershootSamples(&params) + ScanPhaseSamples(&params)) /
+        params.aoRateHz;
+    double lineFreqHz = params.aoRateHz / elementsPerLine;
+    double dutyCycle = (double)ScanSamples(&params) / elementsPerLine;
 
     ss8str ctrTerms;
     ss8_init_copy(&ctrTerms, &GetImplData(device)->deviceName);
     ss8_cat_cstr(&ctrTerms, "/ctr0");
     err = CreateDAQmxError(DAQmxCreateCOPulseChanFreq(
         config->lineCtrTask, ss8_cstr(&ctrTerms), "ClockLineCTR", DAQmx_Val_Hz,
-        DAQmx_Val_Low, scanPhase, lineFreqHz, effectiveScanPortion));
+        DAQmx_Val_Low, initialDelay, lineFreqHz, dutyCycle));
     ss8_destroy(&ctrTerms);
     if (err) {
         err =
@@ -83,13 +82,12 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device,
                                               OScDev_Acquisition *acq) {
     OScDev_RichError *err;
 
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
     uint32_t xOffset, yOffset, width, height;
     OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
 
-    uint32_t elementsPerLine = GetLineWaveformSize(&params);
+    uint32_t elementsPerLine = (uint32_t)GetLineWaveformSize(&params);
     int32 elementsPerFramePerChan = GetClockWaveformSize(&params);
     uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
 
@@ -111,7 +109,7 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device,
         doSamplesPerChan = totalDOSamples;
     }
     err = CreateDAQmxError(
-        DAQmxCfgSampClkTiming(config->doTask, "", pixelRateHz,
+        DAQmxCfgSampClkTiming(config->doTask, "", params.aoRateHz,
                               DAQmx_Val_Rising, sampleMode, doSamplesPerChan));
     if (err) {
         err = OScDev_Error_Wrap(
@@ -127,9 +125,11 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device,
         return err;
     }
 
-    double effectiveScanPortion = (double)width / elementsPerLine;
-    double lineFreqHz = pixelRateHz / elementsPerLine;
-    double scanPhase = 1.0 / pixelRateHz * GetImplData(device)->lineDelay;
+    double dutyCycle = (double)ScanSamples(&params) / elementsPerLine;
+    double lineFreqHz = params.aoRateHz / elementsPerLine;
+    double initialDelay =
+        (double)(UndershootSamples(&params) + ScanPhaseSamples(&params)) /
+        params.aoRateHz;
 
     err = CreateDAQmxError(DAQmxSetChanAttribute(
         config->lineCtrTask, "", DAQmx_CO_Pulse_Freq, lineFreqHz));
@@ -138,17 +138,17 @@ static OScDev_RichError *ConfigureClockTiming(OScDev_Device *device,
         return err;
     }
 
-    err = CreateDAQmxError(DAQmxSetChanAttribute(
-        config->lineCtrTask, "", DAQmx_CO_Pulse_Freq_InitialDelay, scanPhase));
+    err = CreateDAQmxError(
+        DAQmxSetChanAttribute(config->lineCtrTask, "",
+                              DAQmx_CO_Pulse_Freq_InitialDelay, initialDelay));
     if (err) {
         err = OScDev_Error_Wrap(err,
                                 "Failed to set clock lineCtr initial delay");
         return err;
     }
 
-    err = CreateDAQmxError(DAQmxSetChanAttribute(config->lineCtrTask, "",
-                                                 DAQmx_CO_Pulse_DutyCyc,
-                                                 effectiveScanPortion));
+    err = CreateDAQmxError(DAQmxSetChanAttribute(
+        config->lineCtrTask, "", DAQmx_CO_Pulse_DutyCyc, dutyCycle));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to set clock lineCtr duty cycle");
         return err;

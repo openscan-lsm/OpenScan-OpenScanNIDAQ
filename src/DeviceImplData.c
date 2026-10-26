@@ -10,7 +10,10 @@ void InitializeImplData(struct DeviceImplData *data) {
     memset(data, 0, sizeof(*data));
 
     ss8_init(&data->deviceName);
-    data->lineDelay = 50;
+    data->aoRateHz = 200000.0;
+    data->undershootUs = 250.0;
+    data->scanPhaseUs = 0.0;
+    data->retraceScaleUsPerVolt = 640.0;
     data->xformMatrix[0] = 1.0;
     data->xformMatrix[1] = 0.0;
     data->xformMatrix[2] = 0.0;

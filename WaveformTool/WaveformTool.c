@@ -29,7 +29,11 @@ struct Args {
     uint32_t xOffset;
     uint32_t yOffset;
     double zoom;
-    uint32_t undershoot;
+    double pixelRateHz;
+    double aoRateHz;
+    double undershootUs;
+    double scanPhaseUs;
+    double retraceScaleUsPerVolt;
     double xformMatrix[4];
     double xformOffsetX;
     double xformOffsetY;
@@ -41,6 +45,8 @@ struct Args {
     int hasResolution;
     int hasWidth;
     int hasHeight;
+    int hasPixelRate;
+    int hasAORate;
 };
 
 static int ParseUint32(const char *str, const char *name, uint32_t *out) {
@@ -84,32 +90,39 @@ static void PrintUsage(void) {
         "Types: raster, clock, park, unpark\n"
         "\n"
         "Options:\n"
-        "  -o <file>                Output file (required)\n"
-        "  --format csv|raw         Override format (auto from extension)\n"
-        "  --resolution <n>         Scanner resolution\n"
-        "  --width <n>              ROI width (default: resolution)\n"
-        "  --height <n>             ROI height (default: resolution)\n"
-        "  --xoffset <n>            ROI X offset (default: 0)\n"
-        "  --yoffset <n>            ROI Y offset (default: 0)\n"
-        "  --zoom <f>               Zoom factor (default: 1.0)\n"
-        "  --undershoot <n>         Undershoot / line delay (default: 0)\n"
-        "  --tform <a,b,c,d>        Affine 2x2 matrix, row-major\n"
-        "  --tform-offset <tx,ty>   Affine translation in volts\n"
-        "  --xpark <n>              X park position (default: 0)\n"
-        "  --ypark <n>              Y park position (default: 0)\n"
-        "  --prev-xpark-voltage <f> Previous X park voltage (default: 0)\n"
-        "  --prev-ypark-voltage <f> Previous Y park voltage (default: 0)\n"
+        "  -o <file>                  Output file (required)\n"
+        "  --format csv|raw           Override format (auto from extension)\n"
+        "  --resolution <n>           Scanner resolution\n"
+        "  --width <n>                ROI width (default: resolution)\n"
+        "  --height <n>               ROI height (default: resolution)\n"
+        "  --xoffset <n>              ROI X offset (default: 0)\n"
+        "  --yoffset <n>              ROI Y offset (default: 0)\n"
+        "  --zoom <f>                 Zoom factor (default: 1.0)\n"
+        "  --pixel-rate <hz>          Pixel rate in Hz (required)\n"
+        "  --ao-rate <hz>             AO sample rate in Hz (default: pixel rate)\n"
+        "  --undershoot-us <us>       Undershoot in microseconds (default: 0)\n"
+        "  --scan-phase-us <us>       Scan phase in microseconds (default: 0)\n"
+        "  --retrace-scale <us/V>     Retrace scale in us/V (default: 640)\n"
+        "  --tform <a,b,c,d>          Affine 2x2 matrix, row-major\n"
+        "  --tform-offset <tx,ty>     Affine translation in volts\n"
+        "  --xpark <n>                X park position (default: 0)\n"
+        "  --ypark <n>                Y park position (default: 0)\n"
+        "  --prev-xpark-voltage <f>   Previous X park voltage (default: 0)\n"
+        "  --prev-ypark-voltage <f>   Previous Y park voltage (default: 0)\n"
         "\n"
         "Required parameters:\n"
+        "  All types:    --pixel-rate\n"
         "  raster:       --resolution\n"
         "  clock:        --width and --height (or --resolution)\n"
         "  park, unpark: --resolution\n"
         "\n"
         "Examples:\n"
-        "  WaveformTool raster -o scan.csv --resolution 256\n"
-        "  WaveformTool raster -o scan.raw --resolution 256 --undershoot 10\n"
-        "  WaveformTool clock -o clock.csv --resolution 64 --undershoot 5\n"
-        "  WaveformTool park -o park.csv --resolution 256\n");
+        "  WaveformTool raster -o scan.csv --resolution 256 --pixel-rate 200000\n"
+        "  WaveformTool raster -o scan.csv --resolution 256 --pixel-rate 200000"
+        " --ao-rate 500000 --undershoot-us 250\n"
+        "  WaveformTool clock -o clock.csv --resolution 64 --pixel-rate 200000"
+        " --undershoot-us 250\n"
+        "  WaveformTool park -o park.csv --resolution 256 --pixel-rate 200000\n");
 }
 
 static int ParseTform(const char *str, double m[4]) {
@@ -189,6 +202,7 @@ static int ParseTformOffset(const char *str, double *tx, double *ty) {
 static int ParseArgs(int argc, char *argv[], struct Args *args) {
     memset(args, 0, sizeof(*args));
     args->zoom = 1.0;
+    args->retraceScaleUsPerVolt = 640.0;
     args->xformMatrix[0] = 1.0;
     args->xformMatrix[1] = 0.0;
     args->xformMatrix[2] = 0.0;
@@ -252,8 +266,24 @@ static int ParseArgs(int argc, char *argv[], struct Args *args) {
         } else if (strcmp(argv[i], "--zoom") == 0 && i + 1 < argc) {
             if (!ParseDouble(argv[++i], "--zoom", &args->zoom))
                 return 0;
-        } else if (strcmp(argv[i], "--undershoot") == 0 && i + 1 < argc) {
-            if (!ParseUint32(argv[++i], "--undershoot", &args->undershoot))
+        } else if (strcmp(argv[i], "--pixel-rate") == 0 && i + 1 < argc) {
+            if (!ParseDouble(argv[++i], "--pixel-rate", &args->pixelRateHz))
+                return 0;
+            args->hasPixelRate = 1;
+        } else if (strcmp(argv[i], "--ao-rate") == 0 && i + 1 < argc) {
+            if (!ParseDouble(argv[++i], "--ao-rate", &args->aoRateHz))
+                return 0;
+            args->hasAORate = 1;
+        } else if (strcmp(argv[i], "--undershoot-us") == 0 && i + 1 < argc) {
+            if (!ParseDouble(argv[++i], "--undershoot-us",
+                             &args->undershootUs))
+                return 0;
+        } else if (strcmp(argv[i], "--scan-phase-us") == 0 && i + 1 < argc) {
+            if (!ParseDouble(argv[++i], "--scan-phase-us", &args->scanPhaseUs))
+                return 0;
+        } else if (strcmp(argv[i], "--retrace-scale") == 0 && i + 1 < argc) {
+            if (!ParseDouble(argv[++i], "--retrace-scale",
+                             &args->retraceScaleUsPerVolt))
                 return 0;
         } else if (strcmp(argv[i], "--tform") == 0 && i + 1 < argc) {
             if (!ParseTform(argv[++i], args->xformMatrix))
@@ -288,6 +318,14 @@ static int ParseArgs(int argc, char *argv[], struct Args *args) {
         fprintf(stderr, "Error: -o <file> is required\n");
         return 0;
     }
+
+    if (!args->hasPixelRate) {
+        fprintf(stderr, "Error: --pixel-rate is required\n");
+        return 0;
+    }
+
+    if (!args->hasAORate)
+        args->aoRateHz = args->pixelRateHz;
 
     switch (args->type) {
     case WAVEFORM_RASTER:
@@ -351,7 +389,11 @@ static void PopulateParams(const struct Args *args,
     params->height = args->height;
     params->resolution = args->resolution;
     params->zoom = args->zoom;
-    params->undershoot = args->undershoot;
+    params->pixelRateHz = args->pixelRateHz;
+    params->aoRateHz = args->aoRateHz;
+    params->undershootUs = args->undershootUs;
+    params->scanPhaseUs = args->scanPhaseUs;
+    params->retraceScaleUsPerVolt = args->retraceScaleUsPerVolt;
     params->xOffset = args->xOffset;
     params->yOffset = args->yOffset;
     memcpy(params->xformMatrix, args->xformMatrix,
