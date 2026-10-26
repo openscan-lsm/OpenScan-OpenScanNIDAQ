@@ -262,20 +262,13 @@ static OScDev_RichError *ConfigureDetectorTiming(struct DetectorConfig *config,
 static OScDev_RichError *
 ConfigureDetectorTrigger(OScDev_Device *device,
                          struct DetectorConfig *config) {
-    // For now we hard-code the trigger to PFI12, which is the output of CTR0
-
-    // Alternative: virtually connect counter (line clock) output terminal and
-    // acquisition triggerIn terminal without physical wiring:
-    // nierr = DAQmxConnectTerms("/PXI1Slot2/Ctr0InternalOutput",
-    // "/PXI1Slot2/PFI8", DAQmx_Val_DoNotInvertPolarity); nierr =
-    // DAQmxCfgDigEdgeStartTrig(acqTaskHandle_, "/PXI1Slot2/PFI8",
-    // DAQmx_Val_Rising);
     OScDev_RichError *err;
 
     ss8str trigSrc;
     ss8_init_copy_ch(&trigSrc, '/');
     ss8_cat(&trigSrc, &GetImplData(device)->deviceName);
-    ss8_cat_cstr(&trigSrc, "/PFI12");
+    ss8_cat_cstr(&trigSrc, "/Ctr0InternalOutput");
+
     err = CreateDAQmxError(DAQmxCfgDigEdgeStartTrig(
         config->aiTask, ss8_cstr(&trigSrc), DAQmx_Val_Rising));
     ss8_destroy(&trigSrc);
