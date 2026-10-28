@@ -33,36 +33,267 @@ GetNumericConstraintTypeImpl_Range(OScDev_Setting *setting,
     return OScDev_OK;
 }
 
-static OScDev_Error GetLineDelay(OScDev_Setting *setting, int32_t *value) {
-    *value = GetSettingDeviceData(setting)->lineDelay;
-
+static OScDev_Error GetUndershoot(OScDev_Setting *setting, double *value) {
+    *value = GetSettingDeviceData(setting)->undershootUs;
     return OScDev_OK;
 }
 
-static OScDev_Error SetLineDelay(OScDev_Setting *setting, int32_t value) {
-    GetSettingDeviceData(setting)->lineDelay = value;
-
+static OScDev_Error SetUndershoot(OScDev_Setting *setting, double value) {
+    GetSettingDeviceData(setting)->undershootUs = value;
     GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
     GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
     GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
     GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
-
     return OScDev_OK;
 }
 
-static OScDev_Error GetLineDelayRange(OScDev_Setting *setting, int32_t *min,
-                                      int32_t *max) {
-    (void)setting; // Unused
-    *min = 1;
-    *max = 200;
+static OScDev_Error GetUndershootRange(OScDev_Setting *setting, double *min,
+                                       double *max) {
+    (void)setting;
+    *min = 0.0;
+    *max = 5000.0;
     return OScDev_OK;
 }
 
-static OScDev_SettingImpl SettingImpl_LineDelay = {
-    .GetInt32 = GetLineDelay,
-    .SetInt32 = SetLineDelay,
+static OScDev_SettingImpl SettingImpl_Undershoot = {
+    .GetFloat64 = GetUndershoot,
+    .SetFloat64 = SetUndershoot,
     .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
-    .GetInt32Range = GetLineDelayRange,
+    .GetFloat64Range = GetUndershootRange,
+};
+
+static OScDev_Error GetScanPhase(OScDev_Setting *setting, double *value) {
+    *value = GetSettingDeviceData(setting)->scanPhaseUs;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetScanPhase(OScDev_Setting *setting, double value) {
+    GetSettingDeviceData(setting)->scanPhaseUs = value;
+    GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetScanPhaseRange(OScDev_Setting *setting, double *min,
+                                      double *max) {
+    (void)setting;
+    *min = 0.0;
+    *max = 1000.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_ScanPhase = {
+    .GetFloat64 = GetScanPhase,
+    .SetFloat64 = SetScanPhase,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetScanPhaseRange,
+};
+
+static OScDev_Error GetRetraceScale(OScDev_Setting *setting, double *value) {
+    *value = GetSettingDeviceData(setting)->retraceScaleUsPerVolt;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetRetraceScale(OScDev_Setting *setting, double value) {
+    GetSettingDeviceData(setting)->retraceScaleUsPerVolt = value;
+    GetSettingDeviceData(setting)->clockConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustReconfigureTiming = true;
+    GetSettingDeviceData(setting)->clockConfig.mustRewriteOutput = true;
+    GetSettingDeviceData(setting)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetRetraceScaleRange(OScDev_Setting *setting, double *min,
+                                         double *max) {
+    (void)setting;
+    *min = 100.0;
+    *max = 10000.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_RetraceScale = {
+    .GetFloat64 = GetRetraceScale,
+    .SetFloat64 = SetRetraceScale,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetRetraceScaleRange,
+};
+
+struct LaserSettingData {
+    OScDev_Device *device;
+    int laserIndex;
+};
+
+static void ReleaseLaserSetting(OScDev_Setting *setting) {
+    free(OScDev_Setting_GetImplData(setting));
+}
+
+static struct LaserChannelParams *GetSettingLaser(OScDev_Setting *setting) {
+    struct LaserSettingData *data = OScDev_Setting_GetImplData(setting);
+    return &GetImplData(data->device)->lasers[data->laserIndex];
+}
+
+static OScDev_Device *GetLaserSettingDevice(OScDev_Setting *setting) {
+    struct LaserSettingData *data = OScDev_Setting_GetImplData(setting);
+    return data->device;
+}
+
+static OScDev_Error UpdateLaserOutput(OScDev_Setting *setting) {
+    OScDev_Device *device = GetLaserSettingDevice(setting);
+    GetImplData(device)->scannerConfig.mustRewriteOutput = true;
+    return OScDev_Error_ReturnAsCode(ApplyIdleLaserOutput(device));
+}
+
+static const char *const laserControlNames[] = {
+    [LaserControlOff] = "Off",
+    [LaserControlBlank] = "Blank",
+    [LaserControlOn] = "On",
+};
+#define NUM_LASER_CONTROL_VALUES                                              \
+    (sizeof(laserControlNames) / sizeof(laserControlNames[0]))
+
+static OScDev_Error GetLaserControl(OScDev_Setting *setting, uint32_t *value) {
+    *value = GetSettingLaser(setting)->control;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetLaserControl(OScDev_Setting *setting, uint32_t value) {
+    if (value >= NUM_LASER_CONTROL_VALUES)
+        return OScDev_Error_Illegal_Argument;
+    GetSettingLaser(setting)->control = (enum LaserControl)value;
+    return UpdateLaserOutput(setting);
+}
+
+static OScDev_Error GetLaserControlNumValues(OScDev_Setting *setting,
+                                             uint32_t *count) {
+    (void)setting;
+    *count = NUM_LASER_CONTROL_VALUES;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetLaserControlNameForValue(OScDev_Setting *setting,
+                                                uint32_t value, char *name) {
+    (void)setting;
+    if (value >= NUM_LASER_CONTROL_VALUES)
+        return OScDev_Error_Illegal_Argument;
+    snprintf(name, OScDev_MAX_STR_SIZE, "%s", laserControlNames[value]);
+    return OScDev_OK;
+}
+
+static OScDev_Error GetLaserControlValueForName(OScDev_Setting *setting,
+                                                uint32_t *value,
+                                                const char *name) {
+    (void)setting;
+    for (uint32_t i = 0; i < NUM_LASER_CONTROL_VALUES; ++i) {
+        if (strcmp(name, laserControlNames[i]) == 0) {
+            *value = i;
+            return OScDev_OK;
+        }
+    }
+    return OScDev_Error_Illegal_Argument;
+}
+
+static OScDev_SettingImpl SettingImpl_LaserControl = {
+    .Release = ReleaseLaserSetting,
+    .GetEnum = GetLaserControl,
+    .SetEnum = SetLaserControl,
+    .GetEnumNumValues = GetLaserControlNumValues,
+    .GetEnumNameForValue = GetLaserControlNameForValue,
+    .GetEnumValueForName = GetLaserControlValueForName,
+};
+
+static OScDev_Error GetLaserOnVoltage(OScDev_Setting *setting, double *value) {
+    *value = GetSettingLaser(setting)->onVoltage;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetLaserOnVoltage(OScDev_Setting *setting, double value) {
+    GetSettingLaser(setting)->onVoltage = value;
+    return UpdateLaserOutput(setting);
+}
+
+static OScDev_Error GetLaserVoltageRange(OScDev_Setting *setting, double *min,
+                                         double *max) {
+    (void)setting;
+    *min = -1.0;
+    *max = 1.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_LaserOnVoltage = {
+    .Release = ReleaseLaserSetting,
+    .GetFloat64 = GetLaserOnVoltage,
+    .SetFloat64 = SetLaserOnVoltage,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetLaserVoltageRange,
+};
+
+static OScDev_Error GetLaserOffVoltage(OScDev_Setting *setting,
+                                       double *value) {
+    *value = GetSettingLaser(setting)->offVoltage;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetLaserOffVoltage(OScDev_Setting *setting, double value) {
+    GetSettingLaser(setting)->offVoltage = value;
+    return UpdateLaserOutput(setting);
+}
+
+static OScDev_SettingImpl SettingImpl_LaserOffVoltage = {
+    .Release = ReleaseLaserSetting,
+    .GetFloat64 = GetLaserOffVoltage,
+    .SetFloat64 = SetLaserOffVoltage,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetLaserVoltageRange,
+};
+
+static OScDev_Error GetLaserOnLead(OScDev_Setting *setting, double *value) {
+    *value = GetSettingLaser(setting)->leadUs;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetLaserOnLead(OScDev_Setting *setting, double value) {
+    GetSettingLaser(setting)->leadUs = value;
+    GetImplData(GetLaserSettingDevice(setting))
+        ->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_Error GetLaserLeadLagRange(OScDev_Setting *setting, double *min,
+                                         double *max) {
+    (void)setting;
+    *min = 0.0;
+    *max = 100.0;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_LaserOnLead = {
+    .Release = ReleaseLaserSetting,
+    .GetFloat64 = GetLaserOnLead,
+    .SetFloat64 = SetLaserOnLead,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetLaserLeadLagRange,
+};
+
+static OScDev_Error GetLaserOnLag(OScDev_Setting *setting, double *value) {
+    *value = GetSettingLaser(setting)->lagUs;
+    return OScDev_OK;
+}
+
+static OScDev_Error SetLaserOnLag(OScDev_Setting *setting, double value) {
+    GetSettingLaser(setting)->lagUs = value;
+    GetImplData(GetLaserSettingDevice(setting))
+        ->scannerConfig.mustRewriteOutput = true;
+    return OScDev_OK;
+}
+
+static OScDev_SettingImpl SettingImpl_LaserOnLag = {
+    .Release = ReleaseLaserSetting,
+    .GetFloat64 = GetLaserOnLag,
+    .SetFloat64 = SetLaserOnLag,
+    .GetNumericConstraintType = GetNumericConstraintTypeImpl_Range,
+    .GetFloat64Range = GetLaserLeadLagRange,
 };
 
 static OScDev_Error GetParkingPositionX(OScDev_Setting *setting,
@@ -270,15 +501,35 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
     if (err)
         return OScDev_Error_ReturnAsCode(err);
 
+    err = EnumerateAOPhysChans(device);
+    if (err)
+        return OScDev_Error_ReturnAsCode(err);
+
     *settings = OScDev_PtrArray_Create();
 
-    OScDev_Setting *lineDelay;
+    OScDev_Setting *undershoot;
     err = OScDev_Error_AsRichError(OScDev_Setting_Create(
-        &lineDelay, "Line Delay (pixels)", OScDev_ValueType_Int32,
-        &SettingImpl_LineDelay, device));
+        &undershoot, "Undershoot (us)", OScDev_ValueType_Float64,
+        &SettingImpl_Undershoot, device));
     if (err)
         goto error;
-    OScDev_PtrArray_Append(*settings, lineDelay);
+    OScDev_PtrArray_Append(*settings, undershoot);
+
+    OScDev_Setting *scanPhase;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &scanPhase, "Scan Phase (us)", OScDev_ValueType_Float64,
+        &SettingImpl_ScanPhase, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, scanPhase);
+
+    OScDev_Setting *retraceScale;
+    err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+        &retraceScale, "Retrace Scale (us/V)", OScDev_ValueType_Float64,
+        &SettingImpl_RetraceScale, device));
+    if (err)
+        goto error;
+    OScDev_PtrArray_Append(*settings, retraceScale);
 
     OScDev_Setting *parkingPositionX;
     err = OScDev_Error_AsRichError(OScDev_Setting_Create(
@@ -352,6 +603,45 @@ OScDev_Error NIDAQMakeSettings(OScDev_Device *device,
     if (err)
         goto error;
     OScDev_PtrArray_Append(*settings, inputVoltageRange);
+
+    {
+        static const struct {
+            const char *suffix;
+            OScDev_ValueType type;
+            OScDev_SettingImpl *impl;
+        } laserSettings[] = {
+            {"Control", OScDev_ValueType_Enum, &SettingImpl_LaserControl},
+            {"On Voltage (V)", OScDev_ValueType_Float64,
+             &SettingImpl_LaserOnVoltage},
+            {"Off Voltage (V)", OScDev_ValueType_Float64,
+             &SettingImpl_LaserOffVoltage},
+            {"On Lead (us)", OScDev_ValueType_Float64,
+             &SettingImpl_LaserOnLead},
+            {"On Lag (us)", OScDev_ValueType_Float64, &SettingImpl_LaserOnLag},
+        };
+        int nLasers = GetNumberOfLaserChannels(device);
+        for (int i = 0; i < nLasers; ++i) {
+            for (size_t j = 0;
+                 j < sizeof(laserSettings) / sizeof(laserSettings[0]); ++j) {
+                struct LaserSettingData *data =
+                    malloc(sizeof(struct LaserSettingData));
+                data->device = device;
+                data->laserIndex = i;
+                char name[64];
+                snprintf(name, sizeof(name), "LaserAO%d %s", 2 + i,
+                         laserSettings[j].suffix);
+                OScDev_Setting *laserSetting;
+                err = OScDev_Error_AsRichError(OScDev_Setting_Create(
+                    &laserSetting, name, laserSettings[j].type,
+                    laserSettings[j].impl, data));
+                if (err) {
+                    free(data);
+                    goto error;
+                }
+                OScDev_PtrArray_Append(*settings, laserSetting);
+            }
+        }
+    }
 
     return OScDev_OK;
 

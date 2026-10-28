@@ -2,14 +2,36 @@
 
 #include <stdint.h>
 
+#define MAX_LASER_CHANNELS 2
+
+enum LaserControl {
+    LaserControlOff,
+    LaserControlBlank,
+    LaserControlOn,
+};
+
+struct LaserChannelParams {
+    enum LaserControl control;
+    double onVoltage;
+    double offVoltage;
+    double leadUs;
+    double lagUs;
+};
+
 struct WaveformParams {
-    uint32_t width;  // PixelsPerLine
+    uint32_t width;  // PixelsPerLine (ROI)
     uint32_t height; // numScanLines
     uint32_t resolution;
     double zoom;
-    uint32_t undershoot; // also LineDelay for clock waveforms
     uint32_t xOffset;
     uint32_t yOffset;
+
+    double aoRateHz;
+    double pixelRateHz;
+    double undershootUs;
+    double scanPhaseUs;
+    double retraceScaleUsPerVolt;
+
     double xformMatrix[4]; // {a, b, c, d} — row-major 2x2
     double xformOffsetX;   // tx (volts)
     double xformOffsetY;   // ty (volts)
@@ -17,7 +39,16 @@ struct WaveformParams {
     int32_t yPark;
     double prevXParkVoltage;
     double prevYParkVoltage;
+
+    int numLaserChannels; // AO channels from ao2 used for laser blanking
+    struct LaserChannelParams lasers[MAX_LASER_CHANNELS];
 };
+
+uint32_t UndershootSamples(const struct WaveformParams *params);
+uint32_t ScanSamples(const struct WaveformParams *params);
+uint32_t ScanPhaseSamples(const struct WaveformParams *params);
+uint32_t RetraceSamples(const struct WaveformParams *params);
+uint32_t ParkSamples(const struct WaveformParams *params);
 
 void GenerateLineClock(const struct WaveformParams *parameters,
                        uint8_t *lineClock);
@@ -37,3 +68,13 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
                                  double *xyWaveformFrame);
 void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
                                double *xyWaveformFrame);
+
+uint32_t LaserOnLeadSamples(const struct WaveformParams *params,
+                            const struct LaserChannelParams *laser);
+uint32_t LaserOnLagSamples(const struct WaveformParams *params,
+                           const struct LaserChannelParams *laser);
+void GenerateLaserBlankingWaveform(const struct WaveformParams *params,
+                                   const struct LaserChannelParams *laser,
+                                   double *blanking);
+void GenerateLaserBlankingConstant(const struct LaserChannelParams *laser,
+                                   uint32_t length, double *out);
