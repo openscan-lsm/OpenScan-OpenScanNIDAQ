@@ -21,5 +21,5 @@ int GetNumberOfAIPhysChans(OScDev_Device *device);
 
 OScDev_RichError *EnumerateAOPhysChans(OScDev_Device *device);
 int GetNumberOfAOPhysChans(OScDev_Device *device);
-bool LaserBlankingSupported(OScDev_Device *device);
+int GetNumberOfLaserChannels(OScDev_Device *device);
 int GetNumberOfScannerAOChannels(OScDev_Device *device);

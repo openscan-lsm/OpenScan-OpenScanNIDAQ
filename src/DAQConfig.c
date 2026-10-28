@@ -168,12 +168,9 @@ void SetWaveformParamsFromDevice(OScDev_Device *device,
     parameters->yPark = GetImplData(device)->yPark;
     parameters->prevXParkVoltage = GetImplData(device)->prevXParkVoltage;
     parameters->prevYParkVoltage = GetImplData(device)->prevYParkVoltage;
-    parameters->laserBlankingSupported = LaserBlankingSupported(device);
-    parameters->laserManualOn = GetImplData(device)->laserManualOn;
-    parameters->laserOnVoltage = GetImplData(device)->laserOnVoltage;
-    parameters->laserOffVoltage = GetImplData(device)->laserOffVoltage;
-    parameters->laserOnLeadUs = GetImplData(device)->laserOnLeadUs;
-    parameters->laserOnLagUs = GetImplData(device)->laserOnLagUs;
+    parameters->numLaserChannels = GetNumberOfLaserChannels(device);
+    for (int i = 0; i < MAX_LASER_CHANNELS; ++i)
+        parameters->lasers[i] = GetImplData(device)->lasers[i];
 }
 
 OScDev_RichError *EnumerateAIPhysChans(OScDev_Device *device) {
@@ -253,10 +250,15 @@ int GetNumberOfAOPhysChans(OScDev_Device *device) {
     return count;
 }
 
-bool LaserBlankingSupported(OScDev_Device *device) {
-    return GetNumberOfAOPhysChans(device) >= 3;
+int GetNumberOfLaserChannels(OScDev_Device *device) {
+    int n = GetNumberOfAOPhysChans(device) - 2;
+    if (n < 0)
+        return 0;
+    if (n > MAX_LASER_CHANNELS)
+        return MAX_LASER_CHANNELS;
+    return n;
 }
 
 int GetNumberOfScannerAOChannels(OScDev_Device *device) {
-    return LaserBlankingSupported(device) ? 3 : 2;
+    return 2 + GetNumberOfLaserChannels(device);
 }

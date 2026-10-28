@@ -24,12 +24,14 @@ uint32_t ScanPhaseSamples(const struct WaveformParams *params) {
     return (uint32_t)round(params->scanPhaseUs * 1e-6 * params->aoRateHz);
 }
 
-uint32_t LaserOnLeadSamples(const struct WaveformParams *params) {
-    return (uint32_t)round(params->laserOnLeadUs * 1e-6 * params->aoRateHz);
+uint32_t LaserOnLeadSamples(const struct WaveformParams *params,
+                            const struct LaserChannelParams *laser) {
+    return (uint32_t)round(laser->leadUs * 1e-6 * params->aoRateHz);
 }
 
-uint32_t LaserOnLagSamples(const struct WaveformParams *params) {
-    return (uint32_t)round(params->laserOnLagUs * 1e-6 * params->aoRateHz);
+uint32_t LaserOnLagSamples(const struct WaveformParams *params,
+                           const struct LaserChannelParams *laser) {
+    return (uint32_t)round(laser->lagUs * 1e-6 * params->aoRateHz);
 }
 
 uint32_t RetraceSamples(const struct WaveformParams *params) {
@@ -243,22 +245,22 @@ void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
 }
 
 void GenerateLaserBlankingWaveform(const struct WaveformParams *params,
+                                   const struct LaserChannelParams *laser,
                                    double *blanking) {
     uint32_t lineLength = (uint32_t)GetLineWaveformSize(params);
     uint32_t height = params->height;
-    double onV = params->laserOnVoltage;
 
-    if (params->laserManualOn) {
-        for (uint32_t i = 0; i < lineLength * height; ++i)
-            blanking[i] = onV;
+    if (laser->control != LaserControlBlank) {
+        GenerateLaserBlankingConstant(laser, lineLength * height, blanking);
         return;
     }
 
-    double offV = params->laserOffVoltage;
+    double onV = laser->onVoltage;
+    double offV = laser->offVoltage;
     uint32_t highStart = UndershootSamples(params) + ScanPhaseSamples(params);
     uint32_t scanSmp = ScanSamples(params);
-    uint32_t leadSmp = LaserOnLeadSamples(params);
-    uint32_t lagSmp = LaserOnLagSamples(params);
+    uint32_t leadSmp = LaserOnLeadSamples(params, laser);
+    uint32_t lagSmp = LaserOnLagSamples(params, laser);
 
     uint32_t onStart = highStart > leadSmp ? highStart - leadSmp : 0;
     uint32_t onEnd = highStart + scanSmp + lagSmp;
@@ -271,10 +273,10 @@ void GenerateLaserBlankingWaveform(const struct WaveformParams *params,
                 (i >= onStart && i < onEnd) ? onV : offV;
 }
 
-void GenerateLaserBlankingConstant(const struct WaveformParams *params,
+void GenerateLaserBlankingConstant(const struct LaserChannelParams *laser,
                                    uint32_t length, double *out) {
-    double v = params->laserManualOn ? params->laserOnVoltage
-                                     : params->laserOffVoltage;
+    double v = laser->control == LaserControlOn ? laser->onVoltage
+                                                : laser->offVoltage;
     for (uint32_t i = 0; i < length; ++i)
         out[i] = v;
 }

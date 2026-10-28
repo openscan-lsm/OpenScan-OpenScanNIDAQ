@@ -67,10 +67,10 @@ OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * nch);
 
     GenerateGalvoUnparkWaveform(&params, xyWaveformFrame);
-    if (nch == 3)
-        GenerateLaserBlankingConstant(&params, totalElementsPerFramePerChan,
-                                      xyWaveformFrame +
-                                          2 * totalElementsPerFramePerChan);
+    for (int i = 0; i < params.numLaserChannels; ++i)
+        GenerateLaserBlankingConstant(
+            &params.lasers[i], totalElementsPerFramePerChan,
+            xyWaveformFrame + (2 + i) * totalElementsPerFramePerChan);
 
     int32 numWritten = 0;
     OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
@@ -102,10 +102,10 @@ OScDev_RichError *WriteParkOutput(OScDev_Device *device,
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * nch);
 
     GenerateGalvoParkWaveform(&params, xyWaveformFrame);
-    if (nch == 3)
-        GenerateLaserBlankingConstant(&params, totalElementsPerFramePerChan,
-                                      xyWaveformFrame +
-                                          2 * totalElementsPerFramePerChan);
+    for (int i = 0; i < params.numLaserChannels; ++i)
+        GenerateLaserBlankingConstant(
+            &params.lasers[i], totalElementsPerFramePerChan,
+            xyWaveformFrame + (2 + i) * totalElementsPerFramePerChan);
     GetImplData(device)->prevXParkVoltage =
         xyWaveformFrame[totalElementsPerFramePerChan - 1];
     GetImplData(device)->prevYParkVoltage =

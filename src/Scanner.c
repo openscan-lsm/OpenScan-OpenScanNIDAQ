@@ -10,15 +10,18 @@
 #include <ss8str.h>
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// Append the scanner AO channel range ("<dev>/ao0:1" or "<dev>/ao0:2") to
-// terms
+// Append the scanner AO channel range ("<dev>/ao0:1" through "<dev>/ao0:3")
+// to terms
 static void AppendScannerAOTerms(OScDev_Device *device, ss8str *terms) {
     ss8_cat(terms, &GetImplData(device)->deviceName);
-    int nch = GetNumberOfScannerAOChannels(device);
-    ss8_cat_cstr(terms, nch >= 3 ? "/ao0:2" : "/ao0:1");
+    char range[16];
+    snprintf(range, sizeof(range), "/ao0:%d",
+             GetNumberOfScannerAOChannels(device) - 1);
+    ss8_cat_cstr(terms, range);
 }
 
 static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
@@ -77,9 +80,10 @@ static OScDev_RichError *WriteScannerOutput(OScDev_Device *device,
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * nch);
 
     GenerateGalvoWaveformFrame(&params, xyWaveformFrame);
-    if (nch == 3)
+    for (int i = 0; i < params.numLaserChannels; ++i)
         GenerateLaserBlankingWaveform(
-            &params, xyWaveformFrame + 2 * totalElementsPerFramePerChan);
+            &params, &params.lasers[i],
+            xyWaveformFrame + (2 + i) * totalElementsPerFramePerChan);
 
     int32 numWritten = 0;
     OScDev_RichError *err = CreateDAQmxError(DAQmxWriteAnalogF64(
@@ -227,7 +231,7 @@ OScDev_RichError *CreateScannerTask(OScDev_Device *device,
 }
 
 OScDev_RichError *ApplyIdleLaserOutput(OScDev_Device *device) {
-    if (!LaserBlankingSupported(device))
+    if (GetNumberOfLaserChannels(device) == 0)
         return OScDev_RichError_OK;
 
     CRITICAL_SECTION *mutex = &GetImplData(device)->acquisition.mutex;
@@ -252,13 +256,12 @@ OScDev_RichError *ApplyIdleLaserOutput(OScDev_Device *device) {
     if (err)
         goto cleanup;
 
-    float64 buf[3] = {
-        GetImplData(device)->prevXParkVoltage,
-        GetImplData(device)->prevYParkVoltage,
-        GetImplData(device)->laserManualOn
-            ? GetImplData(device)->laserOnVoltage
-            : GetImplData(device)->laserOffVoltage,
-    };
+    float64 buf[2 + MAX_LASER_CHANNELS];
+    buf[0] = GetImplData(device)->prevXParkVoltage;
+    buf[1] = GetImplData(device)->prevYParkVoltage;
+    for (int i = 0; i < GetNumberOfLaserChannels(device); ++i)
+        GenerateLaserBlankingConstant(&GetImplData(device)->lasers[i], 1,
+                                      &buf[2 + i]);
 
     int32 numWritten = 0;
     err = CreateDAQmxError(DAQmxWriteAnalogF64(config->aoTask, 1, TRUE, 10.0,

@@ -28,11 +28,13 @@ void InitializeImplData(struct DeviceImplData *data) {
     data->channelEnabled[0] = true;
 
     ss8_init(&data->aoPhysChans);
-    data->laserManualOn = false;
-    data->laserOnVoltage = 0.1; // Avoid high default to reduce danger
-    data->laserOffVoltage = 0.0;
-    data->laserOnLeadUs = 5.0;
-    data->laserOnLagUs = 5.0;
+    for (int i = 0; i < MAX_LASER_CHANNELS; ++i) {
+        data->lasers[i].control = LaserControlOff;
+        data->lasers[i].onVoltage = 0.1; // Avoid high default to reduce danger
+        data->lasers[i].offVoltage = 0.0;
+        data->lasers[i].leadUs = 5.0;
+        data->lasers[i].lagUs = 5.0;
+    }
 
     InitializeCriticalSection(&data->frameMutex);
     InitializeConditionVariable(&data->frameReady);
