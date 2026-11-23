@@ -104,6 +104,10 @@ static OScDev_Error NIDAQOpen(OScDev_Device *device) {
         ss8_copy_cstr(&msg, "Cannot reset device: ");
         ss8_cat(&msg, &GetImplData(device)->deviceName);
         err = OScDev_Error_Wrap(err, ss8_cstr(&msg));
+    } else {
+        // Reset sets AO outputs to 0 V
+        GetImplData(device)->prevXParkVoltage = 0.0;
+        GetImplData(device)->prevYParkVoltage = 0.0;
     }
 
     ss8_destroy(&msg);
