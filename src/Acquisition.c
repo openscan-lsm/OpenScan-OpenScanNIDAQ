@@ -20,6 +20,17 @@
 static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
     OScDev_Acquisition *acq = GetImplData(device)->acquisition.acquisition;
     double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+
+    OScDev_RichError *err = EnsureTimingCapsQueried(device);
+    if (err)
+        return err;
+    double aoRateHz;
+    if (!ComputeAORateHz(pixelRateHz, GetImplData(device)->sampClkTimebaseHz,
+                         GetImplData(device)->aoMaxRateHz, &aoRateHz))
+        return OScDev_Error_Create(
+            "No valid AO sample rate for the selected pixel rate");
+    GetImplData(device)->aoRateHz = aoRateHz;
+
     uint32_t resolution = OScDev_Acquisition_GetResolution(acq);
     double zoomFactor = OScDev_Acquisition_GetZoomFactor(acq);
     uint32_t xOffset, yOffset, width, height;
@@ -33,6 +44,8 @@ static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
         GetImplData(device)->clockConfig.mustReconfigureTiming = true;
         GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
         GetImplData(device)->detectorConfig.mustReconfigureTiming = true;
+        GetImplData(device)->clockConfig.mustRewriteOutput = true;
+        GetImplData(device)->scannerConfig.mustRewriteOutput = true;
     }
     if (resolution != GetImplData(device)->configuredResolution) {
         GetImplData(device)->scannerConfig.mustReconfigureTiming = true;
@@ -58,8 +71,6 @@ static OScDev_RichError *SetUpDAQ(OScDev_Device *device) {
 
     // Note that additional setting of 'mustReconfigure' flags occurs in
     // settings
-
-    OScDev_RichError *err;
 
     err = SetUpClock(device, &GetImplData(device)->clockConfig, acq);
     if (err)
@@ -184,12 +195,11 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
     GetImplData(device)->rawDataSize = 0;
     GetImplData(device)->activeWriteBuffer = 0;
 
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
     uint32_t totalElementsPerFramePerChan = GetScannerWaveformSize(&params);
     uint32_t estFrameTimeMs =
-        (uint32_t)(1e3 * totalElementsPerFramePerChan / pixelRateHz);
+        (uint32_t)(1e3 * totalElementsPerFramePerChan / params.aoRateHz);
 
     err = StartScan(device);
     if (err) {

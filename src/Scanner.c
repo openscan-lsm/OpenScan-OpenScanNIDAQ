@@ -17,7 +17,7 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
                                                 struct ScannerConfig *config,
                                                 OScDev_Acquisition *acq) {
     OScDev_RichError *err;
-    double pixelRateHz = OScDev_Acquisition_GetPixelRate(acq);
+    double aoRateHz = GetImplData(device)->aoRateHz;
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
@@ -40,7 +40,7 @@ static OScDev_RichError *ConfigureScannerTiming(OScDev_Device *device,
     }
 
     err = CreateDAQmxError(DAQmxCfgSampClkTiming(config->aoTask, "",
-                                                 pixelRateHz, DAQmx_Val_Rising,
+                                                 aoRateHz, DAQmx_Val_Rising,
                                                  sampleMode, samplesPerChan));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to configure timing for scanner");

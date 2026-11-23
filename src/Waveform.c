@@ -1,11 +1,40 @@
 #include "Waveform.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 
-// TODO We should probably scale the retrace length according to
-// zoomFactor * width_or_height
-static const uint32_t X_RETRACE_LEN = 128;
+static const double MIN_RETRACE_US = 50.0;
+static const double PARK_UNPARK_DURATION_US = 640.0;
+
+static double ScanAmplitude(const struct WaveformParams *params) {
+    return (double)params->width / (params->zoom * params->resolution);
+}
+
+uint32_t UndershootSamples(const struct WaveformParams *params) {
+    return (uint32_t)round(params->undershootUs * 1e-6 * params->aoRateHz);
+}
+
+uint32_t ScanSamples(const struct WaveformParams *params) {
+    return (uint32_t)round((double)params->width / params->pixelRateHz *
+                           params->aoRateHz);
+}
+
+uint32_t ScanPhaseSamples(const struct WaveformParams *params) {
+    return (uint32_t)round(params->scanPhaseUs * 1e-6 * params->aoRateHz);
+}
+
+uint32_t RetraceSamples(const struct WaveformParams *params) {
+    double amplitude = ScanAmplitude(params);
+    double retraceUs = params->retraceScaleUsPerVolt * amplitude;
+    if (retraceUs < MIN_RETRACE_US)
+        retraceUs = MIN_RETRACE_US;
+    return (uint32_t)round(retraceUs * 1e-6 * params->aoRateHz);
+}
+
+uint32_t ParkSamples(const struct WaveformParams *params) {
+    return (uint32_t)round(PARK_UNPARK_DURATION_US * 1e-6 * params->aoRateHz);
+}
 
 // n = number of elements
 // slope in units of per element
@@ -29,27 +58,26 @@ static void SplineInterpolate(int32_t n, double yFirst, double yLast,
     }
 }
 
-// Generate 1D (undershoot + trace + retrace).
-// The trace part spans voltage scanStart to scanEnd.
+// Generate 1D (undershoot + scan + overshoot + retrace).
+// The scan part spans voltage scanStart to scanEnd.
+// overshootLen extends the linear ramp past scanEnd.
 static void GenerateXGalvoWaveform(int32_t effectiveScanLen,
                                    int32_t retraceLen, int32_t undershootLen,
-                                   double scanStart, double scanEnd,
-                                   double *waveform) {
+                                   int32_t overshootLen, double scanStart,
+                                   double scanEnd, double *waveform) {
     double scanAmplitude = scanEnd - scanStart;
     double step = scanAmplitude / effectiveScanLen;
-    int32_t linearLen = undershootLen + effectiveScanLen;
+    int32_t linearLen = undershootLen + effectiveScanLen + overshootLen;
 
-    // Generate the linear scan curve
     double undershootStart = scanStart - undershootLen * step;
     for (int i = 0; i < linearLen; ++i) {
         waveform[i] = undershootStart + step * i;
     }
 
-    // Generate the rescan curve
-    // Slope at start end end are both equal to the linear scan
+    double overshootEnd = scanEnd + overshootLen * step;
     if (retraceLen > 0) {
-        SplineInterpolate(retraceLen, scanEnd, undershootStart, step, step,
-                          waveform + linearLen);
+        SplineInterpolate(retraceLen, overshootEnd, undershootStart, step,
+                          step, waveform + linearLen);
     }
 }
 
@@ -57,17 +85,14 @@ static void GenerateXGalvoWaveform(int32_t effectiveScanLen,
 static void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
                                    size_t xLength, double scanStart,
                                    double scanEnd, double *waveform) {
-    (void)retraceLen; // Unused
-
     double scanAmplitude = scanEnd - scanStart;
     double step = scanAmplitude / linesPerFrame;
 
-    // Generate staircase for one frame
     for (int j = 0; j < linesPerFrame; ++j) {
         for (unsigned i = 0; i < xLength; ++i) {
             waveform[i + j * xLength] = scanStart + step * j;
-            // stop at last x retrace
-            if ((j >= linesPerFrame - 1) && (i >= xLength - X_RETRACE_LEN)) {
+            if ((j >= linesPerFrame - 1) &&
+                (i >= xLength - (unsigned)retraceLen)) {
                 break;
             }
         }
@@ -77,128 +102,123 @@ static void GenerateYGalvoWaveform(int32_t linesPerFrame, int32_t retraceLen,
     for (int j = 0; j < linesPerFrame - 1; ++j) {
         double yThis = scanStart + step * j;
         double yNext = scanStart + step * (j + 1);
-        SplineInterpolate(X_RETRACE_LEN, yThis, yNext, 0, 0,
-                          waveform + (j + 1) * xLength - X_RETRACE_LEN);
+        SplineInterpolate(retraceLen, yThis, yNext, 0, 0,
+                          waveform + (j + 1) * xLength - retraceLen);
     }
 
-    // Generate the rescan curve at end of frame
-    if (X_RETRACE_LEN > 0) {
+    // Frame retrace at end
+    if (retraceLen > 0) {
         double lastLineY = scanStart + step * (linesPerFrame - 1);
-        SplineInterpolate(X_RETRACE_LEN, lastLineY, scanStart, 0, 0,
-                          waveform + (linesPerFrame * xLength) -
-                              X_RETRACE_LEN);
+        SplineInterpolate(retraceLen, lastLineY, scanStart, 0, 0,
+                          waveform + (linesPerFrame * xLength) - retraceLen);
     }
 }
 
-/* Line clock pattern for NI DAQ to output from one of its digital IOs */
 void GenerateLineClock(const struct WaveformParams *parameters,
                        uint8_t *lineClock) {
-    uint32_t lineDelay = parameters->undershoot;
-    uint32_t width = parameters->width;
+    uint32_t undershootSmp = UndershootSamples(parameters);
+    uint32_t scanPhaseSmp = ScanPhaseSamples(parameters);
+    uint32_t scanSmp = ScanSamples(parameters);
     uint32_t height = parameters->height;
 
-    uint32_t x_length = lineDelay + width + X_RETRACE_LEN;
+    uint32_t highStart = undershootSmp + scanPhaseSmp;
+    uint32_t x_length = (uint32_t)GetLineWaveformSize(parameters);
     for (uint32_t j = 0; j < height; j++)
         for (uint32_t i = 0; i < x_length; i++)
             lineClock[i + j * x_length] =
-                ((i >= lineDelay) && (i < lineDelay + width)) ? 1 : 0;
+                ((i >= highStart) && (i < highStart + scanSmp)) ? 1 : 0;
 }
 
-// High voltage right after a line acquisition is done
-// like a line clock of reversed polarity
-// specially for B&H FLIM application
 void GenerateFLIMLineClock(const struct WaveformParams *parameters,
                            uint8_t *lineClockFLIM) {
-    uint32_t lineDelay = parameters->undershoot;
-    uint32_t width = parameters->width;
+    uint32_t undershootSmp = UndershootSamples(parameters);
+    uint32_t scanPhaseSmp = ScanPhaseSamples(parameters);
+    uint32_t scanSmp = ScanSamples(parameters);
     uint32_t height = parameters->height;
 
-    uint32_t x_length = lineDelay + width + X_RETRACE_LEN;
+    uint32_t highStart = undershootSmp + scanPhaseSmp + scanSmp;
+    uint32_t x_length = (uint32_t)GetLineWaveformSize(parameters);
     for (uint32_t j = 0; j < height; j++)
         for (uint32_t i = 0; i < x_length; i++)
-            lineClockFLIM[i + j * x_length] = (i >= lineDelay + width) ? 1 : 0;
+            lineClockFLIM[i + j * x_length] = (i >= highStart) ? 1 : 0;
 }
 
-// Frame clock for B&H FLIM
-// High voltage at the end of the frame
 void GenerateFLIMFrameClock(const struct WaveformParams *parameters,
                             uint8_t *frameClockFLIM) {
-    uint32_t lineDelay = parameters->undershoot;
-    uint32_t width = parameters->width;
+    uint32_t undershootSmp = UndershootSamples(parameters);
+    uint32_t scanPhaseSmp = ScanPhaseSamples(parameters);
+    uint32_t scanSmp = ScanSamples(parameters);
     uint32_t height = parameters->height;
 
-    uint32_t x_length = lineDelay + width + X_RETRACE_LEN;
+    uint32_t highStart = undershootSmp + scanPhaseSmp + scanSmp;
+    uint32_t x_length = (uint32_t)GetLineWaveformSize(parameters);
 
     for (uint32_t j = 0; j < height; ++j)
         for (uint32_t i = 0; i < x_length; ++i)
             frameClockFLIM[i + j * x_length] =
-                ((j == height - 1) && (i > lineDelay + width)) ? 1 : 0;
+                ((j == height - 1) && (i > highStart)) ? 1 : 0;
 }
 
 int32_t GetLineWaveformSize(const struct WaveformParams *parameters) {
-    return parameters->undershoot + parameters->width + X_RETRACE_LEN;
+    return (int32_t)(UndershootSamples(parameters) + ScanSamples(parameters) +
+                     ScanPhaseSamples(parameters) +
+                     RetraceSamples(parameters));
 }
 
 int32_t GetClockWaveformSize(const struct WaveformParams *parameters) {
-    uint32_t elementsPerLine = GetLineWaveformSize(parameters);
+    uint32_t elementsPerLine = (uint32_t)GetLineWaveformSize(parameters);
     uint32_t height = parameters->height;
-    return elementsPerLine * height;
+    return (int32_t)(elementsPerLine * height);
 }
 
 int32_t GetScannerWaveformSize(const struct WaveformParams *parameters) {
-    uint32_t elementsPerLine = GetLineWaveformSize(parameters);
+    uint32_t elementsPerLine = (uint32_t)GetLineWaveformSize(parameters);
     uint32_t height = parameters->height;
-    uint32_t yLen = height;
-    return elementsPerLine * yLen; // including y retrace portion
+    return (int32_t)(elementsPerLine * height);
 }
 
 int32_t
 GetScannerWaveformSizeAfterLastPixel(const struct WaveformParams *parameters) {
-    (void)parameters; // Unused
-    return X_RETRACE_LEN;
+    return (int32_t)(ScanPhaseSamples(parameters) +
+                     RetraceSamples(parameters));
 }
 
 int32_t GetParkWaveformSize(const struct WaveformParams *parameters) {
-    (void)parameters; // Unused
-    uint32_t elementsPerLine = X_RETRACE_LEN;
-    return elementsPerLine;
+    return (int32_t)ParkSamples(parameters);
 }
 
-/*
-Generate X and Y waveforms in analog format (voltage) for a whole frame scan
-Format: X|Y in a 1D array for NI DAQ to simultaneously output in two channels
-Analog voltage range (-0.5V, 0.5V) at zoom 1
-Including Y retrace waveform that moves the slow galvo back to its starting
-position
-*/
 void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
                                 double *xyWaveformFrame) {
-    uint32_t pixelsPerLine = parameters->width; // ROI size
+    uint32_t pixelsPerLine = parameters->width;
     uint32_t linesPerFrame = parameters->height;
     uint32_t resolution = parameters->resolution;
     double zoom = parameters->zoom;
-    uint32_t undershoot = parameters->undershoot;
-    uint32_t xOffset = parameters->xOffset; // ROI offset
+    uint32_t xOffset = parameters->xOffset;
     uint32_t yOffset = parameters->yOffset;
     const double *m = parameters->xformMatrix;
     double tx = parameters->xformOffsetX;
     double ty = parameters->xformOffsetY;
 
-    // Voltage ranges of the ROI
+    uint32_t undershootSmp = UndershootSamples(parameters);
+    uint32_t scanSmp = ScanSamples(parameters);
+    uint32_t scanPhaseSmp = ScanPhaseSamples(parameters);
+    uint32_t retraceSmp = RetraceSamples(parameters);
+
     double xStart = (-0.5 * resolution + xOffset) / (zoom * resolution);
     double yStart = (-0.5 * resolution + yOffset) / (zoom * resolution);
-    double xEnd = xStart + pixelsPerLine / (zoom * resolution);
-    double yEnd = yStart + linesPerFrame / (zoom * resolution);
+    double xEnd = xStart + (double)pixelsPerLine / (zoom * resolution);
+    double yEnd = yStart + (double)linesPerFrame / (zoom * resolution);
 
-    size_t xLength = undershoot + pixelsPerLine + X_RETRACE_LEN;
+    size_t xLength = undershootSmp + scanSmp + scanPhaseSmp + retraceSmp;
     size_t yLength = linesPerFrame;
 
     double *xWaveform = (double *)malloc(sizeof(double) * xLength);
     double *yWaveform = (double *)malloc(sizeof(double) * (yLength * xLength));
-    GenerateXGalvoWaveform(pixelsPerLine, X_RETRACE_LEN, undershoot, xStart,
-                           xEnd, xWaveform);
-    GenerateYGalvoWaveform(linesPerFrame, X_RETRACE_LEN, xLength, yStart, yEnd,
-                           yWaveform);
+    GenerateXGalvoWaveform((int32_t)scanSmp, (int32_t)retraceSmp,
+                           (int32_t)undershootSmp, (int32_t)scanPhaseSmp,
+                           xStart, xEnd, xWaveform);
+    GenerateYGalvoWaveform((int32_t)linesPerFrame, (int32_t)retraceSmp,
+                           xLength, yStart, yEnd, yWaveform);
 
     for (unsigned j = 0; j < yLength; ++j) {
         for (unsigned i = 0; i < xLength; ++i) {
@@ -210,16 +230,10 @@ void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
         }
     }
 
-    // TODO When we are scanning multiple frames, the Y retrace can be
-    // simultaneous with the last line's X retrace. (Spline interpolate
-    // with zero slope at each end of retrace.)
-    // TODO Simpler to use interleaved x,y format?
-
     free(xWaveform);
     free(yWaveform);
 }
 
-// Generate waveform from parking to start before one frame
 static void InverseTransform2x2(const double *m, double tx, double ty,
                                 double ox, double oy, double *lx, double *ly) {
     double det = m[0] * m[3] - m[1] * m[2];
@@ -235,21 +249,23 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
     double zoom = parameters->zoom;
     uint32_t xOffset = parameters->xOffset;
     uint32_t yOffset = parameters->yOffset;
-    int32_t undershoot = parameters->undershoot;
     const double *m = parameters->xformMatrix;
     double tx = parameters->xformOffsetX;
     double ty = parameters->xformOffsetY;
 
-    // Inverse-transform previous park voltage to logical space
+    uint32_t undershootSmp = UndershootSamples(parameters);
+    uint32_t scanSmp = ScanSamples(parameters);
+    double step = ScanAmplitude(parameters) / scanSmp;
+
     double xStart, yStart;
     InverseTransform2x2(m, tx, ty, parameters->prevXParkVoltage,
                         parameters->prevYParkVoltage, &xStart, &yStart);
 
-    double xEnd =
-        (-0.5 * resolution + xOffset - undershoot) / (zoom * resolution);
+    double xEnd = (-0.5 * resolution + xOffset) / (zoom * resolution) -
+                  undershootSmp * step;
     double yEnd = (-0.5 * resolution + yOffset) / (zoom * resolution);
 
-    size_t length = X_RETRACE_LEN;
+    size_t length = ParkSamples(parameters);
     double *xWaveform = (double *)malloc(sizeof(double) * length);
     double *yWaveform = (double *)malloc(sizeof(double) * length);
 
@@ -267,27 +283,29 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
     free(yWaveform);
 }
 
-// Generate waveform from start to parking after one frame
 void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
                                double *xyWaveformFrame) {
     uint32_t resolution = parameters->resolution;
     double zoom = parameters->zoom;
     uint32_t xOffset = parameters->xOffset;
     uint32_t yOffset = parameters->yOffset;
-    int32_t undershoot = parameters->undershoot;
     int32_t xPark = parameters->xPark;
     int32_t yPark = parameters->yPark;
     const double *m = parameters->xformMatrix;
     double tx = parameters->xformOffsetX;
     double ty = parameters->xformOffsetY;
 
-    double xStart =
-        (-0.5 * resolution + xOffset - undershoot) / (zoom * resolution);
+    uint32_t undershootSmp = UndershootSamples(parameters);
+    uint32_t scanSmp = ScanSamples(parameters);
+    double step = ScanAmplitude(parameters) / scanSmp;
+
+    double xStart = (-0.5 * resolution + xOffset) / (zoom * resolution) -
+                    undershootSmp * step;
     double yStart = (-0.5 * resolution + yOffset) / (zoom * resolution);
     double xEnd = (-0.5 * resolution + xPark) / (zoom * resolution);
     double yEnd = (-0.5 * resolution + yPark) / (zoom * resolution);
 
-    size_t length = X_RETRACE_LEN;
+    size_t length = ParkSamples(parameters);
     double *xWaveform = (double *)malloc(sizeof(double) * length);
     double *yWaveform = (double *)malloc(sizeof(double) * length);
 

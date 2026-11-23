@@ -40,6 +40,22 @@ def run_tool(args: list[str], tmp: Path) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
+def timing_args(
+    pixel_rate: int,
+    ao_rate: int,
+    undershoot_us: float,
+    scan_phase_us: float,
+    retrace_scale: float,
+) -> list[str]:
+    return [
+        "--pixel-rate", str(pixel_rate),
+        "--ao-rate", str(ao_rate),
+        "--undershoot-us", str(undershoot_us),
+        "--scan-phase-us", str(scan_phase_us),
+        "--retrace-scale", str(retrace_scale),
+    ]
+
+
 def generate_raster(
     resolution: int,
     width: int,
@@ -47,7 +63,11 @@ def generate_raster(
     x_offset: int,
     y_offset: int,
     zoom: float,
-    undershoot: int,
+    pixel_rate: int,
+    ao_rate: int,
+    undershoot_us: float,
+    scan_phase_us: float,
+    retrace_scale: float,
     tform: tuple[float, float, float, float],
     tform_offset: tuple[float, float],
 ) -> tuple[np.ndarray, np.ndarray] | str:
@@ -62,7 +82,7 @@ def generate_raster(
             "--xoffset", str(x_offset),
             "--yoffset", str(y_offset),
             "--zoom", str(zoom),
-            "--undershoot", str(undershoot),
+            *timing_args(pixel_rate, ao_rate, undershoot_us, scan_phase_us, retrace_scale),
             "--tform", f"{tform[0]},{tform[1]},{tform[2]},{tform[3]}",
             "--tform-offset", f"{tform_offset[0]},{tform_offset[1]}",
         ], tmp)
@@ -80,16 +100,24 @@ def generate_raster(
 def generate_clock(
     width: int,
     height: int,
-    undershoot: int,
+    resolution: int,
+    zoom: float,
+    pixel_rate: int,
+    ao_rate: int,
+    undershoot_us: float,
+    scan_phase_us: float,
+    retrace_scale: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | str:
     with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as f:
         tmp = Path(f.name)
     try:
         result = run_tool([
             "clock",
+            "--resolution", str(resolution),
             "--width", str(width),
             "--height", str(height),
-            "--undershoot", str(undershoot),
+            "--zoom", str(zoom),
+            *timing_args(pixel_rate, ao_rate, undershoot_us, scan_phase_us, retrace_scale),
         ], tmp)
         if result.returncode != 0:
             return result.stderr.strip() or f"clock exited with code {result.returncode}"
@@ -105,7 +133,11 @@ def generate_clock(
 def generate_park(
     resolution: int,
     zoom: float,
-    undershoot: int,
+    pixel_rate: int,
+    ao_rate: int,
+    undershoot_us: float,
+    scan_phase_us: float,
+    retrace_scale: float,
     x_offset: int,
     y_offset: int,
     xpark: int,
@@ -120,7 +152,7 @@ def generate_park(
             "park",
             "--resolution", str(resolution),
             "--zoom", str(zoom),
-            "--undershoot", str(undershoot),
+            *timing_args(pixel_rate, ao_rate, undershoot_us, scan_phase_us, retrace_scale),
             "--xoffset", str(x_offset),
             "--yoffset", str(y_offset),
             "--xpark", str(xpark),
@@ -142,7 +174,11 @@ def generate_park(
 def generate_unpark(
     resolution: int,
     zoom: float,
-    undershoot: int,
+    pixel_rate: int,
+    ao_rate: int,
+    undershoot_us: float,
+    scan_phase_us: float,
+    retrace_scale: float,
     x_offset: int,
     y_offset: int,
     xpark: int,
@@ -159,7 +195,7 @@ def generate_unpark(
             "unpark",
             "--resolution", str(resolution),
             "--zoom", str(zoom),
-            "--undershoot", str(undershoot),
+            *timing_args(pixel_rate, ao_rate, undershoot_us, scan_phase_us, retrace_scale),
             "--xoffset", str(x_offset),
             "--yoffset", str(y_offset),
             "--xpark", str(xpark),
@@ -205,7 +241,11 @@ def on_generate(_sender=None, _data=None):
     x_offset = dpg.get_value("x_offset")
     y_offset = dpg.get_value("y_offset")
     zoom = dpg.get_value("zoom")
-    undershoot = dpg.get_value("undershoot")
+    pixel_rate = dpg.get_value("pixel_rate")
+    ao_rate = dpg.get_value("ao_rate")
+    undershoot_us = dpg.get_value("undershoot_us")
+    scan_phase_us = dpg.get_value("scan_phase_us")
+    retrace_scale = dpg.get_value("retrace_scale")
     tform = (
         dpg.get_value("tform_a"),
         dpg.get_value("tform_b"),
@@ -221,27 +261,33 @@ def on_generate(_sender=None, _data=None):
     errors = []
 
     unpark_result = generate_unpark(
-        resolution, zoom, undershoot, x_offset, y_offset,
+        resolution, zoom, pixel_rate, ao_rate, undershoot_us,
+        scan_phase_us, retrace_scale, x_offset, y_offset,
         xpark, ypark, prev_xpv, prev_ypv, tform, tform_offset,
     )
     if isinstance(unpark_result, str):
         errors.append(unpark_result)
 
     raster_result = generate_raster(
-        resolution, width, height, x_offset, y_offset, zoom, undershoot,
+        resolution, width, height, x_offset, y_offset, zoom,
+        pixel_rate, ao_rate, undershoot_us, scan_phase_us, retrace_scale,
         tform, tform_offset,
     )
     if isinstance(raster_result, str):
         errors.append(raster_result)
 
     park_result = generate_park(
-        resolution, zoom, undershoot, x_offset, y_offset,
+        resolution, zoom, pixel_rate, ao_rate, undershoot_us,
+        scan_phase_us, retrace_scale, x_offset, y_offset,
         xpark, ypark, tform, tform_offset,
     )
     if isinstance(park_result, str):
         errors.append(park_result)
 
-    clock_result = generate_clock(width, height, undershoot)
+    clock_result = generate_clock(
+        width, height, resolution, zoom,
+        pixel_rate, ao_rate, undershoot_us, scan_phase_us, retrace_scale,
+    )
     if isinstance(clock_result, str):
         errors.append(clock_result)
 
@@ -408,10 +454,34 @@ def main():
                     default_value=1.0, min_value=0.01, min_clamped=True,
                     format="%.3f", callback=on_generate,
                 )
+
+                dpg.add_separator()
+                dpg.add_text("Timing")
+
                 dpg.add_input_int(
-                    label="Undershoot", tag="undershoot",
-                    default_value=0, min_value=0, min_clamped=True,
+                    label="Pixel Rate (Hz)", tag="pixel_rate",
+                    default_value=200000, min_value=1, min_clamped=True,
                     callback=on_generate,
+                )
+                dpg.add_input_int(
+                    label="AO Rate (Hz)", tag="ao_rate",
+                    default_value=200000, min_value=1, min_clamped=True,
+                    callback=on_generate,
+                )
+                dpg.add_input_float(
+                    label="Undershoot (us)", tag="undershoot_us",
+                    default_value=250.0, min_value=0.0, min_clamped=True,
+                    format="%.1f", callback=on_generate,
+                )
+                dpg.add_input_float(
+                    label="Scan Phase (us)", tag="scan_phase_us",
+                    default_value=0.0, min_value=0.0, min_clamped=True,
+                    format="%.1f", callback=on_generate,
+                )
+                dpg.add_input_float(
+                    label="Retrace Scale (us/V)", tag="retrace_scale",
+                    default_value=640.0, min_value=1.0, min_clamped=True,
+                    format="%.1f", callback=on_generate,
                 )
 
                 dpg.add_separator()
