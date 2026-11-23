@@ -167,16 +167,14 @@ error:
 
 // Remove all DAQmx configuration for the scanner
 OScDev_RichError *ShutdownScanner(struct ScannerConfig *config) {
-    OScDev_RichError *err;
+    OScDev_RichError *err = OScDev_RichError_OK;
     if (config->aoTask) {
         err = CreateDAQmxError(DAQmxClearTask(config->aoTask));
-        if (err) {
+        if (err)
             err = OScDev_Error_Wrap(err, "Failed to clear scanner task");
-            return err;
-        }
         config->aoTask = 0;
     }
-    return OScDev_RichError_OK;
+    return err;
 }
 
 OScDev_RichError *StartScanner(struct ScannerConfig *config) {

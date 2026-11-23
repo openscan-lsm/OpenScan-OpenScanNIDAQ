@@ -513,16 +513,14 @@ error:
 // This can be called to force task recreation the next time the detector is
 // armed
 OScDev_RichError *ShutdownDetector(struct DetectorConfig *config) {
-    OScDev_RichError *err;
+    OScDev_RichError *err = OScDev_RichError_OK;
     if (config->aiTask) {
         err = CreateDAQmxError(DAQmxClearTask(config->aiTask));
-        if (err) {
+        if (err)
             err = OScDev_Error_Wrap(err, "Failed to clear detector task");
-            return err;
-        }
         config->aiTask = 0;
     }
-    return OScDev_RichError_OK;
+    return err;
 }
 
 OScDev_RichError *StartDetector(struct DetectorConfig *config) {

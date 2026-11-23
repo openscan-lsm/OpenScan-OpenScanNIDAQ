@@ -1,10 +1,13 @@
 #include "OpenScanDevice.h"
 
 #include "Acquisition.h"
+#include "Clock.h"
 #include "DAQConfig.h"
 #include "DAQError.h"
+#include "Detector.h"
 #include "DeviceImplData.h"
 #include "OpenScanSettings.h"
+#include "Scanner.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
@@ -107,8 +110,27 @@ static OScDev_Error NIDAQOpen(OScDev_Device *device) {
     return OScDev_Error_ReturnAsCode(err);
 }
 
+static void LogAndDestroyError(OScDev_Device *device, OScDev_RichError *err) {
+    if (!err)
+        return;
+    char msg[OScDev_MAX_STR_LEN + 1];
+    OScDev_Error_FormatRecursive(err, msg, sizeof(msg));
+    OScDev_Log_Error(device, msg);
+    OScDev_Error_Destroy(err);
+}
+
+static void ShutdownAllTasks(OScDev_Device *device) {
+    LogAndDestroyError(device,
+                       ShutdownDetector(&GetImplData(device)->detectorConfig));
+    LogAndDestroyError(device,
+                       ShutdownClock(&GetImplData(device)->clockConfig));
+    LogAndDestroyError(device,
+                       ShutdownScanner(&GetImplData(device)->scannerConfig));
+}
+
 static OScDev_Error NIDAQClose(OScDev_Device *device) {
     StopAcquisitionAndWait(device);
+    ShutdownAllTasks(device);
     return OScDev_OK;
 }
 
