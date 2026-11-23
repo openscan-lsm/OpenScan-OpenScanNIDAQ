@@ -404,6 +404,8 @@ static void PopulateParams(const struct Args *args,
     params->yPark = args->yPark;
     params->prevXParkVoltage = args->prevXParkVoltage;
     params->prevYParkVoltage = args->prevYParkVoltage;
+    params->numLaserChannels = 0;
+    memset(params->lasers, 0, sizeof(params->lasers));
 }
 
 static int WriteXYCsv(FILE *f, const double *xy, uint32_t n) {

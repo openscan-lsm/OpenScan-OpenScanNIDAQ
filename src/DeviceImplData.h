@@ -3,6 +3,7 @@
 #include "Clock.h"
 #include "Detector.h"
 #include "Scanner.h"
+#include "Waveform.h"
 
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
@@ -63,6 +64,9 @@ struct DeviceImplData {
     int numAIPhysChans; // Not to exceed MAX_PHYSICAL_CHANS
     ss8str aiPhysChans; // at least numAIPhysChans elements separated by ", "
     bool channelEnabled[MAX_PHYSICAL_CHANS];
+
+    ss8str aoPhysChans; // analogous to aiPhysChans
+    struct LaserChannelParams lasers[MAX_LASER_CHANNELS]; // ao2, ao3
 
     // Read, but unprocessed, raw samples; channels interleaved
     // Leftover data from the previous read, if any, is at the start of the
