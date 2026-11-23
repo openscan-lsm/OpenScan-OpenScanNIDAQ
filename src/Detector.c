@@ -175,6 +175,10 @@ static int32 DetectorDataCallback(TaskHandle taskHandle,
     if (errCode) {
         err = CreateDAQmxError(errCode);
         err = OScDev_Error_Wrap(err, "Failed to read detector samples");
+        char msg[OScDev_MAX_STR_LEN + 1];
+        OScDev_Error_FormatRecursive(err, msg, sizeof(msg));
+        OScDev_Log_Error(device, msg);
+        OScDev_Error_Destroy(err);
         goto error;
     }
 
@@ -312,6 +316,43 @@ UnconfigureDetectorCallback(struct DetectorConfig *config) {
     return OScDev_RichError_OK;
 }
 
+// Minimum input buffer size (total samples, all channels) for USB devices,
+// whose data arrives in transfer requests that may exceed a small buffer.
+// Returns 0 for non-USB devices.
+static OScDev_RichError *
+GetMinUSBInputBufferSize(struct DetectorConfig *config, size_t *minSamples) {
+    *minSamples = 0;
+    OScDev_RichError *err;
+
+    char chan[256];
+    err = CreateDAQmxError(
+        DAQmxGetNthTaskChannel(config->aiTask, 1, chan, sizeof(chan)));
+    if (err)
+        return OScDev_Error_Wrap(err, "Failed to get detector channel name");
+
+    uInt32 reqSizeBytes;
+    int32 errCode =
+        DAQmxGetAIUsbXferReqSize(config->aiTask, chan, &reqSizeBytes);
+    if (errCode == DAQmxErrorAttributeNotSupportedInTaskContext)
+        return OScDev_RichError_OK;
+    err = CreateDAQmxError(errCode);
+    if (err)
+        return OScDev_Error_Wrap(
+            err, "Failed to get USB transfer request size for detector");
+
+    uInt32 reqCount;
+    err = CreateDAQmxError(
+        DAQmxGetAIUsbXferReqCount(config->aiTask, chan, &reqCount));
+    if (err)
+        return OScDev_Error_Wrap(
+            err, "Failed to get USB transfer request count for detector");
+
+    // Room for all in-flight transfers, plus as much again for the reader.
+    // Assumes 2-byte raw samples (overestimates for wider samples).
+    *minSamples = 2 * (size_t)reqCount * reqSizeBytes / 2;
+    return OScDev_RichError_OK;
+}
+
 static OScDev_RichError *
 ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
                           OScDev_Acquisition *acq) {
@@ -334,8 +375,17 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
     uint32_t pixelsPerFrame = pixelsPerLine * height;
     uint32_t samplesPerChanPerLine = pixelsPerLine;
     uint32_t numChannels = GetNumberOfEnabledChannels(device);
-    size_t bufferSize = GetImplData(device)->numLinesToBuffer *
-                        samplesPerChanPerLine * numChannels;
+    size_t samplesPerLine = (size_t)samplesPerChanPerLine * numChannels;
+
+    size_t minUSBSamples;
+    err = GetMinUSBInputBufferSize(config, &minUSBSamples);
+    if (err)
+        return err;
+    size_t linesToBuffer = GetImplData(device)->numLinesToBuffer;
+    size_t minUSBLines = (minUSBSamples + samplesPerLine - 1) / samplesPerLine;
+    if (minUSBLines > linesToBuffer)
+        linesToBuffer = minUSBLines;
+    size_t bufferSize = linesToBuffer * samplesPerLine;
 
     char msg[1024];
     snprintf(msg, sizeof(msg) - 1, "Using DAQmx input buffer of size %zd",
