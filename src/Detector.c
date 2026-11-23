@@ -386,14 +386,16 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
     if (minUSBLines > linesToBuffer)
         linesToBuffer = minUSBLines;
     size_t bufferSize = linesToBuffer * samplesPerLine;
+    size_t bufferSizePerChan = linesToBuffer * samplesPerChanPerLine;
 
     char msg[1024];
-    snprintf(msg, sizeof(msg) - 1, "Using DAQmx input buffer of size %zd",
-             bufferSize);
+    snprintf(msg, sizeof(msg) - 1,
+             "Using DAQmx input buffer of %zu lines (%zu samples per channel)",
+             linesToBuffer, bufferSizePerChan);
     OScDev_Log_Debug(device, msg);
 
     err = CreateDAQmxError(
-        DAQmxCfgInputBuffer(config->aiTask, (uInt32)bufferSize));
+        DAQmxCfgInputBuffer(config->aiTask, (uInt32)bufferSizePerChan));
     if (err) {
         err = OScDev_Error_Wrap(
             err, "Failed to configure input buffer for detector");
