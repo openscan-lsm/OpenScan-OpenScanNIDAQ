@@ -89,6 +89,15 @@ OScDev_RichError *EnsureTimingCapsQueried(OScDev_Device *device) {
         err = OScDev_Error_Wrap(err, "Failed to configure timing-query task");
         goto cleanup;
     }
+    // Without a write, the AO buffer size is 0 (interpreted as hardware-timed
+    // non-buffered), which real USB devices reject at commit; simulated
+    // devices may not reproduce this.
+    err = CreateDAQmxError(DAQmxCfgOutputBuffer(task, 1000));
+    if (err) {
+        err = OScDev_Error_Wrap(
+            err, "Failed to configure timing-query output buffer");
+        goto cleanup;
+    }
     err = CreateDAQmxError(DAQmxTaskControl(task, DAQmx_Val_Task_Commit));
     if (err) {
         err = OScDev_Error_Wrap(err, "Failed to commit timing-query task");
