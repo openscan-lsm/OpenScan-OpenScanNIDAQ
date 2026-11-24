@@ -3,6 +3,8 @@
 #include <NIDAQmx.h>
 #include <OpenScanDeviceLib.h>
 
+#include <stdint.h>
+
 // DAQmx task and flags to track invalidated configurations for scanner
 // See Scanner.c
 struct ScannerConfig {
@@ -17,6 +19,13 @@ OScDev_RichError *SetUpScanner(OScDev_Device *device,
 OScDev_RichError *ShutdownScanner(struct ScannerConfig *config);
 OScDev_RichError *StartScanner(struct ScannerConfig *config);
 OScDev_RichError *StopScanner(struct ScannerConfig *config);
+
+OScDev_RichError *GetScannerSamplesGenerated(struct ScannerConfig *config,
+                                             uint64_t *generated);
+// Wait for a finite scan to finish generating all of its samples
+OScDev_RichError *WaitForScannerDone(OScDev_Device *device,
+                                     struct ScannerConfig *config,
+                                     OScDev_Acquisition *acq);
 
 OScDev_RichError *CreateScannerTask(OScDev_Device *device,
                                     struct ScannerConfig *config);

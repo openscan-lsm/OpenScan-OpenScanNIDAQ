@@ -92,7 +92,8 @@ cleanup:
 
 OScDev_RichError *WriteParkOutput(OScDev_Device *device,
                                   struct ScannerConfig *config,
-                                  OScDev_Acquisition *acq) {
+                                  OScDev_Acquisition *acq, double startXVolts,
+                                  double startYVolts) {
     struct WaveformParams params;
     SetWaveformParamsFromDevice(device, &params, acq);
 
@@ -101,7 +102,8 @@ OScDev_RichError *WriteParkOutput(OScDev_Device *device,
     double *xyWaveformFrame =
         (double *)malloc(sizeof(double) * totalElementsPerFramePerChan * nch);
 
-    GenerateGalvoParkWaveform(&params, xyWaveformFrame);
+    GenerateGalvoParkWaveform(&params, startXVolts, startYVolts,
+                              xyWaveformFrame);
     for (int i = 0; i < params.numLaserChannels; ++i)
         GenerateLaserBlankingConstant(
             &params.lasers[i], totalElementsPerFramePerChan,

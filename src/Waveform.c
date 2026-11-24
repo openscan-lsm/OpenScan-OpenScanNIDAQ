@@ -244,6 +244,17 @@ void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
     free(yWaveform);
 }
 
+void GetGalvoWaveformFrameSample(const struct WaveformParams *parameters,
+                                 uint32_t index, double *xVolts,
+                                 double *yVolts) {
+    size_t frameSize = (size_t)GetScannerWaveformSize(parameters);
+    double *frame = (double *)malloc(sizeof(double) * frameSize * 2);
+    GenerateGalvoWaveformFrame(parameters, frame);
+    *xVolts = frame[index];
+    *yVolts = frame[index + frameSize];
+    free(frame);
+}
+
 void GenerateLaserBlankingWaveform(const struct WaveformParams *params,
                                    const struct LaserChannelParams *laser,
                                    double *blanking) {
@@ -331,24 +342,18 @@ void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
 }
 
 void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
+                               double startXVolts, double startYVolts,
                                double *xyWaveformFrame) {
     uint32_t resolution = parameters->resolution;
     double zoom = parameters->zoom;
-    uint32_t xOffset = parameters->xOffset;
-    uint32_t yOffset = parameters->yOffset;
     int32_t xPark = parameters->xPark;
     int32_t yPark = parameters->yPark;
     const double *m = parameters->xformMatrix;
     double tx = parameters->xformOffsetX;
     double ty = parameters->xformOffsetY;
 
-    uint32_t undershootSmp = UndershootSamples(parameters);
-    uint32_t scanSmp = ScanSamples(parameters);
-    double step = ScanAmplitude(parameters) / scanSmp;
-
-    double xStart = (-0.5 * resolution + xOffset) / (zoom * resolution) -
-                    undershootSmp * step;
-    double yStart = (-0.5 * resolution + yOffset) / (zoom * resolution);
+    double xStart, yStart;
+    InverseTransform2x2(m, tx, ty, startXVolts, startYVolts, &xStart, &yStart);
     double xEnd = (-0.5 * resolution + xPark) / (zoom * resolution);
     double yEnd = (-0.5 * resolution + yPark) / (zoom * resolution);
 
