@@ -199,6 +199,46 @@ OScDev_RichError *StopScanner(struct ScannerConfig *config) {
     return OScDev_RichError_OK;
 }
 
+OScDev_RichError *GetScannerSamplesGenerated(struct ScannerConfig *config,
+                                             uint64_t *generated) {
+    if (!config->aoTask)
+        return OScDev_Error_Create(
+            "Cannot get samples generated: no scanner task");
+    uInt64 v = 0;
+    OScDev_RichError *err = CreateDAQmxError(
+        DAQmxGetWriteTotalSampPerChanGenerated(config->aoTask, &v));
+    if (err)
+        return OScDev_Error_Wrap(
+            err, "Failed to get number of scanner samples generated");
+    *generated = v;
+    return OScDev_RichError_OK;
+}
+
+OScDev_RichError *WaitForScannerDone(OScDev_Device *device,
+                                     struct ScannerConfig *config,
+                                     OScDev_Acquisition *acq) {
+    struct WaveformParams params;
+    SetWaveformParamsFromDevice(device, &params, acq);
+    uint64_t total = (uint64_t)OScDev_Acquisition_GetNumberOfFrames(acq) *
+                     (uint64_t)GetScannerWaveformSize(&params);
+
+    uint64_t generated = 0;
+    OScDev_RichError *err = GetScannerSamplesGenerated(config, &generated);
+    if (err)
+        return err;
+    uint64_t remaining = generated < total ? total - generated : 0;
+
+    double timeoutSec = 2.0 * (double)remaining / params.aoRateHz;
+    if (timeoutSec < 1.0)
+        timeoutSec = 1.0;
+
+    err = CreateDAQmxError(DAQmxWaitUntilTaskDone(config->aoTask, timeoutSec));
+    if (err)
+        return OScDev_Error_Wrap(err,
+                                 "Failed to wait for scanner task to finish");
+    return OScDev_RichError_OK;
+}
+
 OScDev_RichError *CreateScannerTask(OScDev_Device *device,
                                     struct ScannerConfig *config) {
     if (!(config)->aoTask) {

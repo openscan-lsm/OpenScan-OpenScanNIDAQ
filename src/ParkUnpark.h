@@ -18,7 +18,8 @@ OScDev_RichError *WriteUnparkOutput(OScDev_Device *device,
 
 OScDev_RichError *WriteParkOutput(OScDev_Device *device,
                                   struct ScannerConfig *config,
-                                  OScDev_Acquisition *acq);
+                                  OScDev_Acquisition *acq, double startXVolts,
+                                  double startYVolts);
 
 OScDev_RichError *GenerateUnparkOutput(OScDev_Device *device,
                                        struct ScannerConfig *config,

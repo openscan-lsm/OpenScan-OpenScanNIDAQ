@@ -151,12 +151,21 @@ static void LogRichError(OScDev_Device *device, OScDev_RichError *err) {
     OScDev_Log_Error(device, msg);
 }
 
+static void LogAndDestroyRichWarning(OScDev_Device *device,
+                                     OScDev_RichError *err) {
+    char msg[OScDev_MAX_STR_LEN + 1];
+    OScDev_Error_FormatRecursive(err, msg, sizeof(msg));
+    OScDev_Log_Warning(device, msg);
+    OScDev_Error_Destroy(err);
+}
+
 static DWORD WINAPI AcquisitionLoop(void *param) {
     OScDev_Device *device = (OScDev_Device *)param;
     OScDev_Acquisition *acq = GetImplData(device)->acquisition.acquisition;
 
     uint32_t totalFrames = OScDev_Acquisition_GetNumberOfFrames(acq);
     OScDev_RichError *err;
+    uint64_t samplesGenerated = 0;
 
     err = CreateScannerTask(device, &GetImplData(device)->scannerConfig);
     if (err) {
@@ -207,8 +216,8 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
         goto park;
     }
 
-    for (uint32_t frame = 0; totalFrames >= INT32_MAX || frame < totalFrames;
-         ++frame) {
+    uint32_t frame;
+    for (frame = 0; totalFrames >= INT32_MAX || frame < totalFrames; ++frame) {
         bool stopRequested;
         EnterCriticalSection(&(GetImplData(device)->acquisition.mutex));
         stopRequested = GetImplData(device)->acquisition.stopRequested;
@@ -283,9 +292,24 @@ static DWORD WINAPI AcquisitionLoop(void *param) {
         }
     }
 
+    bool allFramesAcquired = totalFrames < INT32_MAX && frame == totalFrames;
+    if (allFramesAcquired) {
+        err = WaitForScannerDone(device, &GetImplData(device)->scannerConfig,
+                                 acq);
+        if (err)
+            LogRichError(device, err);
+    }
+
     err = StopScan(device);
     if (err)
         LogRichError(device, err);
+
+    err = GetScannerSamplesGenerated(&GetImplData(device)->scannerConfig,
+                                     &samplesGenerated);
+    if (err) {
+        LogAndDestroyRichWarning(device, err);
+        samplesGenerated = 0;
+    }
 
 park:
     err = CreateScannerTask(device, &GetImplData(device)->scannerConfig);
@@ -301,7 +325,31 @@ park:
         goto finish;
     }
 
-    err = WriteParkOutput(device, &GetImplData(device)->scannerConfig, acq);
+    {
+        struct WaveformParams parkParams;
+        SetWaveformParamsFromDevice(device, &parkParams, acq);
+        uint64_t frameSize = (uint64_t)GetScannerWaveformSize(&parkParams);
+        // The AO holds the last generated sample; with none generated, it is
+        // still at the unpark endpoint, which equals frame sample 0.
+        uint32_t stopIndex =
+            samplesGenerated == 0
+                ? 0
+                : (uint32_t)((samplesGenerated - 1) % frameSize);
+        double parkStartX, parkStartY;
+        GetGalvoWaveformFrameSample(&parkParams, stopIndex, &parkStartX,
+                                    &parkStartY);
+
+        char msg[OScDev_MAX_STR_LEN + 1];
+        snprintf(msg, sizeof(msg),
+                 "Scanner stopped after %llu samples (frame index %u); "
+                 "parking from (%f, %f) V",
+                 (unsigned long long)samplesGenerated, stopIndex, parkStartX,
+                 parkStartY);
+        OScDev_Log_Debug(device, msg);
+
+        err = WriteParkOutput(device, &GetImplData(device)->scannerConfig, acq,
+                              parkStartX, parkStartY);
+    }
     if (err) {
         LogRichError(device, err);
         goto finish;

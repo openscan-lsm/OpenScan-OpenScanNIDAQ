@@ -537,7 +537,11 @@ static int ExportPark(const struct Args *args) {
         return 0;
     }
 
-    GenerateGalvoParkWaveform(&params, xy);
+    double startX, startY;
+    GetGalvoWaveformFrameSample(&params,
+                                (uint32_t)GetScannerWaveformSize(&params) - 1,
+                                &startX, &startY);
+    GenerateGalvoParkWaveform(&params, startX, startY, xy);
 
     FILE *f = fopen(args->outputFile, args->format == FORMAT_CSV ? "w" : "wb");
     if (!f) {

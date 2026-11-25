@@ -64,9 +64,13 @@ GetScannerWaveformSizeAfterLastPixel(const struct WaveformParams *parameters);
 int32_t GetParkWaveformSize(const struct WaveformParams *parameters);
 void GenerateGalvoWaveformFrame(const struct WaveformParams *parameters,
                                 double *xyWaveformFrame);
+void GetGalvoWaveformFrameSample(const struct WaveformParams *parameters,
+                                 uint32_t index, double *xVolts,
+                                 double *yVolts);
 void GenerateGalvoUnparkWaveform(const struct WaveformParams *parameters,
                                  double *xyWaveformFrame);
 void GenerateGalvoParkWaveform(const struct WaveformParams *parameters,
+                               double startXVolts, double startYVolts,
                                double *xyWaveformFrame);
 
 uint32_t LaserOnLeadSamples(const struct WaveformParams *params,
