@@ -316,6 +316,35 @@ UnconfigureDetectorCallback(struct DetectorConfig *config) {
     return OScDev_RichError_OK;
 }
 
+// The Every N Samples event count persists across task stop/start. Stopping
+// mid-line (e.g. ending a Live acquisition) leaves a remainder, after which
+// every event fires that many samples before the end of a line, and the last
+// partial line of a finite acquisition is never read. Re-registering (before
+// each start) resets the count.
+static OScDev_RichError *
+RegisterDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
+                         OScDev_Acquisition *acq) {
+    uint32_t xOffset, yOffset, width, height;
+    OScDev_Acquisition_GetROI(acq, &xOffset, &yOffset, &width, &height);
+
+    // Registering the callback in DAQmx is not idempotent, so we need to
+    // clear any existing callback.
+    OScDev_RichError *err = UnconfigureDetectorCallback(config);
+    if (err)
+        return err;
+
+    // TODO: It probably makes sense to scale the callback frequency so that
+    // it is called at roughly 10 Hz. For now it is called once per line.
+
+    err = CreateDAQmxError(DAQmxRegisterEveryNSamplesEvent(
+        config->aiTask, DAQmx_Val_Acquired_Into_Buffer, width, 0,
+        DetectorDataCallback, device));
+    if (err)
+        return OScDev_Error_Wrap(err,
+                                 "Failed to register callback for detector");
+    return OScDev_RichError_OK;
+}
+
 // Minimum input buffer size (total samples, all channels) for USB devices,
 // whose data arrives in transfer requests that may exceed a small buffer.
 // Returns 0 for non-USB devices.
@@ -361,8 +390,6 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
 
     OScDev_RichError *err;
 
-    // Registering the callback in DAQmx is not idempotent, so we need to
-    // clear any existing callback.
     err = UnconfigureDetectorCallback(config);
     if (err)
         return err;
@@ -434,19 +461,7 @@ ConfigureDetectorCallback(OScDev_Device *device, struct DetectorConfig *config,
         return err;
     }
 
-    // TODO: It probably makes sense to scale the callback frequency so that
-    // it is called at roughly 10 Hz. For now it is called once per line.
-
-    err = CreateDAQmxError(DAQmxRegisterEveryNSamplesEvent(
-        config->aiTask, DAQmx_Val_Acquired_Into_Buffer, samplesPerChanPerLine,
-        0, DetectorDataCallback, device));
-    if (err) {
-        err =
-            OScDev_Error_Wrap(err, "Failed to register callback for detector");
-        return err;
-    }
-
-    return OScDev_RichError_OK;
+    return RegisterDetectorCallback(device, config, acq);
 }
 
 // Initialize, configure, and arm the detector, whatever its current state
@@ -489,6 +504,10 @@ OScDev_RichError *SetUpDetector(OScDev_Device *device,
             goto error;
         config->mustReconfigureCallback = false;
         mustCommit = true;
+    } else {
+        err = RegisterDetectorCallback(device, config, acq);
+        if (err)
+            goto error;
     }
 
     if (mustCommit) {
